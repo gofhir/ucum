@@ -51,69 +51,85 @@ func (p *parser) parse(code string) (*term, error) {
 	return t, nil
 }
 
-// parseTerm parses:
-//
-//	term = "/" term
-//	     | comp [ ("/" | ".") term ]
-//	     | annotation
-func (p *parser) parseTerm(lex *lexer) (*term, error) {
-	// Leading "/" -> implicit factor(1) divided by the rest.
-	if lex.getType() == tokenSolidus {
-		if err := lex.consume(); err != nil {
-			return nil, err
-		}
-		rest, err := p.parseTerm(lex)
-		if err != nil {
-			return nil, err
-		}
-		return &term{
-			comp: &factor{value: 1},
-			op:   opDivision,
-			term: rest,
-		}, nil
-	}
-
-	// Annotation -> factor(1), discard the annotation text.
+// parseCompOrAnnotation parses either a component or an annotation (treated as
+// factor(1)). It also consumes any trailing annotation after the component.
+func (p *parser) parseCompOrAnnotation(lex *lexer) (component, error) {
 	if lex.getType() == tokenAnnotation {
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
-		return &term{comp: &factor{value: 1}}, nil
+		return &factor{value: 1}, nil
 	}
-
 	comp, err := p.parseComp(lex)
 	if err != nil {
 		return nil, err
 	}
-
-	t := &term{comp: comp}
-
-	// Optional annotation after a component (e.g. "m{annotation}").
+	// Consume optional trailing annotation (e.g. "m{annotation}").
 	if lex.getType() == tokenAnnotation {
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
-		// Annotation is discarded; the component stands as-is.
+	}
+	return comp, nil
+}
+
+// parseTerm parses:
+//
+//	term = "/" compOrAnnotation [ ("/" | ".") compOrAnnotation ]*
+//	     | compOrAnnotation [ ("/" | ".") compOrAnnotation ]*
+//
+// Operators are left-associative: a/b/c = (a/b)/c.
+func (p *parser) parseTerm(lex *lexer) (*term, error) {
+	var result *term
+
+	// Leading "/" -> implicit factor(1) divided by the next comp.
+	if lex.getType() == tokenSolidus {
+		if err := lex.consume(); err != nil {
+			return nil, err
+		}
+		right, err := p.parseCompOrAnnotation(lex)
+		if err != nil {
+			return nil, err
+		}
+		result = &term{
+			comp: &factor{value: 1},
+			op:   opDivision,
+			term: &term{comp: right},
+		}
+	} else {
+		comp, err := p.parseCompOrAnnotation(lex)
+		if err != nil {
+			return nil, err
+		}
+		result = &term{comp: comp}
 	}
 
-	// Optional operator followed by another term.
-	if lex.getType() == tokenSolidus || lex.getType() == tokenPeriod {
+	// Iteratively parse operators for left-associativity.
+	// a/b/c -> term(term(a, /, b), /, c)
+	for lex.getType() == tokenSolidus || lex.getType() == tokenPeriod {
+		var op operator
 		if lex.getType() == tokenSolidus {
-			t.op = opDivision
+			op = opDivision
 		} else {
-			t.op = opMultiplication
+			op = opMultiplication
 		}
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
-		rest, err := p.parseTerm(lex)
+
+		right, err := p.parseCompOrAnnotation(lex)
 		if err != nil {
 			return nil, err
 		}
-		t.term = rest
+
+		result = &term{
+			comp: result,
+			op:   op,
+			term: &term{comp: right},
+		}
 	}
 
-	return t, nil
+	return result, nil
 }
 
 // parseComp parses:
@@ -187,7 +203,11 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 			// Try with bracket suffix first.
 			if bracket != "" {
 				u := p.model.getUnit(remainder + bracket)
-				if u != nil && (u.IsMetric || u.IsBase) {
+				// For bracket units (e.g. [IU], [iU]), allow metric prefixes
+				// even if IsMetric is not set. The UCUM spec permits prefixes
+				// on arbitrary units expressed with bracket notation, and the
+				// Java reference parser does the same.
+				if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(remainder+bracket, "[")) {
 					// Consume the bracket token.
 					if err := lex.consume(); err != nil {
 						return nil, err
@@ -206,6 +226,27 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 					return nil, err
 				}
 				return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
+			}
+		}
+	}
+
+	// If the entire token equals a prefix code and there's a bracket unit
+	// following (e.g. token "m" + bracket "[IU]" -> prefix "m" + unit "[IU]"),
+	// try matching the bracket alone as the unit with the token as prefix.
+	if bracket != "" {
+		for _, pfx := range p.sortedPrefixes {
+			if tok == pfx.Code {
+				u := p.model.getUnit(bracket)
+				if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(bracket, "[")) {
+					if err := lex.consume(); err != nil {
+						return nil, err
+					}
+					exp, err := p.parseExponent(lex)
+					if err != nil {
+						return nil, err
+					}
+					return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
+				}
 			}
 		}
 	}

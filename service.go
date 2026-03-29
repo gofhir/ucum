@@ -430,9 +430,7 @@ func analyseComponentHuman(sb *strings.Builder, c component) {
 			fmt.Fprintf(sb, "%d", v.exponent)
 		}
 	case *term:
-		sb.WriteByte('(')
 		analyseTermHumanTo(sb, v)
-		sb.WriteByte(')')
 	}
 }
 

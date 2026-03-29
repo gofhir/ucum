@@ -2,6 +2,7 @@ package ucum
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -40,10 +41,7 @@ func composeComponentTo(sb *strings.Builder, c component) {
 			fmt.Fprintf(sb, "%d", v.exponent)
 		}
 	case *term:
-		// Parenthesized sub-term.
-		sb.WriteByte('(')
 		composeTermTo(sb, v)
-		sb.WriteByte(')')
 	}
 }
 
@@ -69,5 +67,6 @@ func composeCanonicalUnits(c *canonical) string {
 	if len(parts) == 0 {
 		return "1"
 	}
+	sort.Strings(parts)
 	return strings.Join(parts, ".")
 }

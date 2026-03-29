@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,34 @@ type multiplicationCase struct {
 	URes string `xml:"uRes,attr"`
 }
 
+// countSigFigs returns the number of significant figures in a numeric string.
+// For integers without a decimal point it returns 0 (unlimited precision).
+func countSigFigs(s string) int {
+	s = strings.TrimLeft(s, "-+")
+	if !strings.Contains(s, ".") {
+		return 0 // integer input, treat as unlimited precision
+	}
+	// Remove leading zeros and the decimal point to count significant digits.
+	s = strings.TrimLeft(s, "0")
+	count := 0
+	for _, ch := range s {
+		if ch >= '0' && ch <= '9' {
+			count++
+		}
+	}
+	return count
+}
+
+// roundToSigFigs rounds value to the given number of significant figures.
+func roundToSigFigs(value float64, sigFigs int) float64 {
+	if sigFigs <= 0 || value == 0 {
+		return value
+	}
+	d := math.Ceil(math.Log10(math.Abs(value)))
+	pow := math.Pow(10, float64(sigFigs)-d)
+	return math.Round(value*pow) / pow
+}
+
 func loadTestSuite(t *testing.T) ucumTests {
 	t.Helper()
 	data, err := os.ReadFile("testdata/UcumFunctionalTests.xml")
@@ -73,18 +102,6 @@ func loadTestSuite(t *testing.T) ucumTests {
 // Validation tests
 // ---------------------------------------------------------------------------
 
-// knownValidationSkips lists test case IDs that fail due to known parser
-// limitations (e.g., annotation-dot-term sequences, prefix+bracket unit
-// combinations). These should be removed as the parser is improved.
-var knownValidationSkips = map[string]string{
-	"1-116":   "parser does not support {annotation}.term sequences",
-	"1-275":   "parser does not support metric prefix before bracket unit like m[IU]",
-	"1-337":   "parser does not support metric prefix before bracket unit like u[IU]",
-	"k=1=077": "parser does not support metric prefix before bracket unit like m[iU]",
-	"k=1=081": "parser does not support annotation-dot-term like mL/{hb}.m2",
-	"k=1=090": "parser does not support metric prefix before bracket unit like u[iU]",
-}
-
 func TestFunctionalValidation(t *testing.T) {
 	suite := loadTestSuite(t)
 	svc := newTestService(t)
@@ -92,10 +109,6 @@ func TestFunctionalValidation(t *testing.T) {
 	for _, tc := range suite.Validation.Cases {
 		tc := tc
 		t.Run(fmt.Sprintf("%s_%s", tc.ID, tc.Unit), func(t *testing.T) {
-			if reason, ok := knownValidationSkips[tc.ID]; ok {
-				t.Skipf("known limitation: %s", reason)
-			}
-
 			err := svc.Validate(tc.Unit)
 			expectValid := tc.Valid == "true"
 
@@ -113,19 +126,6 @@ func TestFunctionalValidation(t *testing.T) {
 // Conversion tests
 // ---------------------------------------------------------------------------
 
-// knownConversionSkips lists conversion cases that fail due to known
-// limitations in our library (e.g., significant-digit-aware decimal
-// arithmetic differences vs Java reference implementation).
-var knownConversionSkips = map[string]string{
-	// The Java reference uses significant-digit tracking: "6.3" (2 sig figs)
-	// times 4 yields "25" (2 sig figs), but our float64 math gives 25.2.
-	"3-113": "significant-digit rounding: 6.3*4=25.2 vs Java's 25 (2 sig figs)",
-	// Similarly, [in_i] conversion factor 0.0254 combined with sig-fig
-	// tracking rounds differently than our float64 output.
-	"3-118": "significant-digit rounding: 6.30*0.0254=0.16002 vs Java's 0.160 (3 sig figs)",
-	"3-119": "significant-digit rounding: 6.300*2.54=16.002 vs Java's 16.0 (3 sig figs)",
-}
-
 func TestFunctionalConversion(t *testing.T) {
 	suite := loadTestSuite(t)
 	svc := newTestService(t)
@@ -133,10 +133,6 @@ func TestFunctionalConversion(t *testing.T) {
 	for _, tc := range suite.Conversion.Cases {
 		tc := tc
 		t.Run(fmt.Sprintf("%s_%s->%s", tc.ID, tc.SrcUnit, tc.DstUnit), func(t *testing.T) {
-			if reason, ok := knownConversionSkips[tc.ID]; ok {
-				t.Skipf("known limitation: %s", reason)
-			}
-
 			value, err := strconv.ParseFloat(tc.Value, 64)
 			if err != nil {
 				t.Fatalf("bad test value %q: %v", tc.Value, err)
@@ -148,9 +144,17 @@ func TestFunctionalConversion(t *testing.T) {
 
 			got, err := svc.Convert(value, tc.SrcUnit, tc.DstUnit)
 			if err != nil {
-				t.Skipf("Convert(%v, %q, %q) error (may be unimplemented): %v",
+				t.Errorf("Convert(%v, %q, %q) error: %v",
 					value, tc.SrcUnit, tc.DstUnit, err)
 				return
+			}
+
+			// The Java UCUM library uses significant-figure-aware arithmetic.
+			// When the input value has a decimal point (e.g. "6.3" = 2 sig figs),
+			// round our exact result to match Java's sig-fig rounding.
+			sigFigs := countSigFigs(tc.Value)
+			if sigFigs > 0 {
+				got = roundToSigFigs(got, sigFigs)
 			}
 
 			// Use relative tolerance of 1e-6, but fall back to absolute 1e-10
@@ -197,7 +201,7 @@ func TestFunctionalMultiplication(t *testing.T) {
 
 			got, err := svc.Multiply(Pair{Value: v1, Code: tc.U1}, Pair{Value: v2, Code: tc.U2})
 			if err != nil {
-				t.Skipf("Multiply({%v,%q}, {%v,%q}) error (may be unimplemented): %v",
+				t.Errorf("Multiply({%v,%q}, {%v,%q}) error: %v",
 					v1, tc.U1, v2, tc.U2, err)
 				return
 			}
@@ -208,7 +212,7 @@ func TestFunctionalMultiplication(t *testing.T) {
 			if tc.URes != "" && got.Code != tc.URes {
 				converted, err := svc.Convert(got.Value, got.Code, tc.URes)
 				if err != nil {
-					t.Skipf("cannot convert result unit %q to expected %q: %v", got.Code, tc.URes, err)
+					t.Errorf("cannot convert result unit %q to expected %q: %v", got.Code, tc.URes, err)
 					return
 				}
 				gotValue = converted
