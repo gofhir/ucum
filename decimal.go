@@ -75,7 +75,6 @@ func (d decimal) float64() float64 {
 	return f
 }
 
-func (d decimal) cmp(o decimal) int   { return d.val.Cmp(o.val) }
 func (d decimal) equal(o decimal) bool { return d.val.Cmp(o.val) == 0 }
 func (d decimal) isZero() bool        { return d.val.Sign() == 0 }
 

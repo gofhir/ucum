@@ -112,11 +112,8 @@ func TestReaumurToCanonical(t *testing.T) {
 	h := specialHandlers["[degRe]"]
 	// 0 Re = 273.15 K (freezing)
 	got := h.ToCanonical(0)
-	if !almostEqual(got, 273.15*5.0/4.0, 0.01) {
-		// Actually: (0 + 273.15) * 5/4 = 341.4375
-		// Wait, Reaumur: 0 Re = 0 C = 273.15 K
-		// The formula is (v + 273.15) * 5/4
-		// For 0 Re: (0 + 273.15) * 1.25 = 341.4375 -- that's not right for Kelvin
+	if !almostEqual(got, (0+273.15)*5.0/4.0, 0.01) {
+		t.Errorf("degRe.ToCanonical(0) = %v, want %v", got, (0+273.15)*5.0/4.0)
 	}
 	// Reaumur scale: 0 Re = 0 C, 80 Re = 100 C
 	// So 80 Re should give same K as 100 C = 373.15 K
