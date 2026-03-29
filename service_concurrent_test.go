@@ -56,7 +56,7 @@ func TestServiceConcurrentMixed(t *testing.T) {
 		go func() { defer wg.Done(); _ = svc.Validate("mg/dL") }()
 		go func() { defer wg.Done(); _, _ = svc.Convert(1, "m", "cm") }()
 		go func() { defer wg.Done(); _, _ = svc.IsComparable("mg", "g") }()
-		go func() { defer wg.Done(); _, _ = svc.Analyse("kg.m/s2") }()
+		go func() { defer wg.Done(); _, _ = svc.Analyze("kg.m/s2") }()
 	}
 	wg.Wait()
 }

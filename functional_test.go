@@ -10,9 +10,7 @@ import (
 	"testing"
 )
 
-// ---------------------------------------------------------------------------
-// XML structures matching UcumFunctionalTests.xml
-// ---------------------------------------------------------------------------
+// XML structures matching UcumFunctionalTests.xml.
 
 type ucumTests struct {
 	XMLName        xml.Name              `xml:"ucumTests"`
@@ -98,9 +96,7 @@ func loadTestSuite(t *testing.T) ucumTests {
 	return suite
 }
 
-// ---------------------------------------------------------------------------
-// Validation tests
-// ---------------------------------------------------------------------------
+// Validation tests.
 
 func TestFunctionalValidation(t *testing.T) {
 	suite := loadTestSuite(t)
@@ -122,9 +118,7 @@ func TestFunctionalValidation(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Conversion tests
-// ---------------------------------------------------------------------------
+// Conversion tests.
 
 func TestFunctionalConversion(t *testing.T) {
 	suite := loadTestSuite(t)
@@ -171,9 +165,7 @@ func TestFunctionalConversion(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Multiplication tests
-// ---------------------------------------------------------------------------
+// Multiplication tests.
 
 func TestFunctionalMultiplication(t *testing.T) {
 	suite := loadTestSuite(t)
@@ -230,9 +222,7 @@ func TestFunctionalMultiplication(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Special units: conversions that Java (HAPI/HL7 validator) cannot handle
-// ---------------------------------------------------------------------------
+// Special units: conversions that Java (HAPI/HL7 validator) cannot handle.
 
 func TestFunctionalSpecialUnitsJavaFails(t *testing.T) {
 	svc, err := New()

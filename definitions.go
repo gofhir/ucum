@@ -12,7 +12,7 @@ import (
 var embeddedDefinitions embed.FS
 
 // loadDefinitions parses ucum-essence.xml from the given reader, or from embedded if nil.
-func loadDefinitions(r io.Reader) (*UcumModel, error) {
+func loadDefinitions(r io.Reader) (*Model, error) {
 	if r == nil {
 		f, err := embeddedDefinitions.Open("ucum-essence.xml")
 		if err != nil {
@@ -24,7 +24,7 @@ func loadDefinitions(r io.Reader) (*UcumModel, error) {
 	return parseDefinitions(r)
 }
 
-// XML structures for unmarshaling ucum-essence.xml
+// XML structures for unmarshaling ucum-essence.xml.
 
 type xmlRoot struct {
 	XMLName      xml.Name         `xml:"root"`
@@ -73,7 +73,9 @@ type xmlValue struct {
 	Text  string `xml:",chardata"`
 }
 
-func parseDefinitions(r io.Reader) (*UcumModel, error) {
+const xmlYes = "yes"
+
+func parseDefinitions(r io.Reader) (*Model, error) {
 	var root xmlRoot
 	dec := xml.NewDecoder(r)
 	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
@@ -86,7 +88,7 @@ func parseDefinitions(r io.Reader) (*UcumModel, error) {
 		return nil, fmt.Errorf("decode ucum-essence.xml: %w", err)
 	}
 
-	model := &UcumModel{
+	model := &Model{
 		Version:      root.Version,
 		Revision:     root.Revision,
 		RevisionDate: root.RevisionDate,
@@ -123,8 +125,8 @@ func parseDefinitions(r io.Reader) (*UcumModel, error) {
 		}
 		model.DefinedUnits = append(model.DefinedUnits, &DefinedUnit{
 			Code: xu.Code, Name: xu.Name, Property: xu.Property,
-			IsMetric: xu.IsMetric == "yes", IsSpecial: xu.IsSpecial == "yes",
-			IsArbitrary: xu.IsArbitrary == "yes", Class: xu.Class,
+			IsMetric: xu.IsMetric == xmlYes, IsSpecial: xu.IsSpecial == xmlYes,
+			IsArbitrary: xu.IsArbitrary == xmlYes, Class: xu.Class,
 			Value: unitVal,
 		})
 	}

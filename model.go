@@ -1,7 +1,7 @@
 package ucum
 
-// UcumModel holds the complete set of UCUM definitions.
-type UcumModel struct {
+// Model holds the complete set of UCUM definitions.
+type Model struct {
 	Version      string
 	Revision     string
 	RevisionDate string
@@ -30,7 +30,7 @@ type Unit struct {
 
 // UnitValue holds the conversion definition for a defined unit.
 type UnitValue struct {
-	Unit  string  // UCUM expression
+	Unit  string // UCUM expression
 	Text  string
 	Value decimal // numeric multiplier
 }
@@ -63,17 +63,17 @@ type DefinedUnit struct {
 }
 
 // getUnit looks up a unit by code (searches base and defined).
-func (m *UcumModel) getUnit(code string) *Unit {
+func (m *Model) getUnit(code string) *Unit {
 	return m.unitByCode[code]
 }
 
 // getPrefix looks up a prefix by code.
-func (m *UcumModel) getPrefix(code string) *Prefix {
+func (m *Model) getPrefix(code string) *Prefix {
 	return m.prefixByCode[code]
 }
 
 // buildIndexes populates the lookup maps from the loaded lists.
-func (m *UcumModel) buildIndexes() {
+func (m *Model) buildIndexes() {
 	m.prefixByCode = make(map[string]*Prefix, len(m.Prefixes))
 	for _, p := range m.Prefixes {
 		m.prefixByCode[p.Code] = p

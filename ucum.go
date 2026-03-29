@@ -11,7 +11,7 @@ type Service interface {
 	Canonical(value float64, code string) (Pair, error)
 	Convert(value float64, from, to string) (float64, error)
 	IsComparable(code1, code2 string) (bool, error)
-	Analyse(code string) (string, error)
+	Analyze(code string) (string, error)
 	Multiply(v1, v2 Pair) (Pair, error)
 }
 

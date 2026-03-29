@@ -9,27 +9,31 @@ import (
 
 // service is the concrete implementation of Service.
 type service struct {
-	model  *UcumModel
+	model  *Model
 	parser *parser
 	cache  sync.Map // map[string]*term
 }
 
 // newService creates a fully wired service.
 func newService(r io.Reader) (*service, error) {
-	model, err := loadDefinitions(r)
+	m, err := loadDefinitions(r)
 	if err != nil {
 		return nil, fmt.Errorf("ucum: load definitions: %w", err)
 	}
 	return &service{
-		model:  model,
-		parser: newParser(model),
+		model:  m,
+		parser: newParser(m),
 	}, nil
 }
 
 // parseCached parses a UCUM code, caching the result.
 func (s *service) parseCached(code string) (*term, error) {
 	if v, ok := s.cache.Load(code); ok {
-		return v.(*term), nil
+		t, ok := v.(*term)
+		if !ok {
+			return nil, fmt.Errorf("ucum: unexpected cache entry type %T", v)
+		}
+		return t, nil
 	}
 	t, err := s.parser.parse(code)
 	if err != nil {
@@ -116,7 +120,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 
 	// Step 1: If source is special, convert value to canonical first.
 	if srcHandler := specialHandlerForTerm(srcTerm); srcHandler != nil {
-		result = srcHandler.ToCanonical(result)
+		result = srcHandler.toCanonical(result)
 	}
 
 	// Step 2: Multiplicative conversion.
@@ -124,7 +128,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 
 	// Step 3: If dest is special, convert from canonical.
 	if dstHandler := specialHandlerForTerm(dstTerm); dstHandler != nil {
-		result = dstHandler.FromCanonical(result)
+		result = dstHandler.fromCanonical(result)
 	}
 
 	return result, nil
@@ -143,8 +147,8 @@ func (s *service) IsComparable(code1, code2 string) (bool, error) {
 	return composeCanonicalUnits(can1) == composeCanonicalUnits(can2), nil
 }
 
-// Analyse returns a human-readable description of the unit expression.
-func (s *service) Analyse(code string) (string, error) {
+// Analyze returns a human-readable description of the unit expression.
+func (s *service) Analyze(code string) (string, error) {
 	t, err := s.parseCached(code)
 	if err != nil {
 		return "", err
@@ -169,9 +173,7 @@ func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
 	return Pair{Value: val, Code: code}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Canonical conversion (converter logic)
-// ---------------------------------------------------------------------------
+// Canonical conversion (converter logic).
 
 // getCanonical computes the canonical form of a UCUM code.
 func (s *service) getCanonical(code string) (*canonical, error) {
@@ -265,7 +267,7 @@ func (s *service) canonicalizeSymbol(sym *symbol) (*canonical, error) {
 		if !ok {
 			return nil, fmt.Errorf("no handler for special unit %q", u.Code)
 		}
-		unitExpr = h.Units()
+		unitExpr = h.units()
 		unitValue = decimalFromInt(1)
 	}
 
@@ -310,9 +312,7 @@ func (s *service) findBaseUnit(code string) *BaseUnit {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Canonical arithmetic helpers
-// ---------------------------------------------------------------------------
+// Canonical arithmetic helpers.
 
 func multiplyCanonicals(left, right *canonical) *canonical {
 	result := &canonical{
@@ -371,12 +371,10 @@ func mergeCanonicalUnits(a, b *canonical) *canonical {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Property resolution
-// ---------------------------------------------------------------------------
+// Property resolution.
 
 // canonicalProperty determines the property from canonical base units.
-func canonicalProperty(can *canonical, model *UcumModel) string {
+func canonicalProperty(can *canonical, _ *Model) string {
 	if len(can.units) == 0 {
 		return "dimensionless"
 	}
@@ -388,9 +386,7 @@ func canonicalProperty(can *canonical, model *UcumModel) string {
 	return composeCanonicalUnits(can)
 }
 
-// ---------------------------------------------------------------------------
-// Human-readable analysis
-// ---------------------------------------------------------------------------
+// Human-readable analysis.
 
 // analyseTermHuman returns a human-readable description of a term.
 func analyseTermHuman(t *term) string {
@@ -434,13 +430,11 @@ func analyseComponentHuman(sb *strings.Builder, c component) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Special unit detection
-// ---------------------------------------------------------------------------
+// Special unit detection.
 
-// specialHandlerForTerm returns a SpecialHandler if the term is a single
+// specialHandlerForTerm returns a specialHandler if the term is a single
 // symbol whose unit is special (no operators, no exponents other than 1).
-func specialHandlerForTerm(t *term) SpecialHandler {
+func specialHandlerForTerm(t *term) specialHandler {
 	if t == nil || t.term != nil {
 		return nil
 	}

@@ -46,7 +46,7 @@ func composeComponentTo(sb *strings.Builder, c component) {
 }
 
 // composeCanonicalUnits serializes canonical units to a UCUM string.
-// Example: [{m,1},{s,-1}] -> "m.s-1"
+// Example: [{m,1},{s,-1}] produces "m.s-1".
 func composeCanonicalUnits(c *canonical) string {
 	if c == nil || len(c.units) == 0 {
 		return "1"

@@ -99,7 +99,6 @@ func (l *lexer) consume() error {
 		return nil
 	}
 
-	// Annotation: {content}
 	if ch == '{' {
 		return l.readAnnotation()
 	}
@@ -265,7 +264,7 @@ func isDigit(ch byte) bool {
 }
 
 // isSymbolChar returns true if ch is a valid non-digit symbol character.
-// Valid symbol characters are: letters, %, *, ^, ', ", _
+// Valid symbol characters are letters, %, *, ^, ', ", and _.
 func isSymbolChar(ch byte) bool {
 	if unicode.IsLetter(rune(ch)) {
 		return true

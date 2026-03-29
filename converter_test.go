@@ -20,7 +20,7 @@ func TestConverterCanonicalUnits(t *testing.T) {
 		{"m2", "m2"},     // exponent
 		{"1", "1"},       // dimensionless
 		{"kg", "g"},      // kg = k * g, canonical is g
-		{"%", "1"},       // percent = 1e-2, dimensionless
+		{"%", "1"},       // percent is dimensionless
 		{"L", "m3"},      // liter = dm3 = 0.001 m3
 	}
 	for _, tt := range tests {

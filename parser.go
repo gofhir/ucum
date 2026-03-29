@@ -12,12 +12,12 @@ import (
 //
 // This is a port of Java's ExpressionParser.java from FHIR/Ucum-java.
 type parser struct {
-	model          *UcumModel
+	model          *Model
 	sortedPrefixes []*Prefix // prefixes sorted longest-code-first
 }
 
-// newParser creates a parser backed by the given UcumModel.
-func newParser(model *UcumModel) *parser {
+// newParser creates a parser backed by the given Model.
+func newParser(model *Model) *parser {
 	// Pre-sort prefixes by descending code length for deterministic
 	// longest-match resolution.
 	sorted := make([]*Prefix, len(model.Prefixes))
@@ -192,78 +192,25 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 	// with the current token. The lexer splits "cm[H2O]" into "cm" + "[H2O]"
 	// but the unit code is "m[H2O]" with prefix "c".
 	bracket := ""
-	if lex.getType() == tokenSymbol && len(lex.getToken()) > 0 && lex.getToken()[0] == '[' {
+	if lex.getType() == tokenSymbol && lex.getToken() != "" && lex.getToken()[0] == '[' {
 		bracket = lex.getToken()
 	}
 
 	// Try prefix + metric unit resolution (longest prefix first).
-	for _, pfx := range p.sortedPrefixes {
-		if strings.HasPrefix(tok, pfx.Code) && len(pfx.Code) < len(tok) {
-			remainder := tok[len(pfx.Code):]
-			// Try with bracket suffix first.
-			if bracket != "" {
-				u := p.model.getUnit(remainder + bracket)
-				// For bracket units (e.g. [IU], [iU]), allow metric prefixes
-				// even if IsMetric is not set. The UCUM spec permits prefixes
-				// on arbitrary units expressed with bracket notation, and the
-				// Java reference parser does the same.
-				if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(remainder+bracket, "[")) {
-					// Consume the bracket token.
-					if err := lex.consume(); err != nil {
-						return nil, err
-					}
-					exp, err := p.parseExponent(lex)
-					if err != nil {
-						return nil, err
-					}
-					return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
-				}
-			}
-			u := p.model.getUnit(remainder)
-			if u != nil && (u.IsMetric || u.IsBase) {
-				exp, err := p.parseExponent(lex)
-				if err != nil {
-					return nil, err
-				}
-				return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
-			}
-		}
+	if sym, err := p.resolveWithPrefix(lex, tok, bracket); sym != nil || err != nil {
+		return sym, err
 	}
 
 	// If the entire token equals a prefix code and there's a bracket unit
-	// following (e.g. token "m" + bracket "[IU]" -> prefix "m" + unit "[IU]"),
-	// try matching the bracket alone as the unit with the token as prefix.
-	if bracket != "" {
-		for _, pfx := range p.sortedPrefixes {
-			if tok == pfx.Code {
-				u := p.model.getUnit(bracket)
-				if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(bracket, "[")) {
-					if err := lex.consume(); err != nil {
-						return nil, err
-					}
-					exp, err := p.parseExponent(lex)
-					if err != nil {
-						return nil, err
-					}
-					return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
-				}
-			}
-		}
+	// following, try matching the bracket alone as the unit with the token
+	// as prefix.
+	if sym, err := p.resolveExactPrefixBracket(lex, tok, bracket); sym != nil || err != nil {
+		return sym, err
 	}
 
 	// No prefix match; try full symbol with bracket suffix.
-	if bracket != "" {
-		u := p.model.getUnit(tok + bracket)
-		if u != nil {
-			if err := lex.consume(); err != nil {
-				return nil, err
-			}
-			exp, err := p.parseExponent(lex)
-			if err != nil {
-				return nil, err
-			}
-			return &symbol{unit: u, exponent: exp}, nil
-		}
+	if sym, err := p.resolveFullWithBracket(lex, tok, bracket); sym != nil || err != nil {
+		return sym, err
 	}
 
 	// No prefix match; look up the full symbol as a unit.
@@ -277,6 +224,91 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 	}
 
 	return nil, fmt.Errorf("unknown unit %q", tok)
+}
+
+// resolveWithPrefix tries to match a prefix from the token and resolve the
+// remainder as a unit, optionally combined with a bracket suffix.
+func (p *parser) resolveWithPrefix(lex *lexer, tok, bracket string) (*symbol, error) {
+	for _, pfx := range p.sortedPrefixes {
+		if !strings.HasPrefix(tok, pfx.Code) || len(pfx.Code) >= len(tok) {
+			continue
+		}
+		remainder := tok[len(pfx.Code):]
+
+		// Try with bracket suffix first.
+		if bracket != "" {
+			u := p.model.getUnit(remainder + bracket)
+			// For bracket units (e.g. [IU], [iU]), allow metric prefixes
+			// even if IsMetric is not set. The UCUM spec permits prefixes
+			// on arbitrary units expressed with bracket notation, and the
+			// Java reference parser does the same.
+			if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(remainder+bracket, "[")) {
+				if err := lex.consume(); err != nil {
+					return nil, err
+				}
+				exp, err := p.parseExponent(lex)
+				if err != nil {
+					return nil, err
+				}
+				return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
+			}
+		}
+
+		u := p.model.getUnit(remainder)
+		if u != nil && (u.IsMetric || u.IsBase) {
+			exp, err := p.parseExponent(lex)
+			if err != nil {
+				return nil, err
+			}
+			return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
+		}
+	}
+	return nil, nil
+}
+
+// resolveExactPrefixBracket handles the case where the entire token is a prefix
+// code and the bracket token is the unit (e.g. token "m" + bracket "[IU]").
+func (p *parser) resolveExactPrefixBracket(lex *lexer, tok, bracket string) (*symbol, error) {
+	if bracket == "" {
+		return nil, nil
+	}
+	for _, pfx := range p.sortedPrefixes {
+		if tok != pfx.Code {
+			continue
+		}
+		u := p.model.getUnit(bracket)
+		if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(bracket, "[")) {
+			if err := lex.consume(); err != nil {
+				return nil, err
+			}
+			exp, err := p.parseExponent(lex)
+			if err != nil {
+				return nil, err
+			}
+			return &symbol{unit: u, prefix: pfx, exponent: exp}, nil
+		}
+	}
+	return nil, nil
+}
+
+// resolveFullWithBracket tries to resolve the full token combined with a
+// bracket suffix as a single unit code.
+func (p *parser) resolveFullWithBracket(lex *lexer, tok, bracket string) (*symbol, error) {
+	if bracket == "" {
+		return nil, nil
+	}
+	u := p.model.getUnit(tok + bracket)
+	if u == nil {
+		return nil, nil
+	}
+	if err := lex.consume(); err != nil {
+		return nil, err
+	}
+	exp, err := p.parseExponent(lex)
+	if err != nil {
+		return nil, err
+	}
+	return &symbol{unit: u, exponent: exp}, nil
 }
 
 // parseExponent checks if the next token is a number and, if so, consumes it

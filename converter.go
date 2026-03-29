@@ -13,8 +13,8 @@ import (
 // special units with offsets (Cel, degF), it extracts the base units and scale
 // factor but does NOT apply the offset — that is done by the service layer.
 type converter struct {
-	model    *UcumModel
-	handlers map[string]SpecialHandler
+	model    *Model
+	handlers map[string]specialHandler
 	parser   *parser
 
 	// baseUnitMap provides O(1) lookup for BaseUnit by code.
@@ -22,7 +22,7 @@ type converter struct {
 }
 
 // newConverter creates a converter backed by the given model and special handlers.
-func newConverter(model *UcumModel, handlers map[string]SpecialHandler) *converter {
+func newConverter(model *Model, handlers map[string]specialHandler) *converter {
 	bm := make(map[string]*BaseUnit, len(model.BaseUnits))
 	for _, bu := range model.BaseUnits {
 		bm[bu.Code] = bu
@@ -111,9 +111,9 @@ func (c *converter) normaliseSymbol(sym *symbol) (*canonical, error) {
 		}
 
 		// Parse and convert the handler's unit expression to get canonical base units.
-		t, err := c.parser.parse(handler.Units())
+		t, err := c.parser.parse(handler.units())
 		if err != nil {
-			return nil, fmt.Errorf("parse special units %q for %q: %w", handler.Units(), u.Code, err)
+			return nil, fmt.Errorf("parse special units %q for %q: %w", handler.units(), u.Code, err)
 		}
 		can, err := c.normaliseTerm(t)
 		if err != nil {

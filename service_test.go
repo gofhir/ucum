@@ -1,6 +1,7 @@
 package ucum
 
 import (
+	"errors"
 	"math"
 	"testing"
 )
@@ -13,10 +14,6 @@ func newTestService(t *testing.T) Service {
 	}
 	return svc
 }
-
-// ---------------------------------------------------------------------------
-// Validate
-// ---------------------------------------------------------------------------
 
 func TestServiceValidateValid(t *testing.T) {
 	svc := newTestService(t)
@@ -43,15 +40,12 @@ func TestServiceValidateInvalid(t *testing.T) {
 		if err == nil {
 			t.Errorf("Validate(%q) = nil, want error", code)
 		}
-		if _, ok := err.(*ValidationError); !ok {
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
 			t.Errorf("Validate(%q) error type = %T, want *ValidationError", code, err)
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Convert – simple metric
-// ---------------------------------------------------------------------------
 
 func TestServiceConvertMetric(t *testing.T) {
 	svc := newTestService(t)
@@ -82,10 +76,6 @@ func TestServiceConvertMetric(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Convert – special units (temperature)
-// ---------------------------------------------------------------------------
-
 func TestServiceConvertSpecialUnits(t *testing.T) {
 	svc := newTestService(t)
 
@@ -95,15 +85,15 @@ func TestServiceConvertSpecialUnits(t *testing.T) {
 		want     float64
 		tol      float64
 	}{
-		// Celsius to Fahrenheit: 37°C = 98.6°F
+		// Celsius to Fahrenheit: 37C = 98.6F
 		{37, "Cel", "[degF]", 98.6, 0.1},
-		// Celsius to Kelvin: 100°C = 373.15 K
+		// Celsius to Kelvin: 100C = 373.15 K
 		{100, "Cel", "K", 373.15, 0.01},
-		// Fahrenheit to Celsius: 212°F = 100°C
+		// Fahrenheit to Celsius: 212F = 100C
 		{212, "[degF]", "Cel", 100, 0.1},
-		// Kelvin to Celsius: 273.15 K = 0°C
+		// Kelvin to Celsius: 273.15 K = 0C
 		{273.15, "K", "Cel", 0, 0.01},
-		// Freezing point: 0°C = 32°F
+		// Freezing point: 0C = 32F
 		{0, "Cel", "[degF]", 32, 0.1},
 	}
 
@@ -119,10 +109,6 @@ func TestServiceConvertSpecialUnits(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Convert – incompatible units
-// ---------------------------------------------------------------------------
-
 func TestServiceConvertIncompatible(t *testing.T) {
 	svc := newTestService(t)
 
@@ -130,14 +116,11 @@ func TestServiceConvertIncompatible(t *testing.T) {
 	if err == nil {
 		t.Error("Convert(m, kg) should fail: incompatible units")
 	}
-	if _, ok := err.(*ConversionError); !ok {
+	var ce *ConversionError
+	if !errors.As(err, &ce) {
 		t.Errorf("Convert(m, kg) error type = %T, want *ConversionError", err)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// IsComparable
-// ---------------------------------------------------------------------------
 
 func TestServiceIsComparable(t *testing.T) {
 	svc := newTestService(t)
@@ -166,11 +149,7 @@ func TestServiceIsComparable(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Analyse
-// ---------------------------------------------------------------------------
-
-func TestServiceAnalyse(t *testing.T) {
+func TestServiceAnalyze(t *testing.T) {
 	svc := newTestService(t)
 
 	tests := []struct {
@@ -184,25 +163,21 @@ func TestServiceAnalyse(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := svc.Analyse(tc.code)
+		got, err := svc.Analyze(tc.code)
 		if err != nil {
-			t.Errorf("Analyse(%q) error: %v", tc.code, err)
+			t.Errorf("Analyze(%q) error: %v", tc.code, err)
 			continue
 		}
 		if got != tc.want {
-			t.Errorf("Analyse(%q) = %q, want %q", tc.code, got, tc.want)
+			t.Errorf("Analyze(%q) = %q, want %q", tc.code, got, tc.want)
 		}
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Canonical
-// ---------------------------------------------------------------------------
-
 func TestServiceCanonical(t *testing.T) {
 	svc := newTestService(t)
 
-	// 1 km in canonical form should be 1000 m
+	// 1 km in canonical form should be 1000 m.
 	p, err := svc.Canonical(1, "km")
 	if err != nil {
 		t.Fatal(err)
@@ -215,14 +190,10 @@ func TestServiceCanonical(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Multiply
-// ---------------------------------------------------------------------------
-
 func TestServiceMultiply(t *testing.T) {
 	svc := newTestService(t)
 
-	// 2 m * 3 m = 6 m2
+	// 2 m * 3 m = 6 m2.
 	result, err := svc.Multiply(Pair{Value: 2, Code: "m"}, Pair{Value: 3, Code: "m"})
 	if err != nil {
 		t.Fatal(err)
