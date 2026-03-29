@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/gofhir/ucum/compare/v1.0.0...v1.0.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* resolve all 52 golangci-lint issues with full config ([19c2f9c](https://github.com/gofhir/ucum/commit/19c2f9cc4ca2714b0ca6b5bc7ae0a31aed727071))
+
 ## 1.0.0 (2026-03-29)
 
 
