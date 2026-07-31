@@ -1,6 +1,14 @@
 package ucum
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// errDivisionByZero is returned when a unit expression divides by a zero
+// factor, as in "m/0". Such codes parse successfully, so they have to be
+// rejected during canonicalization.
+var errDivisionByZero = errors.New("division by zero in unit expression")
 
 // ValidationError indicates an invalid UCUM code.
 type ValidationError struct {

@@ -205,3 +205,61 @@ func TestServiceMultiply(t *testing.T) {
 		t.Errorf("Multiply code = %q, want %q", result.Code, "m2")
 	}
 }
+
+// TestNoPanicOnZeroDivisor covers codes that are syntactically valid but divide
+// by a zero factor. They must return an error, never panic.
+func TestNoPanicOnZeroDivisor(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	codes := []string{"m/0", "0/0", "1/0", "m/0.s", "kg/(0.m)"}
+	for _, code := range codes {
+		t.Run(code, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("Canonical(1, %q) panicked: %v", code, r)
+				}
+			}()
+			if verr := svc.Validate(code); verr != nil {
+				t.Skipf("Validate(%q) rejects it up front: %v", code, verr)
+			}
+			if _, err := svc.Canonical(1, code); err == nil {
+				t.Errorf("Canonical(1, %q) = nil error, want an error", code)
+			}
+		})
+	}
+}
+
+func TestNoPanicOnZeroDivisorConvert(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Convert panicked: %v", r)
+		}
+	}()
+	if _, err := svc.Convert(1, "1", "0"); err == nil {
+		t.Error(`Convert(1, "1", "0") = nil error, want an error`)
+	}
+	if _, err := svc.Convert(1, "m/0", "m"); err == nil {
+		t.Error(`Convert(1, "m/0", "m") = nil error, want an error`)
+	}
+}
+
+func TestNoPanicOnZeroDivisorMultiply(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Multiply panicked: %v", r)
+		}
+	}()
+	if _, err := svc.Multiply(Pair{1, "m/0"}, Pair{1, "m"}); err == nil {
+		t.Error(`Multiply(1 "m/0", 1 m) = nil error, want an error`)
+	}
+}

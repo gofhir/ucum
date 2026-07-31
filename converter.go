@@ -62,6 +62,9 @@ func (c *converter) normaliseTerm(t *term) (*canonical, error) {
 	}
 
 	if t.op == opDivision {
+		if right.value.isZero() {
+			return nil, errDivisionByZero
+		}
 		left.value = left.value.div(right.value)
 		negateUnits(right)
 	} else {

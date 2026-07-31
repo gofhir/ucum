@@ -136,6 +136,11 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 		}
 	}
 
+	// A zero destination factor ("0", "m/0" cancels to it) would divide by zero.
+	if dstCan.value.isZero() {
+		return 0, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
+	}
+
 	result := value
 
 	// Step 1: If source is special, convert value to canonical first.
@@ -227,7 +232,7 @@ func (s *service) canonicalizeTerm(t *term) (*canonical, error) {
 	case opMultiplication:
 		return multiplyCanonicals(left, right), nil
 	case opDivision:
-		return divideCanonicals(left, right), nil
+		return divideCanonicals(left, right)
 	default:
 		return nil, fmt.Errorf("unknown operator %d", t.op)
 	}
@@ -341,12 +346,17 @@ func multiplyCanonicals(left, right *canonical) *canonical {
 	return result
 }
 
-func divideCanonicals(left, right *canonical) *canonical {
+func divideCanonicals(left, right *canonical) (*canonical, error) {
+	// A zero factor is syntactically valid ("m/0"), so the divisor has to be
+	// checked here rather than left to big.Rat, which panics.
+	if right.value.isZero() {
+		return nil, errDivisionByZero
+	}
 	result := &canonical{
 		value: left.value.div(right.value),
 		units: mergeUnitLists(left.units, right.units, -1),
 	}
-	return result
+	return result, nil
 }
 
 // mergeUnitLists merges two canonical unit lists. The sign parameter is
