@@ -3,6 +3,7 @@ package ucum
 import (
 	"errors"
 	"math"
+	"math/big"
 	"testing"
 )
 
@@ -261,5 +262,166 @@ func TestNoPanicOnZeroDivisorMultiply(t *testing.T) {
 	}()
 	if _, err := svc.Multiply(Pair{1, "m/0"}, Pair{1, "m"}); err == nil {
 		t.Error(`Multiply(1 "m/0", 1 m) = nil error, want an error`)
+	}
+}
+
+// TestConvertExactWhenRepresentable pins the property that Convert rounds once.
+// Special units are excluded: their handler applies an offset, so the result is
+// not a plain ratio of canonical factors.
+//
+// its result must be the float64 nearest to the exact rational conversion, not
+// the quotient of two already-rounded canonical factors.
+func TestConvertExactWhenRepresentable(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := svc.(*service)
+
+	pairs := [][2]string{
+		{"L", "mL"}, {"mol/L", "mmol/L"}, {"kg", "g"}, {"m", "cm"},
+		{"h", "s"}, {"d", "h"}, {"g/L", "mg/dL"}, {"L", "m3"},
+		{"km", "m"}, {"mL", "uL"}, {"min", "s"}, {"[in_i]", "cm"},
+		{"ug/L", "ng/mL"}, {"kPa", "mm[Hg]"}, {"mm[Hg]", "Pa"},
+		{"cm3", "mL"}, {"ueq/L", "meq/L"},
+	}
+	for _, p := range pairs {
+		got, err := svc.Convert(1, p[0], p[1])
+		if err != nil {
+			t.Fatalf("Convert(1, %q, %q): %v", p[0], p[1], err)
+		}
+		src, err := s.getCanonical(p[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		dst, err := s.getCanonical(p[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, _ := new(big.Rat).Quo(src.value.rat(), dst.value.rat()).Float64()
+		if got != want {
+			t.Errorf("Convert(1, %q, %q) = %.20g, want %.20g (exact, rounded once)",
+				p[0], p[1], got, want)
+		}
+	}
+}
+
+// TestConvertIntegerResults spells out the cases whose exact result is an
+// integer, so a regression is readable without recomputing rationals.
+func TestConvertIntegerResults(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		from, to string
+		want     float64
+	}{
+		{"L", "mL", 1000},
+		{"mol/L", "mmol/L", 1000},
+		{"kg", "g", 1000},
+		{"m", "cm", 100},
+		{"h", "s", 3600},
+		{"d", "h", 24},
+		{"g/L", "mg/dL", 100},
+		{"km", "m", 1000},
+		{"mL", "uL", 1000},
+		{"min", "s", 60},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(1, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(1, %q, %q): %v", tt.from, tt.to, err)
+		}
+		if got != tt.want {
+			t.Errorf("Convert(1, %q, %q) = %.20g, want exactly %v", tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestCanonicalExactWhenRepresentable(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := svc.(*service)
+	codes := []string{"L", "mL", "mg/dL", "km", "[in_i]", "mm[Hg]", "ug"}
+	values := []float64{1, 2, 3, 7, 0.1, 12.5, 1e6, -3}
+	for _, code := range codes {
+		can, err := s.getCanonical(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range values {
+			p, err := svc.Canonical(v, code)
+			if err != nil {
+				t.Fatalf("Canonical(%v, %q): %v", v, code, err)
+			}
+			want, _ := new(big.Rat).Mul(ratFromFloat(v), can.value.rat()).Float64()
+			if p.Value != want {
+				t.Errorf("Canonical(%v, %q) = %.20g, want %.20g (exact, rounded once)",
+					v, code, p.Value, want)
+			}
+		}
+	}
+}
+
+func TestMultiplyExactWhenRepresentable(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := svc.(*service)
+	tests := []struct {
+		v1, v2 Pair
+	}{
+		{Pair{1, "L"}, Pair{1, "L"}},
+		{Pair{3, "mL"}, Pair{7, "mL"}},
+		{Pair{2.5, "mg/dL"}, Pair{4, "L"}},
+		{Pair{1, "km"}, Pair{1, "mm[Hg]"}},
+	}
+	for _, tt := range tests {
+		can1, err := s.getCanonical(tt.v1.Code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		can2, err := s.getCanonical(tt.v2.Code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := svc.Multiply(tt.v1, tt.v2)
+		if err != nil {
+			t.Fatalf("Multiply(%v, %v): %v", tt.v1, tt.v2, err)
+		}
+		exact := new(big.Rat).Mul(can1.value.rat(), can2.value.rat())
+		exact.Mul(exact, ratFromFloat(tt.v1.Value*tt.v2.Value))
+		want, _ := exact.Float64()
+		if p.Value != want {
+			t.Errorf("Multiply(%v, %v) = %.20g, want %.20g (exact, rounded once)",
+				tt.v1, tt.v2, p.Value, want)
+		}
+	}
+}
+
+// TestConvertNonFiniteUnchanged guards the fallback: NaN and infinities have no
+// rational representation and must keep propagating as before.
+func TestConvertNonFiniteUnchanged(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nan, err := svc.Convert(math.NaN(), "L", "mL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nan == nan { //nolint:staticcheck // NaN != NaN is the assertion
+		t.Errorf("Convert(NaN, L, mL) = %v, want NaN", nan)
+	}
+	inf, err := svc.Convert(math.Inf(1), "L", "mL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !math.IsInf(inf, 1) {
+		t.Errorf("Convert(+Inf, L, mL) = %v, want +Inf", inf)
 	}
 }

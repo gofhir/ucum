@@ -3,6 +3,7 @@ package ucum
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"strings"
 	"sync"
 )
@@ -83,14 +84,25 @@ func (s *service) Canonical(value float64, code string) (Pair, error) {
 	return Pair{Value: v, Code: composeCanonicalUnits(can)}, nil
 }
 
-// canonicalScalar maps value onto the canonical scale of code and returns it
-// along with the canonical form.
+// canonicalScalar maps value onto the canonical scale of code and scales it by
+// the canonical factor, rounding once.
+func (s *service) canonicalScalar(value float64, code string) (float64, *canonical, error) {
+	mapped, can, err := s.canonicalMapped(value, code)
+	if err != nil {
+		return 0, nil, err
+	}
+	return mulExact(mapped, can.value.rat()), can, nil
+}
+
+// canonicalMapped maps value onto the canonical scale without applying the
+// multiplicative factor, so a caller combining several operands can keep the
+// factors exact and round only once at the end.
 //
 // Special units sit on non-ratio scales, so the multiplicative factor alone
 // does not describe them: the handler has to map the value first (Cel adds an
 // offset, [pH] exponentiates, B[V] takes a power). Skipping it would silently
 // return the raw input value, making canonical forms non-comparable.
-func (s *service) canonicalScalar(value float64, code string) (float64, *canonical, error) {
+func (s *service) canonicalMapped(value float64, code string) (float64, *canonical, error) {
 	t, err := s.parseCached(code)
 	if err != nil {
 		return 0, nil, err
@@ -102,7 +114,7 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 	if h := specialHandlerForTerm(t); h != nil {
 		value = h.toCanonical(value)
 	}
-	return value * can.value.float64(), can, nil
+	return value, can, nil
 }
 
 // Convert converts a value from one unit to another.
@@ -148,8 +160,12 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 		result = srcHandler.toCanonical(result)
 	}
 
-	// Step 2: Multiplicative conversion.
-	result = result * srcCan.value.float64() / dstCan.value.float64()
+	// Step 2: Multiplicative conversion, in exact rational arithmetic with a
+	// single rounding at the end. Dividing two canonical factors that were each
+	// already rounded to float64 loses exactness even when the true result is
+	// representable: L -> mL came out as 1000.0000000000001 because 1/1000 and
+	// 1/1000000 are not binary fractions, while their exact quotient is 1000.
+	result = mulExact(result, new(big.Rat).Quo(srcCan.value.rat(), dstCan.value.rat()))
 
 	// Step 3: If dest is special, convert from canonical.
 	if dstHandler := specialHandlerForTerm(dstTerm); dstHandler != nil {
@@ -183,18 +199,22 @@ func (s *service) Analyze(code string) (string, error) {
 
 // Multiply multiplies two value/unit pairs.
 func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
-	scalar1, can1, err := s.canonicalScalar(v1.Value, v1.Code)
+	val1, can1, err := s.canonicalMapped(v1.Value, v1.Code)
 	if err != nil {
 		return Pair{}, err
 	}
-	scalar2, can2, err := s.canonicalScalar(v2.Value, v2.Code)
+	val2, can2, err := s.canonicalMapped(v2.Value, v2.Code)
 	if err != nil {
 		return Pair{}, err
 	}
 
+	// Combine both canonical factors exactly and round once. The product of the
+	// two input values stays in float64 — that rounding is inherent to the
+	// float64 signature — but the factors no longer contribute their own.
+	factor := new(big.Rat).Mul(can1.value.rat(), can2.value.rat())
 	units := mergeCanonicalUnits(can1, can2)
 	code := composeCanonicalUnits(units)
-	return Pair{Value: scalar1 * scalar2, Code: code}, nil
+	return Pair{Value: mulExact(val1*val2, factor), Code: code}, nil
 }
 
 // Canonical conversion (converter logic).
