@@ -42,15 +42,16 @@ var specialHandlers = map[string]specialHandler{
 	// 0 Re = 273.15 K requires (0 + offset) * 5/4 = 273.15, so offset = 273.15 * 4/5.
 	"[degRe]": newAffineHandler("[degRe]", "K", "5/4", "218.52"),
 
-	// Logarithmic.
+	// Logarithmic. expDivisor mirrors the UCUM function: 1 for lg, ln and ld,
+	// 2 for lgTimes2, whose inverse is base^(v/2) and not base^(2v).
 	"[pH]":     logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
 	"Np":       logHandler{unitCode: "Np", unitExpr: "1", base: math.E},
 	"B":        logHandler{unitCode: "B", unitExpr: "1", base: 10},
-	"B[SPL]":   logHandler{unitCode: "B[SPL]", unitExpr: "10*-5.Pa", base: 10, factor: 2},
-	"B[V]":     logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, factor: 2},
-	"B[mV]":    logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, factor: 2},
-	"B[uV]":    logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, factor: 2},
-	"B[10.nV]": logHandler{unitCode: "B[10.nV]", unitExpr: "10*-9.V", base: 10, factor: 2},
+	"B[SPL]":   logHandler{unitCode: "B[SPL]", unitExpr: "10*-5.Pa", base: 10, expDivisor: 2},
+	"B[V]":     logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, expDivisor: 2},
+	"B[mV]":    logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, expDivisor: 2},
+	"B[uV]":    logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, expDivisor: 2},
+	"B[10.nV]": logHandler{unitCode: "B[10.nV]", unitExpr: "10*-9.V", base: 10, expDivisor: 2},
 	"B[W]":     logHandler{unitCode: "B[W]", unitExpr: "W", base: 10},
 	"B[kW]":    logHandler{unitCode: "B[kW]", unitExpr: "kW", base: 10},
 	"bit_s":    logHandler{unitCode: "bit_s", unitExpr: "1", base: 2},
@@ -127,35 +128,40 @@ func (h affineHandler) fromCanonicalRat(v *big.Rat) *big.Rat {
 	return new(big.Rat).Sub(new(big.Rat).Quo(v, h.scaleRat), h.offsetRat)
 }
 
-// logHandler converts via canonical = base^(value*factor) or base^(-value*factor) if negate.
+// logHandler converts via canonical = base^(value/expDivisor), negated when the
+// unit counts downwards ([pH], the homeopathic potencies).
+//
+// The divisor comes straight from the UCUM function name: lg, ln and ld are
+// value = log_base(canonical), so the divisor is 1; lgTimes2 is
+// value = 2*lg(canonical), so the divisor is 2 and the inverse is 10^(v/2).
 type logHandler struct {
 	unitCode, unitExpr string
 	base               float64
-	factor             float64 // multiplier for exponent (default 1)
+	expDivisor         float64 // exponent divisor (default 1)
 	negate             bool
 }
 
 func (h logHandler) code() string  { return h.unitCode }
 func (h logHandler) units() string { return h.unitExpr }
 func (h logHandler) toCanonical(v float64) float64 {
-	f := h.effectiveFactor()
+	e := v / h.effectiveDivisor()
 	if h.negate {
-		return math.Pow(h.base, -v*f)
+		e = -e
 	}
-	return math.Pow(h.base, v*f)
+	return math.Pow(h.base, e)
 }
 func (h logHandler) fromCanonical(v float64) float64 {
-	f := h.effectiveFactor()
+	d := h.effectiveDivisor()
 	if h.negate {
-		return -math.Log(v) / (math.Log(h.base) * f)
+		return -math.Log(v) * d / math.Log(h.base)
 	}
-	return math.Log(v) / (math.Log(h.base) * f)
+	return math.Log(v) * d / math.Log(h.base)
 }
-func (h logHandler) effectiveFactor() float64 {
-	if h.factor == 0 {
+func (h logHandler) effectiveDivisor() float64 {
+	if h.expDivisor == 0 {
 		return 1
 	}
-	return h.factor
+	return h.expDivisor
 }
 
 // tanHandler converts via canonical = arctan(value/factor) (prism diopter, percent slope).

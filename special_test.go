@@ -235,20 +235,20 @@ func TestBelRoundTrip(t *testing.T) {
 	}
 }
 
-// B[SPL] (logHandler, field quantity with factor 2) tests.
+// B[SPL] (logHandler, field quantity defined with lgTimes2) tests.
 
 func TestBelSPLToCanonical(t *testing.T) {
 	h := specialHandlers["B[SPL]"]
-	// B[SPL] with factor=2: ToCanonical(v) = 10^(v*2)
-	// 1 B[SPL] = 10^2 = 100
+	// lgTimes2 means value = 2*lg(canonical), so toCanonical(v) = 10^(v/2),
+	// expressed in multiples of the reference level.
 	got := h.toCanonical(1)
-	if !almostEqual(got, 100, 0.001) {
-		t.Errorf("B[SPL].toCanonical(1) = %v, want 100", got)
+	if !almostEqual(got, math.Sqrt(10), 1e-9) {
+		t.Errorf("B[SPL].toCanonical(1) = %v, want %v", got, math.Sqrt(10))
 	}
-	// 2 B[SPL] = 10^4 = 10000
+	// 2 B[SPL] = 10^1 = 10 times the reference level.
 	got2 := h.toCanonical(2)
-	if !almostEqual(got2, 10000, 0.001) {
-		t.Errorf("B[SPL].toCanonical(2) = %v, want 10000", got2)
+	if !almostEqual(got2, 10, 1e-9) {
+		t.Errorf("B[SPL].toCanonical(2) = %v, want 10", got2)
 	}
 }
 
