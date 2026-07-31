@@ -110,16 +110,38 @@ func TestFahrenheitRoundTrip(t *testing.T) {
 
 func TestReaumurToCanonical(t *testing.T) {
 	h := specialHandlers["[degRe]"]
-	// 0 Re = 273.15 K (freezing)
+	// Reaumur scale: 0 Re = 0 Cel, 80 Re = 100 Cel. Expected values come from
+	// the physical definition, not from the handler's own formula.
 	got := h.toCanonical(0)
-	if !almostEqual(got, (0+273.15)*5.0/4.0, 0.01) {
-		t.Errorf("degRe.toCanonical(0) = %v, want %v", got, (0+273.15)*5.0/4.0)
+	if !almostEqual(got, 273.15, 0.01) {
+		t.Errorf("degRe.toCanonical(0) = %v, want 273.15", got)
 	}
-	// Reaumur scale: 0 Re = 0 C, 80 Re = 100 C
-	// So 80 Re should give same K as 100 C = 373.15 K
 	got80 := h.toCanonical(80)
-	if !almostEqual(got80, (80+273.15)*5.0/4.0, 0.01) {
-		t.Errorf("degRe.toCanonical(80) = %v", got80)
+	if !almostEqual(got80, 373.15, 0.01) {
+		t.Errorf("degRe.toCanonical(80) = %v, want 373.15", got80)
+	}
+	// Absolute zero.
+	if got0 := h.toCanonical(-218.52); !almostEqual(got0, 0, 1e-9) {
+		t.Errorf("degRe.toCanonical(-218.52) = %v, want 0", got0)
+	}
+}
+
+func TestReaumurFromCanonical(t *testing.T) {
+	h := specialHandlers["[degRe]"]
+	if got := h.fromCanonical(273.15); !almostEqual(got, 0, 1e-9) {
+		t.Errorf("degRe.fromCanonical(273.15) = %v, want 0", got)
+	}
+	if got := h.fromCanonical(373.15); !almostEqual(got, 80, 1e-9) {
+		t.Errorf("degRe.fromCanonical(373.15) = %v, want 80", got)
+	}
+}
+
+func TestReaumurRoundTrip(t *testing.T) {
+	h := specialHandlers["[degRe]"]
+	for _, v := range []float64{-218.52, 0, 20, 80, 800} {
+		if got := h.fromCanonical(h.toCanonical(v)); !almostEqual(got, v, 1e-6) {
+			t.Errorf("degRe round-trip(%v) = %v", v, got)
+		}
 	}
 }
 

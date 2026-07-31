@@ -256,3 +256,32 @@ func TestFunctionalSpecialUnitsJavaFails(t *testing.T) {
 		})
 	}
 }
+
+func TestFunctionalReaumurConversion(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{0, "[degRe]", "Cel", 0},
+		{80, "[degRe]", "Cel", 100},
+		{100, "Cel", "[degRe]", 80},
+		{0, "[degRe]", "K", 273.15},
+		{80, "[degRe]", "[degF]", 212},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%v_%s->%s", tt.value, tt.from, tt.to), func(t *testing.T) {
+			got, err := svc.Convert(tt.value, tt.from, tt.to)
+			if err != nil {
+				t.Fatalf("Convert(%v, %q, %q) error: %v", tt.value, tt.from, tt.to, err)
+			}
+			if diff := math.Abs(got - tt.want); diff > 1e-9 {
+				t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+			}
+		})
+	}
+}

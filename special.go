@@ -13,9 +13,11 @@ type specialHandler interface {
 // specialHandlers maps special unit codes to their handlers.
 var specialHandlers = map[string]specialHandler{
 	// Temperature (offset units).
-	"Cel":     offsetHandler{unitCode: "Cel", unitExpr: "K", offset: 273.15},
-	"[degF]":  affineHandler{unitCode: "[degF]", unitExpr: "K", scale: 5.0 / 9.0, offset: 459.67},
-	"[degRe]": affineHandler{unitCode: "[degRe]", unitExpr: "K", scale: 5.0 / 4.0, offset: 273.15},
+	"Cel":    offsetHandler{unitCode: "Cel", unitExpr: "K", offset: 273.15},
+	"[degF]": affineHandler{unitCode: "[degF]", unitExpr: "K", scale: 5.0 / 9.0, offset: 459.67},
+	// The Reaumur offset is expressed on the Reaumur scale, not the Celsius one:
+	// 0 Re = 273.15 K requires (0 + offset) * 5/4 = 273.15, so offset = 273.15 * 4/5.
+	"[degRe]": affineHandler{unitCode: "[degRe]", unitExpr: "K", scale: 5.0 / 4.0, offset: 218.52},
 
 	// Logarithmic.
 	"[pH]":     logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
