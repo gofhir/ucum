@@ -255,10 +255,10 @@ func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
 
 	// Preferred path: both operands mapped and combined in exact arithmetic,
 	// with a single rounding at the end.
-	exact, err := s.multiplyRat(t1, t2, v1, v2)
+	m1, m2, err := s.mappedRats(t1, t2, v1, v2)
 	switch {
-	case err == nil && exact != nil:
-		out, _ := exact.Mul(exact, factor).Float64()
+	case err == nil && m1 != nil:
+		out, _ := m1.Mul(m1, m2).Mul(m1, factor).Float64()
 		return Pair{Value: out, Code: code}, nil
 	case err != nil && !errors.Is(err, ErrNotRational):
 		return Pair{}, err
@@ -276,23 +276,71 @@ func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
 	return Pair{Value: mulExact(val1*val2, factor), Code: code}, nil
 }
 
-// multiplyRat maps both operands onto their canonical scales exactly and returns
-// their product, without the canonical factors. It returns a nil result when an
-// operand is not finite, and ErrNotRational when a scale has no rational form.
-func (s *service) multiplyRat(t1, t2 *term, v1, v2 Pair) (*big.Rat, error) {
+// Divide divides two value/unit pairs.
+func (s *service) Divide(v1, v2 Pair) (Pair, error) {
+	t1, can1, err := s.canonicalParts(v1.Code)
+	if err != nil {
+		return Pair{}, err
+	}
+	t2, can2, err := s.canonicalParts(v2.Code)
+	if err != nil {
+		return Pair{}, err
+	}
+	if can2.value.isZero() {
+		return Pair{}, errDivisionByZero
+	}
+	code := composeCanonicalUnits(&canonical{units: mergeUnitLists(can1.units, can2.units, -1)})
+	factor := new(big.Rat).Quo(can1.value.rat(), can2.value.rat())
+
+	// Preferred path: both operands mapped and combined in exact arithmetic,
+	// with a single rounding at the end.
+	m1, m2, err := s.mappedRats(t1, t2, v1, v2)
+	switch {
+	case err == nil && m1 != nil:
+		// Defensive: a special operand can only map to exactly zero if its input
+		// is exactly the bottom of its scale, which float64 cannot represent for
+		// Cel or [degF]. Guarded anyway so big.Rat.Quo can never panic here.
+		if m2.Sign() == 0 {
+			return Pair{}, errDivisionByZero
+		}
+		out, _ := m1.Quo(m1, m2).Mul(m1, factor).Float64()
+		return Pair{Value: out, Code: code}, nil
+	case err != nil && !errors.Is(err, ErrNotRational):
+		return Pair{}, err
+	}
+
+	// Non-rational scale or non-finite value: use the float64 handlers.
+	val1, err := s.canonicalMapped(v1.Value, v1.Code)
+	if err != nil {
+		return Pair{}, err
+	}
+	val2, err := s.canonicalMapped(v2.Value, v2.Code)
+	if err != nil {
+		return Pair{}, err
+	}
+	if val2 == 0 {
+		return Pair{}, errDivisionByZero
+	}
+	return Pair{Value: mulExact(val1/val2, factor), Code: code}, nil
+}
+
+// mappedRats maps both operands onto their canonical scales exactly, without the
+// canonical factors. It returns nil results when an operand is not finite, and
+// ErrNotRational when a scale has no rational form.
+func (s *service) mappedRats(t1, t2 *term, v1, v2 Pair) (m1, m2 *big.Rat, err error) {
 	r1, r2 := ratFromFloat(v1.Value), ratFromFloat(v2.Value)
 	if r1 == nil || r2 == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	m1, err := toCanonicalRat(t1, v1.Code, r1)
+	m1, err = toCanonicalRat(t1, v1.Code, r1)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	m2, err := toCanonicalRat(t2, v2.Code, r2)
+	m2, err = toCanonicalRat(t2, v2.Code, r2)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return m1.Mul(m1, m2), nil
+	return m1, m2, nil
 }
 
 // Canonical conversion (converter logic).

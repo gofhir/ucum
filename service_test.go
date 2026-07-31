@@ -472,3 +472,126 @@ func TestMultiplyExactForAffineScales(t *testing.T) {
 		t.Errorf("Multiply(1 [degRe], 1) = %.20g, want %.20g", p.Value, want)
 	}
 }
+
+func TestDivide(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		v1, v2   Pair
+		wantVal  float64
+		wantCode string
+	}{
+		{Pair{1.5, "g"}, Pair{2, "m"}, 0.75, "g.m-1"},
+		{Pair{1, "L"}, Pair{1, "mL"}, 1000, "1"},
+		{Pair{1, "m"}, Pair{1, "s"}, 1, "m.s-1"},
+		{Pair{10, "km"}, Pair{2, "h"}, 10000.0 / 7200.0, "m.s-1"},
+		{Pair{1, "mol/L"}, Pair{1, "mmol/L"}, 1000, "1"},
+	}
+	for _, tt := range tests {
+		got, err := svc.Divide(tt.v1, tt.v2)
+		if err != nil {
+			t.Fatalf("Divide(%v, %v): %v", tt.v1, tt.v2, err)
+		}
+		if math.Abs(got.Value-tt.wantVal) > 1e-9 {
+			t.Errorf("Divide(%v, %v).Value = %v, want %v", tt.v1, tt.v2, got.Value, tt.wantVal)
+		}
+		if got.Code != tt.wantCode {
+			t.Errorf("Divide(%v, %v).Code = %q, want %q", tt.v1, tt.v2, got.Code, tt.wantCode)
+		}
+	}
+}
+
+// TestDivideExact holds Divide to the same single-rounding property as Convert.
+func TestDivideExact(t *testing.T) {
+	svc := newTestService(t)
+	s := svc.(*service)
+	tests := []struct{ v1, v2 Pair }{
+		{Pair{1, "L"}, Pair{1, "mL"}},
+		{Pair{3, "mL"}, Pair{7, "uL"}},
+		{Pair{1, "mg/dL"}, Pair{1, "g/L"}},
+	}
+	for _, tt := range tests {
+		can1, err := s.getCanonical(tt.v1.Code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		can2, err := s.getCanonical(tt.v2.Code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exact := new(big.Rat).Quo(can1.value.rat(), can2.value.rat())
+		exact.Mul(exact, new(big.Rat).Quo(ratFromFloat(tt.v1.Value), ratFromFloat(tt.v2.Value)))
+		want, _ := exact.Float64()
+
+		got, err := svc.Divide(tt.v1, tt.v2)
+		if err != nil {
+			t.Fatalf("Divide(%v, %v): %v", tt.v1, tt.v2, err)
+		}
+		if got.Value != want {
+			t.Errorf("Divide(%v, %v) = %.20g, want %.20g (exact, rounded once)",
+				tt.v1, tt.v2, got.Value, want)
+		}
+	}
+}
+
+func TestDivideByZero(t *testing.T) {
+	svc := newTestService(t)
+	cases := []struct {
+		name   string
+		v1, v2 Pair
+	}{
+		{"zero value", Pair{1, "m"}, Pair{0, "s"}},
+		{"zero factor", Pair{1, "m"}, Pair{1, "0"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("Divide panicked: %v", r)
+				}
+			}()
+			if _, err := svc.Divide(tc.v1, tc.v2); !errors.Is(err, errDivisionByZero) {
+				t.Errorf("Divide(%v, %v) error = %v, want errDivisionByZero", tc.v1, tc.v2, err)
+			}
+		})
+	}
+}
+
+// TestDivideNearAbsoluteZero documents that a special operand close to the
+// bottom of its scale does not divide by zero: -273.15 is not exactly absolute
+// zero in float64, so the mapped operand is tiny but non-zero and the result is
+// large but finite. The zero guard in Divide covers the exact case.
+func TestDivideNearAbsoluteZero(t *testing.T) {
+	svc := newTestService(t)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Divide panicked: %v", r)
+		}
+	}()
+	got, err := svc.Divide(Pair{1, "m"}, Pair{-273.15, "Cel"})
+	if err != nil {
+		t.Fatalf("Divide(1 m, -273.15 Cel): %v", err)
+	}
+	if math.IsInf(got.Value, 0) || math.IsNaN(got.Value) {
+		t.Errorf("Divide(1 m, -273.15 Cel) = %v, want a finite value", got.Value)
+	}
+	if got.Code != "K-1.m" {
+		t.Errorf("Divide(1 m, -273.15 Cel).Code = %q, want %q", got.Code, "K-1.m")
+	}
+}
+
+// TestDivideNonRationalScale checks the float64 fallback still works for the
+// scales that have no exact rational form.
+func TestDivideNonRationalScale(t *testing.T) {
+	svc := newTestService(t)
+	// 1 pH = 0.1 mol/L; dividing by 1 mol/L gives 0.1 dimensionless.
+	got, err := svc.Divide(Pair{1, "[pH]"}, Pair{1, "mol/L"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got.Value-0.1) > 1e-9 {
+		t.Errorf("Divide(1 [pH], 1 mol/L).Value = %v, want 0.1", got.Value)
+	}
+	if got.Code != "1" {
+		t.Errorf("Divide(1 [pH], 1 mol/L).Code = %q, want %q", got.Code, "1")
+	}
+}

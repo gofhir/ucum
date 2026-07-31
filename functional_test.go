@@ -17,6 +17,7 @@ type ucumTests struct {
 	Validation     validationSection     `xml:"validation"`
 	Conversion     conversionSection     `xml:"conversion"`
 	Multiplication multiplicationSection `xml:"multiplication"`
+	Division       divisionSection       `xml:"division"`
 }
 
 type validationSection struct {
@@ -53,6 +54,10 @@ type multiplicationCase struct {
 	U2   string `xml:"u2,attr"`
 	VRes string `xml:"vRes,attr"`
 	URes string `xml:"uRes,attr"`
+}
+
+type divisionSection struct {
+	Cases []multiplicationCase `xml:"case"`
 }
 
 // countSigFigs returns the number of significant figures in a numeric string.
@@ -364,5 +369,70 @@ func TestFunctionalMultiplySpecialUnits(t *testing.T) {
 	}
 	if p.Code != "K" {
 		t.Errorf("Multiply(1 Cel, 1).Code = %q, want %q", p.Code, "K")
+	}
+}
+
+// Division tests (official suite, <division> section).
+
+func TestFunctionalDivision(t *testing.T) {
+	suite := loadTestSuite(t)
+	svc := newTestService(t)
+
+	if len(suite.Division.Cases) == 0 {
+		t.Fatal("no division test cases found in the official suite")
+	}
+
+	for _, tc := range suite.Division.Cases {
+		t.Run(tc.ID, func(t *testing.T) {
+			v1, err := strconv.ParseFloat(tc.V1, 64)
+			if err != nil {
+				t.Fatalf("bad v1 %q: %v", tc.V1, err)
+			}
+			v2, err := strconv.ParseFloat(tc.V2, 64)
+			if err != nil {
+				t.Fatalf("bad v2 %q: %v", tc.V2, err)
+			}
+			vRes, err := strconv.ParseFloat(tc.VRes, 64)
+			if err != nil {
+				t.Fatalf("bad vRes %q: %v", tc.VRes, err)
+			}
+
+			got, err := svc.Divide(Pair{Value: v1, Code: tc.U1}, Pair{Value: v2, Code: tc.U2})
+			if err != nil {
+				t.Errorf("Divide({%v,%q}, {%v,%q}) error: %v", v1, tc.U1, v2, tc.U2, err)
+				return
+			}
+
+			// An empty uRes in the suite means dimensionless, which this package
+			// spells "1".
+			wantUnit := tc.URes
+			if wantUnit == "" {
+				wantUnit = "1"
+			}
+			gotValue := got.Value
+			if got.Code != wantUnit {
+				converted, cerr := svc.Convert(got.Value, got.Code, wantUnit)
+				if cerr != nil {
+					t.Errorf("cannot convert result unit %q to expected %q: %v", got.Code, wantUnit, cerr)
+					return
+				}
+				gotValue = converted
+			}
+
+			// The suite records outcomes rounded to the significant figures of the
+			// inputs, as the Java implementation produces them.
+			if sf := countSigFigs(tc.VRes); sf > 0 {
+				gotValue = roundToSigFigs(gotValue, sf)
+			}
+
+			delta := math.Abs(vRes) * 1e-6
+			if delta < 1e-10 {
+				delta = 1e-10
+			}
+			if diff := math.Abs(gotValue - vRes); diff > delta {
+				t.Errorf("Divide({%v,%q}, {%v,%q}) = {%v,%q}, want value ~%v in unit %q (diff=%v)",
+					v1, tc.U1, v2, tc.U2, got.Value, got.Code, vRes, wantUnit, diff)
+			}
+		})
 	}
 }

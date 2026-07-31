@@ -13,6 +13,7 @@ type Service interface {
 	IsComparable(code1, code2 string) (bool, error)
 	Analyze(code string) (string, error)
 	Multiply(v1, v2 Pair) (Pair, error)
+	Divide(v1, v2 Pair) (Pair, error)
 }
 
 // Pair represents a numeric value with its UCUM unit code.
