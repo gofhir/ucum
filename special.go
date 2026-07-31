@@ -44,10 +44,13 @@ var specialHandlers = map[string]specialHandler{
 
 	// Logarithmic. expDivisor mirrors the UCUM function: 1 for lg, ln and ld,
 	// 2 for lgTimes2, whose inverse is base^(v/2) and not base^(2v).
-	"[pH]":     logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
-	"Np":       logHandler{unitCode: "Np", unitExpr: "1", base: math.E},
-	"B":        logHandler{unitCode: "B", unitExpr: "1", base: 10},
-	"B[SPL]":   logHandler{unitCode: "B[SPL]", unitExpr: "10*-5.Pa", base: 10, expDivisor: 2},
+	"[pH]": logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
+	"Np":   logHandler{unitCode: "Np", unitExpr: "1", base: math.E},
+	"B":    logHandler{unitCode: "B", unitExpr: "1", base: 10},
+	// The reference level is 2x10^-5 Pa (20 uPa, the hearing threshold), which
+	// the XML spells as value="2" over Unit="10*-5.Pa". The factor belongs in
+	// the reference expression, not in the exponent.
+	"B[SPL]":   logHandler{unitCode: "B[SPL]", unitExpr: "2.10*-5.Pa", base: 10, expDivisor: 2},
 	"B[V]":     logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, expDivisor: 2},
 	"B[mV]":    logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, expDivisor: 2},
 	"B[uV]":    logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, expDivisor: 2},

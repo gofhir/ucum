@@ -49,3 +49,25 @@ func TestLgTimes2RoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// Issue #5: B[SPL] reference level is 2x10^-5 Pa.
+func TestBelSPLReferenceLevel(t *testing.T) {
+	svc := newTestService(t)
+	// 0 B[SPL] is the reference level itself: 20 uPa.
+	got, err := svc.Convert(0, "B[SPL]", "Pa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-2e-5) > 1e-20 {
+		t.Errorf("Convert(0, B[SPL], Pa) = %v, want 2e-05", got)
+	}
+	// 1 B[SPL] = 2e-5 * 10^0.5
+	got, err = svc.Convert(1, "B[SPL]", "Pa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 2e-5 * math.Sqrt(10)
+	if math.Abs(got-want) > want*1e-12 {
+		t.Errorf("Convert(1, B[SPL], Pa) = %v, want %v", got, want)
+	}
+}
