@@ -1,6 +1,9 @@
 package ucum
 
-import "math"
+import (
+	"math"
+	"math/big"
+)
 
 // specialHandler converts between a special unit and its canonical base.
 type specialHandler interface {
@@ -10,14 +13,34 @@ type specialHandler interface {
 	fromCanonical(value float64) float64
 }
 
+// ratHandler is implemented by the special handlers whose mapping is a rational
+// function, so it can be carried through big.Rat with no rounding at all. The
+// logarithmic, trigonometric and square-root handlers deliberately do not
+// implement it: their results are irrational in general.
+type ratHandler interface {
+	toCanonicalRat(value *big.Rat) *big.Rat
+	fromCanonicalRat(value *big.Rat) *big.Rat
+}
+
+// mustRat parses an exact decimal or fraction literal from this file. The input
+// is never external, so a parse failure is a programming error.
+func mustRat(s string) *big.Rat {
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		panic("ucum: invalid rational literal " + s)
+	}
+	return r
+}
+
 // specialHandlers maps special unit codes to their handlers.
 var specialHandlers = map[string]specialHandler{
-	// Temperature (offset units).
-	"Cel":    offsetHandler{unitCode: "Cel", unitExpr: "K", offset: 273.15},
-	"[degF]": affineHandler{unitCode: "[degF]", unitExpr: "K", scale: 5.0 / 9.0, offset: 459.67},
+	// Temperature (offset units). Constants are given as exact decimal literals
+	// so that the rational and float64 paths cannot drift apart.
+	"Cel":    newOffsetHandler("Cel", "K", "273.15"),
+	"[degF]": newAffineHandler("[degF]", "K", "5/9", "459.67"),
 	// The Reaumur offset is expressed on the Reaumur scale, not the Celsius one:
 	// 0 Re = 273.15 K requires (0 + offset) * 5/4 = 273.15, so offset = 273.15 * 4/5.
-	"[degRe]": affineHandler{unitCode: "[degRe]", unitExpr: "K", scale: 5.0 / 4.0, offset: 218.52},
+	"[degRe]": newAffineHandler("[degRe]", "K", "5/4", "218.52"),
 
 	// Logarithmic.
 	"[pH]":     logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
@@ -50,6 +73,13 @@ var specialHandlers = map[string]specialHandler{
 type offsetHandler struct {
 	unitCode, unitExpr string
 	offset             float64
+	offsetRat          *big.Rat
+}
+
+func newOffsetHandler(code, expr, offset string) offsetHandler {
+	r := mustRat(offset)
+	f, _ := r.Float64()
+	return offsetHandler{unitCode: code, unitExpr: expr, offset: f, offsetRat: r}
 }
 
 func (h offsetHandler) code() string                    { return h.unitCode }
@@ -57,16 +87,45 @@ func (h offsetHandler) units() string                   { return h.unitExpr }
 func (h offsetHandler) toCanonical(v float64) float64   { return v + h.offset }
 func (h offsetHandler) fromCanonical(v float64) float64 { return v - h.offset }
 
+func (h offsetHandler) toCanonicalRat(v *big.Rat) *big.Rat {
+	return new(big.Rat).Add(v, h.offsetRat)
+}
+
+func (h offsetHandler) fromCanonicalRat(v *big.Rat) *big.Rat {
+	return new(big.Rat).Sub(v, h.offsetRat)
+}
+
 // affineHandler converts via canonical = (value + offset) * scale (Fahrenheit, Reaumur).
 type affineHandler struct {
 	unitCode, unitExpr string
 	scale, offset      float64
+	scaleRat           *big.Rat
+	offsetRat          *big.Rat
+}
+
+func newAffineHandler(code, expr, scale, offset string) affineHandler {
+	sr, or := mustRat(scale), mustRat(offset)
+	sf, _ := sr.Float64()
+	of, _ := or.Float64()
+	return affineHandler{
+		unitCode: code, unitExpr: expr,
+		scale: sf, offset: of,
+		scaleRat: sr, offsetRat: or,
+	}
 }
 
 func (h affineHandler) code() string                    { return h.unitCode }
 func (h affineHandler) units() string                   { return h.unitExpr }
 func (h affineHandler) toCanonical(v float64) float64   { return (v + h.offset) * h.scale }
 func (h affineHandler) fromCanonical(v float64) float64 { return v/h.scale - h.offset }
+
+func (h affineHandler) toCanonicalRat(v *big.Rat) *big.Rat {
+	return new(big.Rat).Mul(new(big.Rat).Add(v, h.offsetRat), h.scaleRat)
+}
+
+func (h affineHandler) fromCanonicalRat(v *big.Rat) *big.Rat {
+	return new(big.Rat).Sub(new(big.Rat).Quo(v, h.scaleRat), h.offsetRat)
+}
 
 // logHandler converts via canonical = base^(value*factor) or base^(-value*factor) if negate.
 type logHandler struct {

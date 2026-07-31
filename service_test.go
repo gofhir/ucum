@@ -265,12 +265,11 @@ func TestNoPanicOnZeroDivisorMultiply(t *testing.T) {
 	}
 }
 
-// TestConvertExactWhenRepresentable pins the property that Convert rounds once.
-// Special units are excluded: their handler applies an offset, so the result is
-// not a plain ratio of canonical factors.
-//
+// TestConvertExactWhenRepresentable pins the property that Convert rounds once:
 // its result must be the float64 nearest to the exact rational conversion, not
 // the quotient of two already-rounded canonical factors.
+// Special units are excluded, since their handler applies an offset and the
+// result is not a plain ratio of canonical factors.
 func TestConvertExactWhenRepresentable(t *testing.T) {
 	svc, err := New()
 	if err != nil {

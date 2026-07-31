@@ -1,6 +1,7 @@
 package ucum
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -138,19 +139,37 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 	}
 
 	// Check comparability: canonical unit strings must match.
-	srcUnits := composeCanonicalUnits(srcCan)
-	dstUnits := composeCanonicalUnits(dstCan)
-	if srcUnits != dstUnits {
-		return 0, &ConversionError{
-			From:    from,
-			To:      to,
-			Message: fmt.Sprintf("units are not comparable: %s vs %s", srcUnits, dstUnits),
-		}
+	if err := requireComparable(from, to, srcCan, dstCan); err != nil {
+		return 0, err
 	}
 
 	// A zero destination factor ("0", "m/0" cancels to it) would divide by zero.
 	if dstCan.value.isZero() {
 		return 0, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
+	}
+
+	parts := convertParts{
+		srcTerm: srcTerm, dstTerm: dstTerm,
+		srcCan: srcCan, dstCan: dstCan,
+		from: from, to: to,
+	}
+
+	// Preferred path: run the whole conversion in exact rational arithmetic and
+	// round once at the end. Combining canonical factors that were each already
+	// rounded to float64 loses exactness even when the true result is
+	// representable — L -> mL came out as 1000.0000000000001 because 1/1000 and
+	// 1/1000000 are not binary fractions while their exact quotient is 1000 —
+	// and the affine temperature handlers compounded it further.
+	if rv := ratFromFloat(value); rv != nil {
+		exact, err := convertRatCore(rv, parts)
+		if err == nil {
+			out, _ := exact.Float64()
+			return out, nil
+		}
+		if !errors.Is(err, ErrNotRational) {
+			return 0, err
+		}
+		// Non-rational scale: fall through to the float64 handlers below.
 	}
 
 	result := value
@@ -160,11 +179,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 		result = srcHandler.toCanonical(result)
 	}
 
-	// Step 2: Multiplicative conversion, in exact rational arithmetic with a
-	// single rounding at the end. Dividing two canonical factors that were each
-	// already rounded to float64 loses exactness even when the true result is
-	// representable: L -> mL came out as 1000.0000000000001 because 1/1000 and
-	// 1/1000000 are not binary fractions, while their exact quotient is 1000.
+	// Step 2: Multiplicative conversion, exact factor with a single rounding.
 	result = mulExact(result, new(big.Rat).Quo(srcCan.value.rat(), dstCan.value.rat()))
 
 	// Step 3: If dest is special, convert from canonical.
