@@ -424,3 +424,51 @@ func TestConvertNonFiniteUnchanged(t *testing.T) {
 		t.Errorf("Convert(+Inf, L, mL) = %v, want +Inf", inf)
 	}
 }
+
+// TestCanonicalExactForAffineScales pins Canonical to a single rounding for the
+// rational special scales, the same guarantee Convert gives.
+func TestCanonicalExactForAffineScales(t *testing.T) {
+	svc, err := NewExact()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct{ value, code string }{
+		{"1", "[degRe]"}, {"0", "[degRe]"}, {"80", "[degRe]"},
+		{"1", "Cel"}, {"37", "Cel"}, {"0.1", "Cel"},
+		{"1", "[degF]"}, {"98.6", "[degF]"}, {"100", "[degF]"},
+	}
+	for _, tt := range tests {
+		v, _ := new(big.Rat).SetString(tt.value)
+		exact, err := svc.CanonicalRat(v, tt.code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, _ := exact.Value.Float64()
+		f, _ := v.Float64()
+		p, err := svc.Canonical(f, tt.code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Value != want {
+			t.Errorf("Canonical(%s, %q) = %.20g, want %.20g (single rounding of %s)",
+				tt.value, tt.code, p.Value, want, exact.Value.RatString())
+		}
+	}
+}
+
+func TestMultiplyExactForAffineScales(t *testing.T) {
+	svc, err := NewExact()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1 [degRe] canonicalizes to 274.4 K exactly; times 1 (dimensionless) it
+	// must stay the single rounding of 1372/5.
+	want, _ := new(big.Rat).SetFrac64(1372, 5).Float64()
+	p, err := svc.Multiply(Pair{1, "[degRe]"}, Pair{1, "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Value != want {
+		t.Errorf("Multiply(1 [degRe], 1) = %.20g, want %.20g", p.Value, want)
+	}
+}

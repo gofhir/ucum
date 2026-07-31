@@ -76,11 +76,11 @@ func NewExactFromReader(r io.Reader) (ExactService, error) {
 
 // ConversionFactor returns the exact multiplicative factor from -> to.
 func (s *service) ConversionFactor(from, to string) (*big.Rat, error) {
-	srcTerm, srcCan, err := s.exactParts(from)
+	srcTerm, srcCan, err := s.canonicalParts(from)
 	if err != nil {
 		return nil, err
 	}
-	dstTerm, dstCan, err := s.exactParts(to)
+	dstTerm, dstCan, err := s.canonicalParts(to)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +109,11 @@ func (s *service) ConvertRat(value *big.Rat, from, to string) (*big.Rat, error) 
 		return nil, fmt.Errorf("ucum: ConvertRat: %w", ErrNilValue)
 	}
 
-	srcTerm, srcCan, err := s.exactParts(from)
+	srcTerm, srcCan, err := s.canonicalParts(from)
 	if err != nil {
 		return nil, err
 	}
-	dstTerm, dstCan, err := s.exactParts(to)
+	dstTerm, dstCan, err := s.canonicalParts(to)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 		return RatPair{}, fmt.Errorf("ucum: CanonicalRat: %w", ErrNilValue)
 	}
 
-	t, can, err := s.exactParts(code)
+	t, can, err := s.canonicalParts(code)
 	if err != nil {
 		return RatPair{}, err
 	}
@@ -174,20 +174,6 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 		Value: mapped.Mul(mapped, can.value.rat()),
 		Code:  composeCanonicalUnits(can),
 	}, nil
-}
-
-// exactParts parses a code and canonicalizes it, returning both the AST (needed
-// to detect special units) and the canonical form.
-func (s *service) exactParts(code string) (*term, *canonical, error) {
-	t, err := s.parseCached(code)
-	if err != nil {
-		return nil, nil, &ValidationError{Code: code, Message: err.Error(), Offset: -1}
-	}
-	can, err := s.canonicalizeTerm(t)
-	if err != nil {
-		return nil, nil, err
-	}
-	return t, can, nil
 }
 
 // toCanonicalRat maps value onto the canonical scale of the unit denoted by t,

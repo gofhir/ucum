@@ -88,7 +88,25 @@ func (s *service) Canonical(value float64, code string) (Pair, error) {
 // canonicalScalar maps value onto the canonical scale of code and scales it by
 // the canonical factor, rounding once.
 func (s *service) canonicalScalar(value float64, code string) (float64, *canonical, error) {
-	mapped, can, err := s.canonicalMapped(value, code)
+	t, can, err := s.canonicalParts(code)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	// Preferred path: map and scale entirely in exact arithmetic.
+	if rv := ratFromFloat(value); rv != nil {
+		mapped, err := toCanonicalRat(t, code, rv)
+		switch {
+		case err == nil:
+			out, _ := mapped.Mul(mapped, can.value.rat()).Float64()
+			return out, can, nil
+		case !errors.Is(err, ErrNotRational):
+			return 0, nil, err
+		}
+	}
+
+	// Non-rational scale or non-finite value: use the float64 handler.
+	mapped, err := s.canonicalMapped(value, code)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -103,19 +121,29 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 // does not describe them: the handler has to map the value first (Cel adds an
 // offset, [pH] exponentiates, B[V] takes a power). Skipping it would silently
 // return the raw input value, making canonical forms non-comparable.
-func (s *service) canonicalMapped(value float64, code string) (float64, *canonical, error) {
-	t, err := s.parseCached(code)
+func (s *service) canonicalMapped(value float64, code string) (float64, error) {
+	t, _, err := s.canonicalParts(code)
 	if err != nil {
-		return 0, nil, err
-	}
-	can, err := s.canonicalizeTerm(t)
-	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
 	if h := specialHandlerForTerm(t); h != nil {
 		value = h.toCanonical(value)
 	}
-	return value, can, nil
+	return value, nil
+}
+
+// canonicalParts parses a code and canonicalizes it, returning both the AST
+// (needed to detect special units) and the canonical form.
+func (s *service) canonicalParts(code string) (*term, *canonical, error) {
+	t, err := s.parseCached(code)
+	if err != nil {
+		return nil, nil, err
+	}
+	can, err := s.canonicalizeTerm(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	return t, can, nil
 }
 
 // Convert converts a value from one unit to another.
@@ -214,22 +242,57 @@ func (s *service) Analyze(code string) (string, error) {
 
 // Multiply multiplies two value/unit pairs.
 func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
-	val1, can1, err := s.canonicalMapped(v1.Value, v1.Code)
+	t1, can1, err := s.canonicalParts(v1.Code)
 	if err != nil {
 		return Pair{}, err
 	}
-	val2, can2, err := s.canonicalMapped(v2.Value, v2.Code)
+	t2, can2, err := s.canonicalParts(v2.Code)
 	if err != nil {
+		return Pair{}, err
+	}
+	code := composeCanonicalUnits(mergeCanonicalUnits(can1, can2))
+	factor := new(big.Rat).Mul(can1.value.rat(), can2.value.rat())
+
+	// Preferred path: both operands mapped and combined in exact arithmetic,
+	// with a single rounding at the end.
+	exact, err := s.multiplyRat(t1, t2, v1, v2)
+	switch {
+	case err == nil && exact != nil:
+		out, _ := exact.Mul(exact, factor).Float64()
+		return Pair{Value: out, Code: code}, nil
+	case err != nil && !errors.Is(err, ErrNotRational):
 		return Pair{}, err
 	}
 
-	// Combine both canonical factors exactly and round once. The product of the
-	// two input values stays in float64 — that rounding is inherent to the
-	// float64 signature — but the factors no longer contribute their own.
-	factor := new(big.Rat).Mul(can1.value.rat(), can2.value.rat())
-	units := mergeCanonicalUnits(can1, can2)
-	code := composeCanonicalUnits(units)
+	// Non-rational scale or non-finite value: use the float64 handlers.
+	val1, err := s.canonicalMapped(v1.Value, v1.Code)
+	if err != nil {
+		return Pair{}, err
+	}
+	val2, err := s.canonicalMapped(v2.Value, v2.Code)
+	if err != nil {
+		return Pair{}, err
+	}
 	return Pair{Value: mulExact(val1*val2, factor), Code: code}, nil
+}
+
+// multiplyRat maps both operands onto their canonical scales exactly and returns
+// their product, without the canonical factors. It returns a nil result when an
+// operand is not finite, and ErrNotRational when a scale has no rational form.
+func (s *service) multiplyRat(t1, t2 *term, v1, v2 Pair) (*big.Rat, error) {
+	r1, r2 := ratFromFloat(v1.Value), ratFromFloat(v2.Value)
+	if r1 == nil || r2 == nil {
+		return nil, nil
+	}
+	m1, err := toCanonicalRat(t1, v1.Code, r1)
+	if err != nil {
+		return nil, err
+	}
+	m2, err := toCanonicalRat(t2, v2.Code, r2)
+	if err != nil {
+		return nil, err
+	}
+	return m1.Mul(m1, m2), nil
 }
 
 // Canonical conversion (converter logic).
