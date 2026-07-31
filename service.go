@@ -76,13 +76,33 @@ func (s *service) ValidateInProperty(code, property string) error {
 
 // Canonical returns the canonical (base-unit) form of a value+code pair.
 func (s *service) Canonical(value float64, code string) (Pair, error) {
-	can, err := s.getCanonical(code)
+	v, can, err := s.canonicalScalar(value, code)
 	if err != nil {
 		return Pair{}, err
 	}
-	v := value * can.value.float64()
-	units := composeCanonicalUnits(can)
-	return Pair{Value: v, Code: units}, nil
+	return Pair{Value: v, Code: composeCanonicalUnits(can)}, nil
+}
+
+// canonicalScalar maps value onto the canonical scale of code and returns it
+// along with the canonical form.
+//
+// Special units sit on non-ratio scales, so the multiplicative factor alone
+// does not describe them: the handler has to map the value first (Cel adds an
+// offset, [pH] exponentiates, B[V] takes a power). Skipping it would silently
+// return the raw input value, making canonical forms non-comparable.
+func (s *service) canonicalScalar(value float64, code string) (float64, *canonical, error) {
+	t, err := s.parseCached(code)
+	if err != nil {
+		return 0, nil, err
+	}
+	can, err := s.canonicalizeTerm(t)
+	if err != nil {
+		return 0, nil, err
+	}
+	if h := specialHandlerForTerm(t); h != nil {
+		value = h.toCanonical(value)
+	}
+	return value * can.value.float64(), can, nil
 }
 
 // Convert converts a value from one unit to another.
@@ -158,19 +178,18 @@ func (s *service) Analyze(code string) (string, error) {
 
 // Multiply multiplies two value/unit pairs.
 func (s *service) Multiply(v1, v2 Pair) (Pair, error) {
-	can1, err := s.getCanonical(v1.Code)
+	scalar1, can1, err := s.canonicalScalar(v1.Value, v1.Code)
 	if err != nil {
 		return Pair{}, err
 	}
-	can2, err := s.getCanonical(v2.Code)
+	scalar2, can2, err := s.canonicalScalar(v2.Value, v2.Code)
 	if err != nil {
 		return Pair{}, err
 	}
 
-	val := v1.Value * can1.value.float64() * v2.Value * can2.value.float64()
 	units := mergeCanonicalUnits(can1, can2)
 	code := composeCanonicalUnits(units)
-	return Pair{Value: val, Code: code}, nil
+	return Pair{Value: scalar1 * scalar2, Code: code}, nil
 }
 
 // Canonical conversion (converter logic).

@@ -285,3 +285,84 @@ func TestFunctionalReaumurConversion(t *testing.T) {
 		})
 	}
 }
+func TestFunctionalCanonicalSpecialUnits(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		value    float64
+		code     string
+		wantVal  float64
+		wantCode string
+		tol      float64
+	}{
+		{0, "Cel", 273.15, "K", 1e-9},
+		{1, "Cel", 274.15, "K", 1e-9},
+		{100, "Cel", 373.15, "K", 1e-9},
+		{32, "[degF]", 273.15, "K", 1e-9},
+		{212, "[degF]", 373.15, "K", 1e-9},
+		{0, "[degRe]", 273.15, "K", 1e-9},
+		{80, "[degRe]", 373.15, "K", 1e-9},
+		// 1 pH = 10^-1 mol/L = 6.02214076e25 m-3
+		{1, "[pH]", 6.02214076e25, "m-3", 1e18},
+		// 1 B = 10^1 (dimensionless ratio)
+		{1, "B", 10, "1", 1e-9},
+		// non-special units must be unaffected
+		{1, "L", 0.001, "m3", 1e-15},
+		{1, "kg", 1000, "g", 1e-9},
+	}
+	for _, tt := range tests {
+		p, err := svc.Canonical(tt.value, tt.code)
+		if err != nil {
+			t.Fatalf("Canonical(%v, %q): %v", tt.value, tt.code, err)
+		}
+		if math.Abs(p.Value-tt.wantVal) > tt.tol {
+			t.Errorf("Canonical(%v, %q).Value = %v, want %v", tt.value, tt.code, p.Value, tt.wantVal)
+		}
+		if p.Code != tt.wantCode {
+			t.Errorf("Canonical(%v, %q).Code = %q, want %q", tt.value, tt.code, p.Code, tt.wantCode)
+		}
+	}
+}
+
+// TestFunctionalCanonicalComparableTemperatures is the regression test for the consumer
+// pattern: normalise via Canonical, then compare. Before the fix both sides
+// canonicalized to their raw numeric value in K, so 100 [degF] compared as
+// greater than 50 Cel.
+func TestFunctionalCanonicalComparableTemperatures(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hot, err := svc.Canonical(100, "[degF]") // = 37.78 Cel = 310.93 K
+	if err != nil {
+		t.Fatal(err)
+	}
+	cold, err := svc.Canonical(50, "Cel") // = 323.15 K
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(hot.Value < cold.Value) {
+		t.Errorf("Canonical(100,[degF]) = %v should be less than Canonical(50,Cel) = %v",
+			hot.Value, cold.Value)
+	}
+}
+
+func TestFunctionalMultiplySpecialUnits(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1 Cel * 1 (dimensionless) = 274.15 K
+	p, err := svc.Multiply(Pair{1, "Cel"}, Pair{1, "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(p.Value-274.15) > 1e-9 {
+		t.Errorf("Multiply(1 Cel, 1).Value = %v, want 274.15", p.Value)
+	}
+	if p.Code != "K" {
+		t.Errorf("Multiply(1 Cel, 1).Code = %q, want %q", p.Code, "K")
+	}
+}
