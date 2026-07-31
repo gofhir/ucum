@@ -231,13 +231,21 @@ func (s *service) IsComparable(code1, code2 string) (bool, error) {
 	return composeCanonicalUnits(can1) == composeCanonicalUnits(can2), nil
 }
 
-// Analyze returns a human-readable description of the unit expression.
+// Analyze returns a human-readable description of the unit expression, in the
+// display format of the official UCUM test suite: each unit parenthesised with
+// its full name, exponents written as " ^ n", and operators as " * " and " / ".
+//
+// An empty expression describes the unity, matching the suite, even though
+// Validate rejects it as a code.
 func (s *service) Analyze(code string) (string, error) {
+	if strings.TrimSpace(code) == "" {
+		return unityDisplayName, nil
+	}
 	t, err := s.parseCached(code)
 	if err != nil {
 		return "", err
 	}
-	return analyseTermHuman(t), nil
+	return displayName(t), nil
 }
 
 // Multiply multiplies two value/unit pairs.
@@ -563,45 +571,55 @@ func canonicalProperty(can *canonical, _ *Model) string {
 
 // Human-readable analysis.
 
-// analyseTermHuman returns a human-readable description of a term.
-func analyseTermHuman(t *term) string {
+// unityDisplayName is what the official suite expects for an empty expression.
+const unityDisplayName = "(unity)"
+
+// displayName renders a term in the display format of the official UCUM test
+// suite: every unit is parenthesised with its full name, a prefix is
+// concatenated onto that name ("mm" is "(millimeter)"), an exponent other than
+// 1 is written inside the parentheses as " ^ n", numeric factors appear bare,
+// and the operators are " * " and " / ".
+func displayName(t *term) string {
 	if t == nil {
-		return ""
+		return unityDisplayName
 	}
-
 	var sb strings.Builder
-	analyseComponentHuman(&sb, t.comp)
-
-	if t.term != nil {
-		sb.WriteString(t.op.String())
-		analyseTermHumanTo(&sb, t.term)
-	}
-
+	displayTermTo(&sb, t)
 	return sb.String()
 }
 
-func analyseTermHumanTo(sb *strings.Builder, t *term) {
-	analyseComponentHuman(sb, t.comp)
+func displayTermTo(sb *strings.Builder, t *term) {
+	displayComponentTo(sb, t.comp)
 	if t.term != nil {
-		sb.WriteString(t.op.String())
-		analyseTermHumanTo(sb, t.term)
+		if t.op == opDivision {
+			sb.WriteString(" / ")
+		} else {
+			sb.WriteString(" * ")
+		}
+		displayTermTo(sb, t.term)
 	}
 }
 
-func analyseComponentHuman(sb *strings.Builder, c component) {
+func displayComponentTo(sb *strings.Builder, c component) {
 	switch v := c.(type) {
 	case *factor:
 		fmt.Fprintf(sb, "%d", v.value)
 	case *symbol:
+		sb.WriteString("(")
 		if v.prefix != nil {
 			sb.WriteString(v.prefix.Name)
 		}
 		sb.WriteString(v.unit.Name)
 		if v.exponent != 1 {
-			fmt.Fprintf(sb, "%d", v.exponent)
+			fmt.Fprintf(sb, " ^ %d", v.exponent)
 		}
+		sb.WriteString(")")
 	case *term:
-		analyseTermHumanTo(sb, v)
+		// Rendered without extra parentheses: the AST does not distinguish a
+		// group written in the source from the parser's own nesting, and adding
+		// them here would bracket every operator. composeTerm makes the same
+		// choice, so the two renderings stay consistent.
+		displayTermTo(sb, v)
 	}
 }
 

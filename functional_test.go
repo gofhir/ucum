@@ -18,6 +18,7 @@ type ucumTests struct {
 	Conversion     conversionSection     `xml:"conversion"`
 	Multiplication multiplicationSection `xml:"multiplication"`
 	Division       divisionSection       `xml:"division"`
+	DisplayName    displayNameSection    `xml:"displayNameGeneration"`
 }
 
 type validationSection struct {
@@ -54,6 +55,16 @@ type multiplicationCase struct {
 	U2   string `xml:"u2,attr"`
 	VRes string `xml:"vRes,attr"`
 	URes string `xml:"uRes,attr"`
+}
+
+type displayNameSection struct {
+	Cases []displayNameCase `xml:"case"`
+}
+
+type displayNameCase struct {
+	ID      string `xml:"id,attr"`
+	Unit    string `xml:"unit,attr"`
+	Display string `xml:"display,attr"`
 }
 
 type divisionSection struct {
@@ -432,6 +443,30 @@ func TestFunctionalDivision(t *testing.T) {
 			if diff := math.Abs(gotValue - vRes); diff > delta {
 				t.Errorf("Divide({%v,%q}, {%v,%q}) = {%v,%q}, want value ~%v in unit %q (diff=%v)",
 					v1, tc.U1, v2, tc.U2, got.Value, got.Code, vRes, wantUnit, diff)
+			}
+		})
+	}
+}
+
+// Display name tests (official suite, <displayNameGeneration> section).
+
+func TestFunctionalDisplayNameGeneration(t *testing.T) {
+	suite := loadTestSuite(t)
+	svc := newTestService(t)
+
+	if len(suite.DisplayName.Cases) == 0 {
+		t.Fatal("no displayNameGeneration test cases found in the official suite")
+	}
+
+	for _, tc := range suite.DisplayName.Cases {
+		t.Run(fmt.Sprintf("%s_%s", tc.ID, tc.Unit), func(t *testing.T) {
+			got, err := svc.Analyze(tc.Unit)
+			if err != nil {
+				t.Errorf("Analyze(%q) error: %v", tc.Unit, err)
+				return
+			}
+			if got != tc.Display {
+				t.Errorf("Analyze(%q) = %q, want %q", tc.Unit, got, tc.Display)
 			}
 		})
 	}

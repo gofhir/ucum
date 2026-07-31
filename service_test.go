@@ -157,10 +157,15 @@ func TestServiceAnalyze(t *testing.T) {
 		code string
 		want string
 	}{
-		{"m", "meter"},
-		{"km", "kilometer"},
-		{"m/s", "meter/second"},
-		{"kg", "kilogram"},
+		{"m", "(meter)"},
+		{"km", "(kilometer)"},
+		{"m/s", "(meter) / (second)"},
+		{"kg", "(kilogram)"},
+		{"", "(unity)"},
+		{"cm2", "(centimeter ^ 2)"},
+		{"kg.m/s2", "(kilogram) * (meter) / (second ^ 2)"},
+		{"mm[Hg]", "(millimeter of mercury column)"},
+		{"10*3/uL", "(the number ten for arbitrary powers ^ 3) / (microliter)"},
 	}
 
 	for _, tc := range tests {
