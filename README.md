@@ -62,7 +62,9 @@ A `Service` is safe for concurrent use and caches parsed expressions internally,
 
 The official HL7 test suite (`UcumFunctionalTests.xml`, the one used by `FHIR/Ucum-java`) runs as part of `go test`. All **573 cases pass with zero skips**: 529 validation, 30 conversion, 9 display-name generation, 3 division, 2 multiplication.
 
-Be aware of what that suite does *not* cover, since a green run is easy to over-read: its conversion cases are compared with `1e-6` relative tolerance after significant-figure rounding, none of its 30 conversion cases involves a special unit, none of its 529 validation cases contains a zero divisor, and it has no canonicalization section at all. The tests in this repository go beyond it deliberately, asserting exactness as a property rather than comparing against tolerances.
+All 21 special units are additionally checked against the specification's normative definition tables — `TestAllSpecialHandlersAgainstSpec` pins each one to an independently verifiable reference point, such as pH 7 being 1e-7 mol/L or a 100% slope being a 45 degree incline.
+
+Be aware of what the official suite does *not* cover, since a green run is easy to over-read: its conversion cases are compared with `1e-6` relative tolerance after significant-figure rounding, none of its 30 conversion cases involves a special unit, none of its 529 validation cases contains a zero divisor, and it has no canonicalization section at all. The tests in this repository go beyond it deliberately, asserting exactness as a property rather than comparing against tolerances.
 
 ## Exact arithmetic
 
@@ -239,9 +241,31 @@ A unit conversion multiplies by an exactly known factor, so it neither adds nor 
 Every rule in the subpackage cites the document it comes from, and where FHIR and UCUM disagree the disagreement is documented rather than silently resolved — FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines it as 30.4375, and this library follows UCUM.
 
 ## Known limitations
-- **Significant figures are not modelled** — see below. This was previously the place where unaudited special-unit handlers were listed; all 21 have since been checked against the UCUM specification's normative definition tables, and `TestAllSpecialHandlersAgainstSpec` pins each one to an independently checkable reference point.
-- **The definitions are not part of the public API.** The `Model`, `Unit`, `Prefix` and `UnitValue` types were exported but inert — no exported function accepted one — and are now internal. Use `ExactService` for exact numbers; there is nothing a caller could do with the model that the service does not do better.
-- **Precision is modelled in `fhir.Decimal`, not in the core.** The root package rounds correctly but carries no notion of significant figures; `ExactService` gives exact values, and `fhir.Decimal` adds the declared precision on top. Plain decimal notation cannot express a precision coarser than the integer part — 150 to two figures and to three both render as `"150"` — so `SignificantFigures()` remains the authority there.
+
+Three, and all three are limits of a representation rather than gaps in the implementation.
+
+**Precision does not propagate through arithmetic.** `fhir.Decimal` carries the precision a value was written with, and `ConvertDecimal` preserves it, but there is no arithmetic *between* `Decimal`s — you cannot multiply two and get the smaller of their significant figures. The core is exact (`big.Rat`) and holds no notion of precision, so precision is a layer on top rather than a property of every operation. If that is needed, `fhir.Decimal` is where it belongs.
+
+**The property of a compound expression can be ambiguous.** `ValidateInProperty` judges an atomic unit by the property UCUM declares for it, which is exact. A compound expression has no declared property, so it is judged dimensionally — and UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so a dimensionless compound cannot be distinguished as `amount of substance` rather than `fraction`. This is a limit of the definitions, not of the check.
+
+**Plain decimal notation cannot express a precision coarser than the integer part.** 150 to two significant figures and to three both render as `"150"`. Disambiguating needs scientific notation (`1.5e2`), which is not emitted, so `SignificantFigures()` remains the authority.
+
+## Differences from the Java reference
+
+The lexer and parser are ports of [FHIR/Ucum-java](https://github.com/FHIR/Ucum-java), and the shape of the service follows it, but the behaviour has diverged. Verified by reading its source, not from memory:
+
+| | Ucum-java | here |
+|---|---|---|
+| Special-unit conversion | `HoldingHandler` holds the code and units without converting, so `[pH]`, `B`, `Np`, `bit_s`, `[p'diop]` and the homeopathic potencies reduce to base units with a factor of 1 | all 21 convert, each pinned to the specification's normative tables |
+| Temperature | `Converter` raises `Not handled yet (special unit with offset from 0 at intersect)`; its comment notes that fixing it *"requires a total rework of the architecture"* | works, including `[degRe]` |
+| Registered handlers | a hardcoded list, missing `[degRe]`, `B[10.nV]`, `[m/s2/Hz^(1/2)]`, `[hp'_M]` and `[hp'_Q]`, and registering `[hp_X]`/`[hp_C]` (arbitrary-unit codes) for the special units | built from the `<function>` each definition declares; an unknown function is a construction error |
+| Arbitrary units | `isArbitrary` is not in its model, so they cannot be told apart | each is its own dimension, per UCUM §24 |
+| `ValidateInProperty` | requires the canonical form to be a single base unit, plus a hardcoded case for `concentration` | declared property for atoms, dimensional for compounds |
+| Decimal precision | propagated through every operation, in a bespoke numeric type | exact `big.Rat` core, precision in `fhir.Decimal` — better for conversion, weaker for arithmetic |
+
+Where Java was ahead: it has always enforced UCUM §11 (prefixes only on metric atoms), which this package only started doing in v3.0.0.
+
+`TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 
 ## Licence
 
