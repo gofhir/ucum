@@ -372,10 +372,19 @@ func TestPrismDiopterRoundTrip(t *testing.T) {
 
 func TestPercentSlopeToCanonical(t *testing.T) {
 	h := specialHandlers["%[slope]"]
-	// At 100%: atan(1) = pi/4
+	// A 100% slope is a 45 degree incline: atan(1) is pi/4 radians, and the
+	// handler is declared against deg, so it reports 45.
 	got := h.toCanonical(100)
-	if !almostEqual(got, math.Pi/4, floatTolerance) {
-		t.Errorf("%%[slope].toCanonical(100) = %v, want %v", got, math.Pi/4)
+	if !almostEqual(got, 45, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(100) = %v, want 45", got)
+	}
+	if got0 := h.toCanonical(0); !almostEqual(got0, 0, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(0) = %v, want 0", got0)
+	}
+	// 50% slope: atan(0.5) in degrees.
+	want50 := math.Atan(0.5) * 180 / math.Pi
+	if got50 := h.toCanonical(50); !almostEqual(got50, want50, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(50) = %v, want %v", got50, want50)
 	}
 }
 

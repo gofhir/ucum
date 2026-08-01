@@ -71,3 +71,40 @@ func TestBelSPLReferenceLevel(t *testing.T) {
 		t.Errorf("Convert(1, B[SPL], Pa) = %v, want %v", got, want)
 	}
 }
+
+// Issue #6: %[slope] must express its result in its declared unit (deg).
+func TestPercentSlope(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{100, "%[slope]", "deg", 45},
+		{100, "%[slope]", "rad", math.Pi / 4},
+		{0, "%[slope]", "deg", 0},
+		// [p'diop] is declared against rad and must keep working.
+		{100, "[p'diop]", "rad", math.Pi / 4},
+		{0, "[p'diop]", "rad", 0},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > math.Abs(tt.want)*1e-12+1e-15 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestTanHandlerRoundTrip(t *testing.T) {
+	for _, code := range []string{"[p'diop]", "%[slope]"} {
+		h := specialHandlers[code]
+		for _, v := range []float64{-50, 0, 10, 100} {
+			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
+				t.Errorf("%s round-trip(%v) = %v", code, v, got)
+			}
+		}
+	}
+}

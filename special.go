@@ -59,9 +59,11 @@ var specialHandlers = map[string]specialHandler{
 	"B[kW]":    logHandler{unitCode: "B[kW]", unitExpr: "kW", base: 10},
 	"bit_s":    logHandler{unitCode: "bit_s", unitExpr: "1", base: 2},
 
-	// Trigonometric.
-	"[p'diop]": tanHandler{unitCode: "[p'diop]", unitExpr: "rad", factor: 100},
-	"%[slope]": tanHandler{unitCode: "%[slope]", unitExpr: "deg", factor: 100},
+	// Trigonometric. atan returns radians, so a handler declared against another
+	// angle unit has to convert into it: perRadian is how many of unitExpr make
+	// up one radian.
+	"[p'diop]": tanHandler{unitCode: "[p'diop]", unitExpr: "rad", factor: 100, perRadian: 1},
+	"%[slope]": tanHandler{unitCode: "%[slope]", unitExpr: "deg", factor: 100, perRadian: 180 / math.Pi},
 
 	// Power.
 	"[m/s2/Hz^(1/2)]": sqrtHandler{unitCode: "[m/s2/Hz^(1/2)]", unitExpr: "m2/s4/Hz"},
@@ -167,16 +169,37 @@ func (h logHandler) effectiveDivisor() float64 {
 	return h.expDivisor
 }
 
-// tanHandler converts via canonical = arctan(value/factor) (prism diopter, percent slope).
+// tanHandler converts via canonical = arctan(value/factor), expressed in the
+// unit the handler declares (prism diopter, percent slope).
+//
+// The math.Atan call yields radians while the declared unit may be something
+// else, so
+// the result is scaled by perRadian — the number of unitExpr in one radian.
+// Without that, the raw radian figure would be relabelled as the declared unit and
+// then scaled again by that unit's canonical factor.
 type tanHandler struct {
 	unitCode, unitExpr string
 	factor             float64
+	perRadian          float64 // units of unitExpr per radian (1 when unitExpr is rad)
 }
 
-func (h tanHandler) code() string                    { return h.unitCode }
-func (h tanHandler) units() string                   { return h.unitExpr }
-func (h tanHandler) toCanonical(v float64) float64   { return math.Atan(v / h.factor) }
-func (h tanHandler) fromCanonical(v float64) float64 { return math.Tan(v) * h.factor }
+func (h tanHandler) code() string  { return h.unitCode }
+func (h tanHandler) units() string { return h.unitExpr }
+
+func (h tanHandler) toCanonical(v float64) float64 {
+	return math.Atan(v/h.factor) * h.effectivePerRadian()
+}
+
+func (h tanHandler) fromCanonical(v float64) float64 {
+	return math.Tan(v/h.effectivePerRadian()) * h.factor
+}
+
+func (h tanHandler) effectivePerRadian() float64 {
+	if h.perRadian == 0 {
+		return 1
+	}
+	return h.perRadian
+}
 
 // sqrtHandler converts via canonical = value^2.
 type sqrtHandler struct {
