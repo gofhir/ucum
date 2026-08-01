@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.0.0](https://github.com/gofhir/ucum/compare/v3.3.0...v4.0.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **fhir:** Decimal.String returns scientific notation for a value whose declared precision is coarser than its integer part. It previously returned plain notation, overstating the precision.
+
+### Features
+
+* **fhir:** propagate precision through arithmetic, and render it honestly ([#42](https://github.com/gofhir/ucum/issues/42)) ([b97722f](https://github.com/gofhir/ucum/commit/b97722f4d0e4fff1a3e70285480d5d73ee872540))
+
+
+### Bug Fixes
+
+* move the module path to /v4 ahead of the major release ([#44](https://github.com/gofhir/ucum/issues/44)) ([9d1348e](https://github.com/gofhir/ucum/commit/9d1348e6da21e221b3abefee21eaeccd4cd7dbc1))
+
 ## [3.3.0](https://github.com/gofhir/ucum/compare/v3.2.0...v3.3.0) (2026-08-01)
 
 
