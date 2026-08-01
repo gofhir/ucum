@@ -3,6 +3,25 @@
 ## [3.0.0](https://github.com/gofhir/ucum/compare/v2.2.0...v3.0.0) (2026-08-01)
 
 
+### Migration
+
+The import path changes, as it does for every Go major:
+
+```go
+import "github.com/gofhir/ucum/v3"
+import "github.com/gofhir/ucum/v3/fhir"
+```
+
+Then, in order of how likely they are to affect you:
+
+1. **Codes that were accepted and should not have been now fail.** A prefix on a non-metric unit (`k[ft_i]`, `m[lb_av]`, `c[pi]`) is invalid per UCUM §11 ■1 and is rejected by `Validate`, `Convert` and `Canonical`. A special unit with an exponent (`Cel2`) or on a non-linear scale inside an algebraic term (`[pH]/L`, `B.m`) now returns an error rather than a number.
+
+2. **Temperature gradients change value, because they were wrong.** `Convert(1, "[degF]/min", "K/min")` returned `1` and now returns `5/9`; `[degRe]` gradients change likewise. A rate of change in Fahrenheit was being converted as though a Fahrenheit degree were a kelvin. If you have stored results computed with the old behaviour, they are wrong by a factor of 1.8 (or 1.25 for Réaumur).
+
+3. **The definitions model is no longer public.** `Model`, `Unit`, `BaseUnit`, `DefinedUnit`, `Prefix`, `UnitValue` and `FunctionDef` are internal, along with `UnitValue.Rat` and `Prefix.Rat`. Nothing could be built with them — no exported function accepted a `Model` — so the likely impact is nil. For exact numbers use `ExactService`, which resolves the whole definition chain.
+
+Everything else is unchanged: `Service`, `ExactService`, `Pair`, `RatPair`, the error types and the constructors keep their shape.
+
 ### ⚠ BREAKING CHANGES
 
 * Model, Unit, BaseUnit, DefinedUnit, Prefix, UnitValue and FunctionDef are no longer exported, along with UnitValue.Rat and Prefix.Rat.
