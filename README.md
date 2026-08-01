@@ -234,9 +234,13 @@ The value set is extensible in FHIR, so a code outside it is not invalid. Use `V
 ```go
 fhir.CalendarEquivalentOf("a")            // {Keyword: "year", Equal: false}
 fhir.CalendarEquivalentOf("s")            // {Keyword: "second", Equal: true}
-fhir.AllowedInDateTimeArithmetic("a")     // false — FHIRPath signals an error
-fhir.AllowedInDateTimeArithmetic("s")     // true
+fhir.AllowedInDateTimeArithmetic("a")     // false — a calendar year varies in length
+fhir.AllowedInDateTimeArithmetic("wk")    // true  — a week is seven days either way
 ```
+
+Those two answer different questions. The equivalence table says how a UCUM quantity relates to a calendar keyword; the arithmetic rule says whether it can be added to a date. A week is only *equivalent* to a calendar week and is still valid in arithmetic, because both are exactly seven days. Only the year and the month are barred, being the two whose calendar length varies.
+
+That follows the conformance suite rather than the prose: FHIRPath says an error is signalled for "a definite-quantity duration above seconds", but `r4/fhirpath/tests-fhir-r4.xml` evaluates `+ 1 'd'`, `+ 1 'wk'`, `+ 1 'h'` and `+ 1 'min'` without error and marks only `'a'` and `'mo'` invalid.
 
 **Quantity comparison**, which is what a server needs for a quantity search with `gt`/`lt`, and which is exact wherever the units allow it:
 

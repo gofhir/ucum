@@ -85,21 +85,52 @@ func MappedByFHIRQuantityConversion(code string) (string, bool) {
 	return keyword, ok
 }
 
-// AllowedInDateTimeArithmetic reports whether a definite-duration UCUM unit may
-// take part in FHIRPath date/time arithmetic.
+// varyingCalendarLength holds the two units whose calendar length is not fixed,
+// which is what bars them from date/time arithmetic.
 //
-// FHIRPath N1, "Date/Time Arithmetic", defines definite-duration arithmetic for
-// seconds and below and calendar-based arithmetic for seconds and above, and
-// says that if a definite-duration quantity above seconds appears in a date/time
-// calculation "the evaluation will end and signal an error to the calling
-// environment".
+// A UCUM year is exactly 365.25 days and a UCUM month exactly a twelfth of one,
+// while a calendar year is 365 or 366 days and a calendar month anywhere from 28
+// to 31. Adding either to a date has no single answer. Every other duration is
+// the same length in both systems — a UCUM week is exactly seven days and so is
+// a calendar week — so adding it is unambiguous.
+var varyingCalendarLength = map[string]bool{
+	"a":  true,
+	"mo": true,
+}
+
+// AllowedInDateTimeArithmetic reports whether a UCUM duration may take part in
+// FHIRPath date/time arithmetic.
 //
-// So 's' and 'ms' are allowed, the coarser time units are not, and a unit that
-// is not a duration at all is not applicable — this returns false for it, since
-// it cannot lawfully appear in date/time arithmetic either.
+// Everything except the year and the month is allowed, because those are the two
+// units whose calendar length varies. A unit that is not a duration at all is not
+// applicable, and reports false.
+//
+// This follows the conformance suite rather than the prose, which disagree. The
+// prose says that "if a definite-quantity duration above seconds appears in a
+// date/time arithmetic calculation, the evaluation will end and signal an error",
+// and its list of accepted units names UCUM codes only for seconds and
+// milliseconds. Read literally that rejects 'wk', 'd', 'h' and 'min'. The suite
+// in FHIR/fhir-test-cases, r4/fhirpath/tests-fhir-r4.xml, evaluates all four
+// without error and marks only 'a' and 'mo' as invalid:
+//
+//	<expression>@1973-12-25 + 1 'd'</expression>
+//	<expression>@1973-12-25 + 1 'wk'</expression>
+//	<expression invalid="execution">@1973-12-25 + 1 'mo'</expression>
+//	<expression invalid="execution">@1973-12-25 + 1 'a'</expression>
+//
+// The suite governs: it is what conformance is measured against, and its rule —
+// exclude the units whose length varies — is the one that holds up. "Above
+// seconds" does not, since a week is above seconds and is exactly seven days in
+// both systems.
+//
+// Note that this is a different question from CalendarEquivalentOf, which reports
+// how a UCUM quantity relates to a calendar keyword. A week is only equivalent to
+// a calendar week, not equal to it, and is still valid here.
 func AllowedInDateTimeArithmetic(code string) bool {
-	eq, ok := calendarEquivalents[code]
-	return ok && eq.Equal
+	if _, ok := calendarEquivalents[code]; !ok {
+		return false
+	}
+	return !varyingCalendarLength[code]
 }
 
 // IsDefiniteDuration reports whether code is one of the UCUM time units that
