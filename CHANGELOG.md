@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/gofhir/ucum/compare/v2.0.2...v2.1.0) (2026-08-01)
+
+
+### Features
+
+* **fhir:** add a FHIR subpackage ([#20](https://github.com/gofhir/ucum/issues/20)) ([9ce2ef4](https://github.com/gofhir/ucum/commit/9ce2ef41b83b1d24586c4268ed87ad4005b77f4f))
+
 ## [2.0.2](https://github.com/gofhir/ucum/compare/v2.0.1...v2.0.2) (2026-08-01)
 
 
