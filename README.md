@@ -66,6 +66,27 @@ defs.Version       // "2.2"
 defs.RevisionDate  // "2024-06-17"
 ```
 
+## The two vocabularies
+
+UCUM defines a case-insensitive variant of every symbol, "to be used when there is a risk of upper and lower case to be confused", and states that the two are **incompatible**. They are parallel vocabularies, chosen at construction and never mixed:
+
+```go
+cs, _ := ucum.New()                  // case-sensitive: what FHIR uses
+ci, _ := ucum.NewCaseInsensitive()   // case-insensitive
+
+cs.Canonical(1, "G")   // Gauss
+ci.Canonical(1, "G")   // gram
+```
+
+That is why they cannot be mixed: `G` is *giga* or *Gauss* case-sensitively and *gram* case-insensitively, and the specification devotes a section, *Summary of Conflicts*, to such collisions. Within the case-insensitive variant case carries no meaning, so `MG/DL`, `mg/dl` and `Mg/Dl` are one code.
+
+Use it for data from a system that cannot preserve case. **FHIR uses the case-sensitive form**, so `New` is the right choice there.
+
+Two details worth knowing:
+
+- **Canonical forms are always reported in case-sensitive codes**, in both variants, so that a canonical form is a stable comparison key no matter which vocabulary produced it.
+- **The case-insensitive variant cannot distinguish two pairs** that the case-sensitive one can: `l`/`L` (both the liter, so nothing is lost) and `[iU]`/`[IU]` (distinct arbitrary units, so one is unreachable there). That follows from it being, as the specification puts it, the greatest common denominator.
+
 ## Conformance
 
 The official HL7 test suite (`UcumFunctionalTests.xml`, the one used by `FHIR/Ucum-java`) runs as part of `go test`. All **573 cases pass with zero skips**: 529 validation, 30 conversion, 9 display-name generation, 3 division, 2 multiplication.

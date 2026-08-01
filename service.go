@@ -11,9 +11,19 @@ import (
 
 // service is the concrete implementation of Service.
 type service struct {
-	model  *ucumModel
+	model *ucumModel
+
+	// parser resolves codes supplied by a caller, in whichever of UCUM's two
+	// vocabularies this service was built for.
 	parser *parser
 	cache  sync.Map // map[string]*term
+
+	// defParser resolves the expressions inside the definitions, which are always
+	// written in case-sensitive codes: the year is defined as "a_j", not as its
+	// case-insensitive spelling "ANN_J". Expanding a definition therefore never
+	// uses the caller's vocabulary.
+	defParser *parser
+	defCache  sync.Map // map[string]*term
 
 	// arbitraryBases gives every arbitrary unit its own dimension. Populated
 	// once at construction and read-only afterwards.
@@ -30,8 +40,14 @@ type service struct {
 	handlers map[string]specialHandler
 }
 
-// newService creates a fully wired service.
+// newService creates a fully wired service resolving the case-sensitive
+// vocabulary.
 func newService(r io.Reader) (*service, error) {
+	return newServiceFor(r, false)
+}
+
+// newServiceFor creates a service resolving one of UCUM's two vocabularies.
+func newServiceFor(r io.Reader, insensitive bool) (*service, error) {
 	m, err := loadDefinitions(r)
 	if err != nil {
 		return nil, fmt.Errorf("ucum: load definitions: %w", err)
@@ -74,7 +90,8 @@ func newService(r io.Reader) (*service, error) {
 
 	return &service{
 		model:           m,
-		parser:          newParser(m),
+		parser:          newParserFor(m, insensitive),
+		defParser:       newParser(m),
 		arbitraryBases:  arbitrary,
 		codesByProperty: codesByProperty,
 		handlers:        handlers,
@@ -106,6 +123,24 @@ func (s *service) Definitions() Definitions {
 		Revision:     s.model.Revision,
 		RevisionDate: s.model.RevisionDate,
 	}
+}
+
+// parseDefinition parses an expression taken from the definitions, always in the
+// case-sensitive vocabulary, and caches the result separately from caller input.
+func (s *service) parseDefinition(expr string) (*term, error) {
+	if v, ok := s.defCache.Load(expr); ok {
+		t, ok := v.(*term)
+		if !ok {
+			return nil, fmt.Errorf("ucum: unexpected cache entry type %T", v)
+		}
+		return t, nil
+	}
+	t, err := s.defParser.parse(expr)
+	if err != nil {
+		return nil, err
+	}
+	s.defCache.Store(expr, t)
+	return t, nil
 }
 
 // Validate checks if the given code is a valid UCUM expression.
@@ -209,7 +244,7 @@ func (s *service) canonicalFormsOfProperty(property string) (map[string]bool, er
 
 	forms := make(map[string]bool)
 	for _, code := range codes {
-		can, err := s.getCanonical(code)
+		can, err := s.canonicalOfDefinition(code)
 		if err != nil {
 			// A definition this package cannot canonicalize contributes nothing;
 			// the remaining units of the property still describe it.
@@ -501,6 +536,17 @@ func (s *service) mappedRats(t1, t2 *term, v1, v2 Pair) (m1, m2 *big.Rat, err er
 	return m1, m2, nil
 }
 
+// canonicalOfDefinition canonicalizes a code that came from the definitions
+// rather than from a caller, so it resolves case-sensitively whatever vocabulary
+// the service was built for.
+func (s *service) canonicalOfDefinition(code string) (*canonical, error) {
+	t, err := s.parseDefinition(code)
+	if err != nil {
+		return nil, err
+	}
+	return s.canonicalizeTerm(t, s.specialContextOf(t))
+}
+
 // getCanonical computes the canonical form of a UCUM code.
 func (s *service) getCanonical(code string) (*canonical, error) {
 	t, err := s.parseCached(code)
@@ -642,7 +688,7 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 		return &canonical{value: val}, nil
 	}
 
-	inner, err := s.parseCached(unitExpr)
+	inner, err := s.parseDefinition(unitExpr)
 	if err != nil {
 		return nil, fmt.Errorf("expand unit %q: %w", u.Code, err)
 	}

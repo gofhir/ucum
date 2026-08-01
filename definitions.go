@@ -117,14 +117,15 @@ func parseDefinitions(r io.Reader) (*ucumModel, error) {
 			return nil, fmt.Errorf("prefix %s value: %w", xp.Code, err)
 		}
 		model.Prefixes = append(model.Prefixes, &prefixDef{
-			Code: xp.Code, Name: xp.Name, Value: val,
+			Code: xp.Code, CodeCI: xp.CodeUC, Name: xp.Name, Value: val,
 		})
 	}
 
 	// Parse base units
 	for _, xb := range root.BaseUnits {
 		model.BaseUnits = append(model.BaseUnits, &baseUnit{
-			Code: xb.Code, Name: xb.Name, Property: xb.Property, Dim: xb.Dim,
+			Code: xb.Code, CodeCI: xb.CodeUC, Name: xb.Name,
+			Property: xb.Property, Dim: xb.Dim,
 		})
 	}
 
@@ -148,7 +149,7 @@ func parseDefinitions(r io.Reader) (*ucumModel, error) {
 			}
 		}
 		model.DefinedUnits = append(model.DefinedUnits, &definedUnit{
-			Code: xu.Code, Name: xu.Name, Property: xu.Property,
+			Code: xu.Code, CodeCI: xu.CodeUC, Name: xu.Name, Property: xu.Property,
 			IsMetric: xu.IsMetric == xmlYes, IsSpecial: xu.IsSpecial == xmlYes,
 			IsArbitrary: xu.IsArbitrary == xmlYes, Class: xu.Class,
 			Value: unitVal,

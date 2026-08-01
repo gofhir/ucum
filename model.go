@@ -1,5 +1,7 @@
 package ucum
 
+import "strings"
+
 // ucumModel holds the complete set of UCUM definitions.
 type ucumModel struct {
 	Version      string
@@ -9,14 +11,23 @@ type ucumModel struct {
 	BaseUnits    []*baseUnit
 	DefinedUnits []*definedUnit
 
-	// O(1) lookup indexes (built after loading)
+	// O(1) lookup indexes (built after loading). UCUM defines two parallel
+	// vocabularies and calls them incompatible, so each gets its own index and
+	// they are never consulted together. The case-insensitive keys are upper
+	// cased, since case carries no meaning in that variant.
 	prefixByCode map[string]*prefixDef
 	unitByCode   map[string]*unitDef
+
+	// Only units get a case-insensitive index. Prefixes are matched by iterating
+	// longest-code-first, which is what longest-match resolution needs, so an
+	// index would never be consulted.
+	unitByCodeCI map[string]*unitDef
 }
 
 // unitDef is the common representation for base and defined units.
 type unitDef struct {
 	Code        string
+	CodeCI      string // the case-insensitive spelling UCUM defines for this atom
 	Name        string
 	Property    string
 	IsMetric    bool
@@ -65,8 +76,9 @@ func (f *functionDef) Reference() string {
 
 // prefixDef represents an SI prefix (kilo, milli, etc.).
 type prefixDef struct {
-	Code string
-	Name string
+	Code   string
+	CodeCI string
+	Name   string
 
 	Value decimal
 }
@@ -74,6 +86,7 @@ type prefixDef struct {
 // baseUnit represents one of the 7 fundamental SI base units.
 type baseUnit struct {
 	Code     string
+	CodeCI   string
 	Name     string
 	Property string
 	Dim      string // single character dimension symbol
@@ -82,6 +95,7 @@ type baseUnit struct {
 // definedUnit represents a non-base UCUM unit.
 type definedUnit struct {
 	Code        string
+	CodeCI      string
 	Name        string
 	Property    string
 	IsMetric    bool
@@ -101,6 +115,12 @@ func (m *ucumModel) getPrefix(code string) *prefixDef {
 	return m.prefixByCode[code]
 }
 
+// getUnitCI looks up a unit by its case-insensitive code, in which case carries
+// no meaning.
+func (m *ucumModel) getUnitCI(code string) *unitDef {
+	return m.unitByCodeCI[strings.ToUpper(code)]
+}
+
 // buildIndexes populates the lookup maps from the loaded lists.
 func (m *ucumModel) buildIndexes() {
 	m.prefixByCode = make(map[string]*prefixDef, len(m.Prefixes))
@@ -109,18 +129,41 @@ func (m *ucumModel) buildIndexes() {
 	}
 
 	m.unitByCode = make(map[string]*unitDef, len(m.BaseUnits)+len(m.DefinedUnits))
+	m.unitByCodeCI = make(map[string]*unitDef, len(m.BaseUnits)+len(m.DefinedUnits))
 	for _, bu := range m.BaseUnits {
-		m.unitByCode[bu.Code] = &unitDef{
-			Code: bu.Code, Name: bu.Name, Property: bu.Property,
+		u := &unitDef{
+			Code: bu.Code, CodeCI: bu.CodeCI, Name: bu.Name, Property: bu.Property,
 			IsBase: true, Dim: bu.Dim,
 		}
+		m.unitByCode[bu.Code] = u
+		addCI(m.unitByCodeCI, bu.CodeCI, u)
 	}
 	for _, du := range m.DefinedUnits {
-		m.unitByCode[du.Code] = &unitDef{
-			Code: du.Code, Name: du.Name, Property: du.Property,
+		u := &unitDef{
+			Code: du.Code, CodeCI: du.CodeCI, Name: du.Name, Property: du.Property,
 			IsMetric: du.IsMetric, IsSpecial: du.IsSpecial,
 			IsArbitrary: du.IsArbitrary, Class: du.Class,
 			Value: du.Value,
 		}
+		m.unitByCode[du.Code] = u
+		addCI(m.unitByCodeCI, du.CodeCI, u)
+	}
+}
+
+// addCI indexes an atom under its case-insensitive code, keeping the first entry
+// when two case-sensitive atoms share one.
+//
+// That happens twice in UCUM 2.2: "l" and "L" both become "L", and "[iU]" and
+// "[IU]" both become "[IU]". The first pair are synonyms, so nothing is lost. The
+// second are arbitrary units and therefore not comparable with each other, so the
+// case-insensitive vocabulary genuinely cannot tell them apart — a consequence of
+// it being, as the specification puts it, the greatest common denominator.
+func addCI[T any](index map[string]*T, code string, atom *T) {
+	if code == "" {
+		return
+	}
+	key := strings.ToUpper(code)
+	if _, seen := index[key]; !seen {
+		index[key] = atom
 	}
 }

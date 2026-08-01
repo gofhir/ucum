@@ -23,18 +23,73 @@ import (
 type parser struct {
 	model          *ucumModel
 	sortedPrefixes []*prefixDef // prefixes sorted longest-code-first
+	insensitive    bool         // resolve against the case-insensitive vocabulary
 }
 
-// newParser creates a parser backed by the given ucumModel.
+// newParser creates a parser backed by the given ucumModel, resolving codes in
+// the case-sensitive vocabulary.
 func newParser(model *ucumModel) *parser {
+	return newParserFor(model, false)
+}
+
+// newParserFor creates a parser for one of UCUM's two vocabularies. They are
+// never mixed: the specification calls them incompatible, and the same string can
+// mean different units in each — "G" is Gauss case-sensitively and gram
+// case-insensitively.
+func newParserFor(model *ucumModel, insensitive bool) *parser {
+	p := &parser{model: model, insensitive: insensitive}
+
 	// Pre-sort prefixes by descending code length for deterministic
-	// longest-match resolution.
+	// longest-match resolution. The lengths differ between vocabularies — giga is
+	// "G" in one and "GA" in the other — so the order follows the active one.
 	sorted := make([]*prefixDef, len(model.Prefixes))
 	copy(sorted, model.Prefixes)
 	sort.Slice(sorted, func(i, j int) bool {
-		return len(sorted[i].Code) > len(sorted[j].Code)
+		return len(p.prefixCode(sorted[i])) > len(p.prefixCode(sorted[j]))
 	})
-	return &parser{model: model, sortedPrefixes: sorted}
+	p.sortedPrefixes = sorted
+	return p
+}
+
+// lookupUnit resolves a unit code in the parser's vocabulary.
+func (p *parser) lookupUnit(code string) *unitDef {
+	if p.insensitive {
+		return p.model.getUnitCI(code)
+	}
+	return p.model.getUnit(code)
+}
+
+// prefixCode returns a prefix's spelling in the parser's vocabulary.
+func (p *parser) prefixCode(pfx *prefixDef) string {
+	if p.insensitive {
+		return pfx.CodeCI
+	}
+	return pfx.Code
+}
+
+// startsWithPrefix reports whether tok begins with the prefix's code, ignoring
+// case in the case-insensitive vocabulary, where case carries no meaning.
+func (p *parser) startsWithPrefix(tok string, pfx *prefixDef) bool {
+	code := p.prefixCode(pfx)
+	if code == "" || len(tok) <= len(code) {
+		return false
+	}
+	if p.insensitive {
+		return strings.EqualFold(tok[:len(code)], code)
+	}
+	return strings.HasPrefix(tok, code)
+}
+
+// isPrefixCode reports whether tok is exactly the prefix's code.
+func (p *parser) isPrefixCode(tok string, pfx *prefixDef) bool {
+	code := p.prefixCode(pfx)
+	if code == "" {
+		return false
+	}
+	if p.insensitive {
+		return strings.EqualFold(tok, code)
+	}
+	return tok == code
 }
 
 // parse parses a UCUM expression string into an AST.
@@ -223,7 +278,7 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 	}
 
 	// No prefix match; look up the full symbol as a unit.
-	u := p.model.getUnit(tok)
+	u := p.lookupUnit(tok)
 	if u != nil {
 		exp, err := p.parseExponent(lex)
 		if err != nil {
@@ -239,14 +294,14 @@ func (p *parser) parseSymbol(lex *lexer) (*symbol, error) {
 // remainder as a unit, optionally combined with a bracket suffix.
 func (p *parser) resolveWithPrefix(lex *lexer, tok, bracket string) (*symbol, error) {
 	for _, pfx := range p.sortedPrefixes {
-		if !strings.HasPrefix(tok, pfx.Code) || len(pfx.Code) >= len(tok) {
+		if !p.startsWithPrefix(tok, pfx) {
 			continue
 		}
-		remainder := tok[len(pfx.Code):]
+		remainder := tok[len(p.prefixCode(pfx)):]
 
 		// Try with bracket suffix first.
 		if bracket != "" {
-			u := p.model.getUnit(remainder + bracket)
+			u := p.lookupUnit(remainder + bracket)
 			// UCUM §11 ■1: only metric unit atoms may be combined with a
 			// prefix. Bracket notation makes no difference — [IU] and [iU] take
 			// prefixes because they are declared isMetric="yes", while [ft_i]
@@ -263,7 +318,7 @@ func (p *parser) resolveWithPrefix(lex *lexer, tok, bracket string) (*symbol, er
 			}
 		}
 
-		u := p.model.getUnit(remainder)
+		u := p.lookupUnit(remainder)
 		if u != nil && (u.IsMetric || u.IsBase) {
 			exp, err := p.parseExponent(lex)
 			if err != nil {
@@ -282,10 +337,10 @@ func (p *parser) resolveExactPrefixBracket(lex *lexer, tok, bracket string) (*sy
 		return nil, nil
 	}
 	for _, pfx := range p.sortedPrefixes {
-		if tok != pfx.Code {
+		if !p.isPrefixCode(tok, pfx) {
 			continue
 		}
-		u := p.model.getUnit(bracket)
+		u := p.lookupUnit(bracket)
 		// UCUM §11 ■1, as above.
 		if u != nil && (u.IsMetric || u.IsBase) {
 			if err := lex.consume(); err != nil {
@@ -307,7 +362,7 @@ func (p *parser) resolveFullWithBracket(lex *lexer, tok, bracket string) (*symbo
 	if bracket == "" {
 		return nil, nil
 	}
-	u := p.model.getUnit(tok + bracket)
+	u := p.lookupUnit(tok + bracket)
 	if u == nil {
 		return nil, nil
 	}
