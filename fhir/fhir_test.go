@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofhir/ucum/v3"
-	"github.com/gofhir/ucum/v3/fhir"
+	"github.com/gofhir/ucum/v4"
+	"github.com/gofhir/ucum/v4/fhir"
 )
 
 // TestCommonUnitsAreValidUCUM is the conformance check that matters most here: a

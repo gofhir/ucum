@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/gofhir/ucum/v3/fhir"
+	"github.com/gofhir/ucum/v4/fhir"
 )
 
 func mustDec(t *testing.T, s string) fhir.Decimal {
