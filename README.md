@@ -58,6 +58,14 @@ svc.ValidateInProperty("N", "force")           // nil
 
 A `Service` is safe for concurrent use and caches parsed expressions internally, so build one and share it.
 
+To report which UCUM release you are running against — a FHIR server declaring the version of the code system it supports, for instance:
+
+```go
+defs := svc.(ucum.Identified).Definitions()
+defs.Version       // "2.2"
+defs.RevisionDate  // "2024-06-17"
+```
+
 ## Conformance
 
 The official HL7 test suite (`UcumFunctionalTests.xml`, the one used by `FHIR/Ucum-java`) runs as part of `go test`. All **573 cases pass with zero skips**: 529 validation, 30 conversion, 9 display-name generation, 3 division, 2 multiplication.
@@ -267,7 +275,7 @@ Where Java was ahead: it has always enforced UCUM §11 (prefixes only on metric 
 
 `TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 
-## Licence
+## License
 
 BSD 3-Clause; see [LICENSE](LICENSE).
 

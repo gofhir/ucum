@@ -410,3 +410,46 @@ func TestCommonValueSetHasDuplicateCodes(t *testing.T) {
 		seen[code] = true
 	}
 }
+
+func TestIsDefiniteDuration(t *testing.T) {
+	// The eight units FHIRPath pairs with a calendar keyword.
+	for _, code := range []string{"a", "mo", "wk", "d", "h", "min", "s", "ms"} {
+		if !fhir.IsDefiniteDuration(code) {
+			t.Errorf("IsDefiniteDuration(%q) = false, want true", code)
+		}
+	}
+	// UCUM has other time units; FHIRPath's table does not name them, and the
+	// question is not "is this a unit of time".
+	for _, code := range []string{"a_j", "a_g", "a_t", "mo_j", "mo_s", "us", "ns", "kg", "m", "not-a-unit"} {
+		if fhir.IsDefiniteDuration(code) {
+			t.Errorf("IsDefiniteDuration(%q) = true, want false", code)
+		}
+	}
+}
+
+func TestDecimalFloat64(t *testing.T) {
+	d, err := fhir.ParseDecimal("1.50")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Float64(); got != 1.5 {
+		t.Errorf("ParseDecimal(\"1.50\").Float64() = %v, want 1.5", got)
+	}
+	// A value with no finite decimal form still converts, losing exactness —
+	// which is why the doc comment steers callers to String and Rat.
+	third := fhir.NewDecimal(big.NewRat(1, 3), 4)
+	if got := third.Float64(); got < 0.3333 || got > 0.3334 {
+		t.Errorf("NewDecimal(1/3).Float64() = %v, want approximately 0.3333", got)
+	}
+	// The zero Decimal is usable.
+	var zero fhir.Decimal
+	if got := zero.Float64(); got != 0 {
+		t.Errorf("zero Decimal Float64() = %v, want 0", got)
+	}
+	if got := zero.String(); got != "0" {
+		t.Errorf("zero Decimal String() = %q, want %q", got, "0")
+	}
+	if got := zero.Rat().Sign(); got != 0 {
+		t.Errorf("zero Decimal Rat() sign = %d, want 0", got)
+	}
+}
