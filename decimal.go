@@ -75,6 +75,31 @@ func (d decimal) float64() float64 {
 	return f
 }
 
+// rat returns a copy of the exact rational value. Callers get a copy so they
+// cannot mutate the definition it came from.
+func (d decimal) rat() *big.Rat {
+	return new(big.Rat).Set(d.val)
+}
+
+// ratFromFloat converts v to an exact rational. It returns nil for NaN and the
+// infinities, which have no rational representation.
+func ratFromFloat(v float64) *big.Rat {
+	return new(big.Rat).SetFloat64(v)
+}
+
+// mulExact multiplies value by an exact rational factor and rounds once, so a
+// representable result comes out exact. Non-finite values keep the float64
+// path and propagate as before.
+func mulExact(value float64, factor *big.Rat) float64 {
+	rv := ratFromFloat(value)
+	if rv == nil {
+		f, _ := factor.Float64()
+		return value * f
+	}
+	out, _ := new(big.Rat).Mul(rv, factor).Float64()
+	return out
+}
+
 func (d decimal) equal(o decimal) bool { return d.val.Cmp(o.val) == 0 }
 func (d decimal) isZero() bool         { return d.val.Sign() == 0 }
 

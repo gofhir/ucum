@@ -110,16 +110,38 @@ func TestFahrenheitRoundTrip(t *testing.T) {
 
 func TestReaumurToCanonical(t *testing.T) {
 	h := specialHandlers["[degRe]"]
-	// 0 Re = 273.15 K (freezing)
+	// Reaumur scale: 0 Re = 0 Cel, 80 Re = 100 Cel. Expected values come from
+	// the physical definition, not from the handler's own formula.
 	got := h.toCanonical(0)
-	if !almostEqual(got, (0+273.15)*5.0/4.0, 0.01) {
-		t.Errorf("degRe.toCanonical(0) = %v, want %v", got, (0+273.15)*5.0/4.0)
+	if !almostEqual(got, 273.15, 0.01) {
+		t.Errorf("degRe.toCanonical(0) = %v, want 273.15", got)
 	}
-	// Reaumur scale: 0 Re = 0 C, 80 Re = 100 C
-	// So 80 Re should give same K as 100 C = 373.15 K
 	got80 := h.toCanonical(80)
-	if !almostEqual(got80, (80+273.15)*5.0/4.0, 0.01) {
-		t.Errorf("degRe.toCanonical(80) = %v", got80)
+	if !almostEqual(got80, 373.15, 0.01) {
+		t.Errorf("degRe.toCanonical(80) = %v, want 373.15", got80)
+	}
+	// Absolute zero.
+	if got0 := h.toCanonical(-218.52); !almostEqual(got0, 0, 1e-9) {
+		t.Errorf("degRe.toCanonical(-218.52) = %v, want 0", got0)
+	}
+}
+
+func TestReaumurFromCanonical(t *testing.T) {
+	h := specialHandlers["[degRe]"]
+	if got := h.fromCanonical(273.15); !almostEqual(got, 0, 1e-9) {
+		t.Errorf("degRe.fromCanonical(273.15) = %v, want 0", got)
+	}
+	if got := h.fromCanonical(373.15); !almostEqual(got, 80, 1e-9) {
+		t.Errorf("degRe.fromCanonical(373.15) = %v, want 80", got)
+	}
+}
+
+func TestReaumurRoundTrip(t *testing.T) {
+	h := specialHandlers["[degRe]"]
+	for _, v := range []float64{-218.52, 0, 20, 80, 800} {
+		if got := h.fromCanonical(h.toCanonical(v)); !almostEqual(got, v, 1e-6) {
+			t.Errorf("degRe round-trip(%v) = %v", v, got)
+		}
 	}
 }
 
@@ -213,20 +235,20 @@ func TestBelRoundTrip(t *testing.T) {
 	}
 }
 
-// B[SPL] (logHandler, field quantity with factor 2) tests.
+// B[SPL] (logHandler, field quantity defined with lgTimes2) tests.
 
 func TestBelSPLToCanonical(t *testing.T) {
 	h := specialHandlers["B[SPL]"]
-	// B[SPL] with factor=2: ToCanonical(v) = 10^(v*2)
-	// 1 B[SPL] = 10^2 = 100
+	// lgTimes2 means value = 2*lg(canonical), so toCanonical(v) = 10^(v/2),
+	// expressed in multiples of the reference level.
 	got := h.toCanonical(1)
-	if !almostEqual(got, 100, 0.001) {
-		t.Errorf("B[SPL].toCanonical(1) = %v, want 100", got)
+	if !almostEqual(got, math.Sqrt(10), 1e-9) {
+		t.Errorf("B[SPL].toCanonical(1) = %v, want %v", got, math.Sqrt(10))
 	}
-	// 2 B[SPL] = 10^4 = 10000
+	// 2 B[SPL] = 10^1 = 10 times the reference level.
 	got2 := h.toCanonical(2)
-	if !almostEqual(got2, 10000, 0.001) {
-		t.Errorf("B[SPL].toCanonical(2) = %v, want 10000", got2)
+	if !almostEqual(got2, 10, 1e-9) {
+		t.Errorf("B[SPL].toCanonical(2) = %v, want 10", got2)
 	}
 }
 
@@ -350,10 +372,19 @@ func TestPrismDiopterRoundTrip(t *testing.T) {
 
 func TestPercentSlopeToCanonical(t *testing.T) {
 	h := specialHandlers["%[slope]"]
-	// At 100%: atan(1) = pi/4
+	// A 100% slope is a 45 degree incline: atan(1) is pi/4 radians, and the
+	// handler is declared against deg, so it reports 45.
 	got := h.toCanonical(100)
-	if !almostEqual(got, math.Pi/4, floatTolerance) {
-		t.Errorf("%%[slope].toCanonical(100) = %v, want %v", got, math.Pi/4)
+	if !almostEqual(got, 45, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(100) = %v, want 45", got)
+	}
+	if got0 := h.toCanonical(0); !almostEqual(got0, 0, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(0) = %v, want 0", got0)
+	}
+	// 50% slope: atan(0.5) in degrees.
+	want50 := math.Atan(0.5) * 180 / math.Pi
+	if got50 := h.toCanonical(50); !almostEqual(got50, want50, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(50) = %v, want %v", got50, want50)
 	}
 }
 
@@ -407,5 +438,167 @@ func TestAllSpecialHandlersRegistered(t *testing.T) {
 	}
 	if len(specialHandlers) != len(expectedCodes) {
 		t.Errorf("specialHandlers has %d entries, want %d", len(specialHandlers), len(expectedCodes))
+	}
+}
+
+// Issue #4: lgTimes2 units must compute 10^(v/2), not 10^(2v).
+func TestLgTimes2Units(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{0, "B[V]", "V", 1},
+		{1, "B[V]", "V", math.Sqrt(10)},
+		{2, "B[V]", "V", 10},
+		{10, "B[V]", "V", 1e5},
+		{1, "B[mV]", "mV", math.Sqrt(10)},
+		{2, "B[uV]", "uV", 10},
+		// plain lg / ln / ld units must be unaffected
+		{1, "B", "1", 10},
+		{1, "B[W]", "W", 10},
+		{2, "B[kW]", "kW", 100},
+		{1, "Np", "1", math.E},
+		{8, "bit_s", "1", 256},
+		{1, "[pH]", "mol/L", 0.1},
+		{1, "[hp'_X]", "1", 0.1},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > math.Abs(tt.want)*1e-12+1e-15 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestLgTimes2RoundTrip(t *testing.T) {
+	for _, code := range []string{"B[V]", "B[mV]", "B[uV]", "B[10.nV]", "B[SPL]", "B", "B[W]", "Np", "bit_s"} {
+		h := specialHandlers[code]
+		for _, v := range []float64{-2, 0, 0.5, 1, 3} {
+			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
+				t.Errorf("%s round-trip(%v) = %v", code, v, got)
+			}
+		}
+	}
+}
+
+// Issue #5: B[SPL] reference level is 2x10^-5 Pa.
+func TestBelSPLReferenceLevel(t *testing.T) {
+	svc := newTestService(t)
+	// 0 B[SPL] is the reference level itself: 20 uPa.
+	got, err := svc.Convert(0, "B[SPL]", "Pa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-2e-5) > 1e-20 {
+		t.Errorf("Convert(0, B[SPL], Pa) = %v, want 2e-05", got)
+	}
+	// 1 B[SPL] = 2e-5 * 10^0.5
+	got, err = svc.Convert(1, "B[SPL]", "Pa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 2e-5 * math.Sqrt(10)
+	if math.Abs(got-want) > want*1e-12 {
+		t.Errorf("Convert(1, B[SPL], Pa) = %v, want %v", got, want)
+	}
+}
+
+// Issue #6: %[slope] must express its result in its declared unit (deg).
+func TestPercentSlope(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{100, "%[slope]", "deg", 45},
+		{100, "%[slope]", "rad", math.Pi / 4},
+		{0, "%[slope]", "deg", 0},
+		// [p'diop] is declared against rad and must keep working.
+		{100, "[p'diop]", "rad", math.Pi / 4},
+		{0, "[p'diop]", "rad", 0},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > math.Abs(tt.want)*1e-12+1e-15 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestTanHandlerRoundTrip(t *testing.T) {
+	for _, code := range []string{"[p'diop]", "%[slope]"} {
+		h := specialHandlers[code]
+		for _, v := range []float64{-50, 0, 10, 100} {
+			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
+				t.Errorf("%s round-trip(%v) = %v", code, v, got)
+			}
+		}
+	}
+}
+
+// Issue #7: arbitrary units are commensurable with nothing but themselves.
+func TestArbitraryUnitsNotCommensurable(t *testing.T) {
+	svc := newTestService(t)
+	incompatible := [][2]string{
+		{"[IU]", "[iU]"},
+		{"[IU]", "1"},
+		{"[IU]", "mol"},
+		{"[arb'U]", "[IU]"},
+		{"[USP'U]", "[IU]"},
+		{"[PFU]", "[CFU]"},
+	}
+	for _, p := range incompatible {
+		ok, err := svc.IsComparable(p[0], p[1])
+		if err != nil {
+			t.Fatalf("IsComparable(%q, %q): %v", p[0], p[1], err)
+		}
+		if ok {
+			t.Errorf("IsComparable(%q, %q) = true, want false", p[0], p[1])
+		}
+		if _, err := svc.Convert(1, p[0], p[1]); err == nil {
+			t.Errorf("Convert(1, %q, %q) = nil error, want an error", p[0], p[1])
+		}
+	}
+}
+
+// TestArbitraryUnitsSelfConsistent: an arbitrary unit is its own dimension, so
+// it converts to itself and scales with the rest of a compound expression.
+func TestArbitraryUnitsSelfConsistent(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{1, "[IU]", "[IU]", 1},
+		{5, "[IU]/L", "[IU]/mL", 0.005},
+		{1, "[IU]/mL", "[IU]/L", 1000},
+		{2, "k[IU]/L", "[IU]/L", 2000},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > math.Abs(tt.want)*1e-12+1e-15 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+		}
+	}
+	// Canonical keeps the arbitrary unit rather than reducing it to a number.
+	p, err := svc.Canonical(1, "[IU]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Code != "[IU]" {
+		t.Errorf("Canonical(1, [IU]).Code = %q, want %q", p.Code, "[IU]")
 	}
 }
