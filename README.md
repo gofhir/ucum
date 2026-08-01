@@ -149,9 +149,53 @@ svc, err := ucum.NewFromReader(myDefinitions)   // same schema as ucum-essence.x
 exact := svc.(ucum.ExactService)
 ```
 
-## Known limitations
+## FHIR
 
-- **Nothing here is FHIR-specific.** This is a UCUM engine. A FHIR consumer additionally needs the FHIR value-set subsets (`ucum-common` and friends), and must know that FHIRPath treats calendar durations as distinct from the UCUM quantities `a` and `mo` — this library converts them per UCUM (`1 a = 365.25 d`), which is correct for UCUM and wrong for calendar arithmetic. Tracked in [#12](https://github.com/gofhir/ucum/issues/12).
+The root package implements UCUM and nothing else. The FHIR-specific rules that UCUM cannot infer live in a subpackage:
+
+```
+go get github.com/gofhir/ucum/v2/fhir
+```
+
+**The ucum-common value set**, embedded from the published FHIR resource (version 5.0.0, 840 distinct codes):
+
+```go
+fhir.InCommonUnits("mg/dL")     // true
+fhir.InCommonUnits("kOhm")      // false — valid UCUM, just not in the subset
+fhir.CommonDisplay("%[slope]")  // "percent of slope", true
+```
+
+The value set is extensible in FHIR, so a code outside it is not invalid. Use `Validate` for validity and this for "is it a code FHIR expects commonly". Every one of the 840 codes is checked against the engine by a test.
+
+**Calendar durations.** FHIRPath layers calendar duration keywords over the UCUM time units, and the relationship is equivalence rather than equality for everything above seconds — a UCUM year is exactly 365.25 days, a calendar year is 365 or 366:
+
+```go
+fhir.CalendarEquivalentOf("a")            // {Keyword: "year", Equal: false}
+fhir.CalendarEquivalentOf("s")            // {Keyword: "second", Equal: true}
+fhir.AllowedInDateTimeArithmetic("a")     // false — FHIRPath signals an error
+fhir.AllowedInDateTimeArithmetic("s")     // true
+```
+
+**Quantity comparison**, which is what a server needs for a quantity search with `gt`/`lt`, and which is exact wherever the units allow it:
+
+```go
+c, _ := fhir.NewComparator()
+c.Compare(fhir.Quantity{Value: 100, Code: "[degF]"},
+          fhir.Quantity{Value: 50, Code: "Cel"})   // -1: 100 °F is colder
+c.CanonicalKey(fhir.Quantity{Value: 1, Code: "L"}) // "m3", 0.001 — an index key
+```
+
+A FHIR `decimal` arrives as text, and the `float64` nearest `0.01` is not `1/100`, so an exact comparison of a `float64` reports differences the source data does not have. Carry the decimal instead:
+
+```go
+v, _ := new(big.Rat).SetString("0.01")
+c.Compare(fhir.Quantity{Value: 1, Code: "mg/dL"},
+          fhir.Quantity{Exact: v, Code: "g/L"})    // 0: equal, as the data says
+```
+
+Every rule in the subpackage cites the document it comes from, and where FHIR and UCUM disagree the disagreement is documented rather than silently resolved — FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines it as 30.4375, and this library follows UCUM.
+
+## Known limitations
 - **Some logarithmic and trigonometric handlers are unverified** against the spec beyond the cases fixed so far. The bel family and the tangent scales have each already needed a correction; treat unusual ones with suspicion and check against `ucum-essence.xml`.
 - **`UnitValue.Value` and `Prefix.Value` are exported fields of an unexported type**, so they can be read but barely used. Use `ExactService` for exact numbers rather than reaching into the model. Tracked in [#18](https://github.com/gofhir/ucum/issues/18).
 - **Significant figures are not modelled.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input.
