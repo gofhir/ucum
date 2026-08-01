@@ -3,7 +3,6 @@ package ucum
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 )
 
@@ -42,7 +41,11 @@ type RatPair struct {
 // exact rational form.
 //
 // The service returned by New and NewFromReader also satisfies this interface,
-// so a type assertion works if you already hold a Service.
+// so a type assertion covers a Service you already hold, including one built
+// from custom definitions:
+//
+//	svc, err := ucum.NewFromReader(defs)
+//	exact := svc.(ucum.ExactService)
 type ExactService interface {
 	Service
 
@@ -66,12 +69,6 @@ type ExactService interface {
 // ucum-essence.xml definitions.
 func NewExact() (ExactService, error) {
 	return newService(nil)
-}
-
-// NewExactFromReader creates a Service with the exact rational API, loading
-// definitions from a custom source.
-func NewExactFromReader(r io.Reader) (ExactService, error) {
-	return newService(r)
 }
 
 // ConversionFactor returns the exact multiplicative factor from -> to.

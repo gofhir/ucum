@@ -705,3 +705,56 @@ func TestValidateInPropertyAtomicIsStrict(t *testing.T) {
 		t.Errorf(`ValidateInProperty("[hd_i]", "height of horses") = %v, want nil`, err)
 	}
 }
+
+// TestMultiplyNonRationalScale covers the float64 fallback of Multiply, the
+// symmetric case of TestDivideNonRationalScale. Without it the branch is
+// verified on the division side only.
+func TestMultiplyNonRationalScale(t *testing.T) {
+	svc := newTestService(t)
+	// 1 pH = 0.1 mol/L; times 2 (dimensionless) gives 0.2 mol/L in canonical
+	// form, which is 0.2 * 6.02214076e26 m-3.
+	got, err := svc.Multiply(Pair{1, "[pH]"}, Pair{2, "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 0.2 * 6.02214076e26
+	if math.Abs(got.Value-want) > want*1e-12 {
+		t.Errorf("Multiply(1 [pH], 2).Value = %v, want %v", got.Value, want)
+	}
+	if got.Code != "m-3" {
+		t.Errorf("Multiply(1 [pH], 2).Code = %q, want %q", got.Code, "m-3")
+	}
+}
+
+// TestMultiplyNonFinite covers the other fallback trigger: an operand with no
+// rational representation.
+func TestMultiplyNonFinite(t *testing.T) {
+	svc := newTestService(t)
+	got, err := svc.Multiply(Pair{math.Inf(1), "m"}, Pair{2, "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !math.IsInf(got.Value, 1) {
+		t.Errorf("Multiply(+Inf m, 2 m).Value = %v, want +Inf", got.Value)
+	}
+	if got.Code != "m2" {
+		t.Errorf("Multiply(+Inf m, 2 m).Code = %q, want %q", got.Code, "m2")
+	}
+}
+
+// TestAnalyzeEmptyVersusValidate documents the deliberate disagreement: the
+// official suite requires Analyze("") to describe the unity, while "" is not a
+// valid code.
+func TestAnalyzeEmptyVersusValidate(t *testing.T) {
+	svc := newTestService(t)
+	got, err := svc.Analyze("")
+	if err != nil {
+		t.Fatalf(`Analyze("") = %v, want no error`, err)
+	}
+	if got != "(unity)" {
+		t.Errorf(`Analyze("") = %q, want "(unity)"`, got)
+	}
+	if err := svc.Validate(""); err == nil {
+		t.Error(`Validate("") = nil, want an error: the empty string is not a valid code`)
+	}
+}
