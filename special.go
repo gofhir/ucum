@@ -64,13 +64,20 @@ var specialHandlers = map[string]specialHandler{
 	// Trigonometric. atan returns radians, so a handler declared against another
 	// angle unit has to convert into it: perRadian is how many of unitExpr make
 	// up one radian.
+	//
+	// Note that the sources disagree about %[slope]: ucum-essence.xml declares it
+	// against deg, while the specification's Table 18 gives it as 100tan(1 rad),
+	// the same as [p'diop]. The XML is followed here, and the two readings agree
+	// on the canonical result either way — 100 %[slope] is pi/4 rad under both.
 	"[p'diop]": tanHandler{unitCode: "[p'diop]", unitExpr: "rad", factor: 100, perRadian: 1},
 	"%[slope]": tanHandler{unitCode: "%[slope]", unitExpr: "deg", factor: 100, perRadian: 180 / math.Pi},
 
 	// Power.
 	"[m/s2/Hz^(1/2)]": sqrtHandler{unitCode: "[m/s2/Hz^(1/2)]", unitExpr: "m2/s4/Hz"},
 
-	// Homeopathic.
+	// Homeopathic. The specification's prose describes hpX as "hpX(1 l)", per
+	// liter, but its normative Table 18 gives hpX(1 1) and the XML agrees, so the
+	// reference is the dimensionless 1.
 	"[hp'_X]": logHandler{unitCode: "[hp'_X]", unitExpr: "1", base: 10, negate: true},
 	"[hp'_C]": logHandler{unitCode: "[hp'_C]", unitExpr: "1", base: 100, negate: true},
 	"[hp'_M]": logHandler{unitCode: "[hp'_M]", unitExpr: "1", base: 1000, negate: true},

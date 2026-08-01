@@ -636,3 +636,126 @@ func TestBelReferenceLevels(t *testing.T) {
 		}
 	}
 }
+
+// TestAllSpecialHandlersAgainstSpec audits every special unit against the
+// normative definition table of the UCUM specification, so the class is pinned
+// rather than the instances that happened to be reported.
+//
+// Four bugs in this family were found one at a time by following individual
+// reports (the [degRe] offset, the lgTimes2 exponent, the B[SPL] reference and
+// the B[10.nV] reference). Each time, the defect was present in a neighbor that
+// nobody had looked at. The table below is derived from UCUM's Tables 18, 19, 20
+// and 21 instead, and every expectation is an independently checkable physical
+// reference point rather than a restatement of the handler's own formula.
+func TestAllSpecialHandlersAgainstSpec(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		code string // the special unit
+		spec string // its definition in the UCUM specification
+		in   float64
+		to   string
+		want float64
+		why  string
+	}{
+		// Table 20, Levels. "ln", "lg" and "2lg" are the natural logarithm, the
+		// decadic logarithm, and the decadic logarithm times two, with their
+		// respective inverse functions.
+		{"Np", "ln(1 1)", 1, "1", math.E, "1 Np is a ratio of e"},
+		{"B", "lg(1 1)", 1, "1", 10, "1 B is a ratio of 10"},
+		{"B", "lg(1 1)", 3, "1", 1000, "3 B is a ratio of 1000"},
+		{"B[W]", "lg(1 W)", 1, "W", 10, "reference is 1 W"},
+		{"B[kW]", "lg(1 kW)", 1, "kW", 10, "reference is 1 kW"},
+		{"B[V]", "2lg(1 V)", 0, "V", 1, "reference is 1 V"},
+		{"B[V]", "2lg(1 V)", 2, "V", 10, "2lg means the inverse is 10^(v/2)"},
+		{"B[mV]", "2lg(1 mV)", 2, "mV", 10, "reference is 1 mV"},
+		{"B[uV]", "2lg(1 uV)", 2, "uV", 10, "reference is 1 uV"},
+		{"B[10.nV]", "2lg(10 nV)", 0, "nV", 10, "reference is 10 nV, not 1 nV"},
+		{"B[SPL]", "2lg(2 10*-5.Pa)", 0, "Pa", 2e-5, "reference is 20 uPa, the hearing threshold"},
+		{"B[SPL]", "2lg(2 10*-5.Pa)", 2, "Pa", 2e-4, "two bels above the reference is ten times it"},
+
+		// Table 19. f_pH^-1(x) = 10^-x converts a pH value back to moles per liter.
+		{"[pH]", "pH(1 mol/l)", 7, "mol/L", 1e-7, "pH 7 is 1e-7 mol/L, neutral water"},
+		{"[pH]", "pH(1 mol/l)", 0, "mol/L", 1, "pH 0 is 1 mol/L"},
+
+		// Table 22. "ld" is the binary logarithm.
+		{"bit_s", "ld(1 1)", 8, "1", 256, "8 bits distinguish 256 states"},
+
+		// Table 18. f_PD^-1(x) = arctan(x/100) converts a prism diopter or slope
+		// percent value back to a plane angle.
+		{"[p'diop]", "100tan(1 rad)", 100, "rad", math.Pi / 4, "100 PD is a 45 degree deflection"},
+		{"%[slope]", "100tan(1 rad)", 100, "deg", 45, "a 100% slope is a 45 degree incline"},
+		{"%[slope]", "100tan(1 rad)", 100, "rad", math.Pi / 4, "the same angle in radians"},
+
+		// Table 18, retired homeopathic series. f_hpX^-1(x) = 10^-x, f_hpC^-1(x)
+		// = 100^-x, and analogous functions with bases 1,000 and 50,000.
+		{"[hp'_X]", "hpX(1 1)", 1, "1", 0.1, "1X is a one in ten dilution"},
+		{"[hp'_X]", "hpX(1 1)", 3, "1", 1e-3, "3X is one in a thousand"},
+		{"[hp'_C]", "hpC(1 1)", 1, "1", 0.01, "1C is a one in a hundred dilution"},
+		{"[hp'_M]", "hpM(1 1)", 1, "1", 1e-3, "1M is a one in a thousand dilution"},
+		{"[hp'_Q]", "hpQ(1 1)", 1, "1", 1.0 / 50000, "1Q is a one in fifty thousand dilution"},
+
+		// Table 21. "sqrt" is the square root with the square as its inverse.
+		{"[m/s2/Hz^(1/2)]", "sqrt(1 m2/s4/Hz)", 3, "m2/s4/Hz", 9, "the inverse of the square root is the square"},
+
+		// Temperature, Table 6. Reference points are physical, not formulaic.
+		{"Cel", "cel(1 K)", 0, "K", 273.15, "the freezing point of water"},
+		{"[degF]", "degf(5 K/9)", 32, "K", 273.15, "32 F is the freezing point"},
+		{"[degF]", "degf(5 K/9)", 212, "K", 373.15, "212 F is the boiling point"},
+		{"[degRe]", "degre(5 K/4)", 80, "K", 373.15, "80 Re is the boiling point"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code+"_"+tt.to, func(t *testing.T) {
+			got, err := svc.Convert(tt.in, tt.code, tt.to)
+			if err != nil {
+				t.Fatalf("Convert(%v, %q, %q): %v", tt.in, tt.code, tt.to, err)
+			}
+			tol := math.Abs(tt.want) * 1e-12
+			if tol == 0 {
+				tol = 1e-12
+			}
+			if math.Abs(got-tt.want) > tol {
+				t.Errorf("Convert(%v, %q, %q) = %v, want %v\n  spec: %s\n  why:  %s",
+					tt.in, tt.code, tt.to, got, tt.want, tt.spec, tt.why)
+			}
+		})
+	}
+}
+
+// TestEverySpecialUnitHasAHandler guards against a special unit being added to
+// the definitions without a handler, which would surface only when someone
+// converted it.
+func TestEverySpecialUnitHasAHandler(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := svc.(*service)
+	if !ok {
+		t.Fatal("unexpected service type")
+	}
+	var special int
+	for _, du := range s.model.DefinedUnits {
+		if !du.IsSpecial {
+			continue
+		}
+		special++
+		if _, ok := specialHandlers[du.Code]; !ok {
+			t.Errorf("special unit %q has no handler", du.Code)
+		}
+		if _, err := svc.Canonical(1, du.Code); err != nil {
+			t.Errorf("Canonical(1, %q): %v", du.Code, err)
+		}
+	}
+	if special != len(specialHandlers) {
+		t.Errorf("%d special units in the definitions but %d handlers registered",
+			special, len(specialHandlers))
+	}
+	if special != 21 {
+		t.Errorf("found %d special units, want 21 for this version of the definitions", special)
+	}
+}
