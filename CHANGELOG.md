@@ -7,6 +7,22 @@
 
 * report which UCUM release the definitions declare, and self-check them ([#36](https://github.com/gofhir/ucum/issues/36)) ([16df466](https://github.com/gofhir/ucum/commit/16df466684d62bb9845b11eb8e00f3e5240ac5cc))
 
+  The definitions declare a version, a revision and a release date, and all three were parsed and then unreachable. `Definitions()` on the new `Identified` interface returns them, so a consumer that has to state which UCUM release it implements — a FHIR server declaring the version of the code system it supports — can read them, and one using `NewFromReader` can tell what it just loaded.
+
+  ```go
+  defs := svc.(ucum.Identified).Definitions()
+  defs.Version       // "2.2"
+  defs.RevisionDate  // "2024-06-17"
+  ```
+
+  It is a separate interface rather than a method on `Service` deliberately: a method there would break every implementation of that interface and force a major version, making every consumer edit an import path for the sake of a getter.
+
+  The definitions are also now self-checked, the equivalent of `validateUCUM()` in the Java reference. All 305 defined units validate and canonicalize, all 7 base units resolve to themselves, and all 24 prefixes apply and scale by the right factor. That matters because taking up a new UCUM release means replacing `ucum-essence.xml` wholesale — its license forbids editing it — and this is what catches a unit that stopped resolving.
+
+### Tests
+
+* the failure paths of the public API are now covered, checking that an error names the code at fault rather than merely that a line executes. No bugs surfaced; the behaviour is pinned in place rather than repaired. Coverage 90.2% to 92.7%.
+
 ## [3.1.0](https://github.com/gofhir/ucum/compare/v3.0.0...v3.1.0) (2026-08-01)
 
 
