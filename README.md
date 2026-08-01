@@ -196,9 +196,9 @@ c.Compare(fhir.Quantity{Value: 1, Code: "mg/dL"},
 Every rule in the subpackage cites the document it comes from, and where FHIR and UCUM disagree the disagreement is documented rather than silently resolved — FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines it as 30.4375, and this library follows UCUM.
 
 ## Known limitations
-- **Some logarithmic and trigonometric handlers are unverified** against the spec beyond the cases fixed so far. The bel family and the tangent scales have each already needed a correction; treat unusual ones with suspicion and check against `ucum-essence.xml`.
+- **Significant figures are not modelled** — see below. This was previously the place where unaudited special-unit handlers were listed; all 21 have since been checked against the UCUM specification's normative definition tables, and `TestAllSpecialHandlersAgainstSpec` pins each one to an independently checkable reference point.
 - **`UnitValue.Value` and `Prefix.Value` are exported fields of an unexported type**, so they can be read but barely used. Use `ExactService` for exact numbers rather than reaching into the model. Tracked in [#18](https://github.com/gofhir/ucum/issues/18).
-- **Significant figures are not modelled.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input.
+- **Significant figures.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input. `fhir.Quantity.Exact` preserves a decimal's *value* exactly, but nothing here models its *precision*.
 
 ## Credit
 
