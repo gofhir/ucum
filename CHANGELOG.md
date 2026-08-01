@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/gofhir/ucum/compare/v3.1.0...v3.2.0) (2026-08-01)
+
+
+### Features
+
+* report which UCUM release the definitions declare, and self-check them ([#36](https://github.com/gofhir/ucum/issues/36)) ([16df466](https://github.com/gofhir/ucum/commit/16df466684d62bb9845b11eb8e00f3e5240ac5cc))
+
 ## [3.1.0](https://github.com/gofhir/ucum/compare/v3.0.0...v3.1.0) (2026-08-01)
 
 
