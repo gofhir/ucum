@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/gofhir/ucum/compare/v2.0.1...v2.0.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* make ValidateInProperty resolve real properties ([#15](https://github.com/gofhir/ucum/issues/15)) ([dda7f54](https://github.com/gofhir/ucum/commit/dda7f5482ca59b9f43db2d3a76f34e4650f13e0c))
+
 ## [2.0.1](https://github.com/gofhir/ucum/compare/v2.0.0...v2.0.1) (2026-08-01)
 
 
