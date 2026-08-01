@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.1.0](https://github.com/gofhir/ucum/compare/v4.0.0...v4.1.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **fhir:** AllowedInDateTimeArithmetic now returns true for wk, d, h and min. Callers relying on the previous, stricter answer will accept more units — which is the point, since the previous answer contradicted the conformance suite.
+
+### Bug Fixes
+
+* **fhir:** allow wk, d, h and min in date/time arithmetic ([#45](https://github.com/gofhir/ucum/issues/45)) ([57bbd3f](https://github.com/gofhir/ucum/commit/57bbd3f563db7c5a83db9f9a4f5b5fa6be0cde5b))
+
+
+### Miscellaneous Chores
+
+* release as 4.1.0 rather than 5.0.0 ([d3243bf](https://github.com/gofhir/ucum/commit/d3243bf3054d121164d9136611a0f1a5b6f9cbd3))
+
 ## [4.0.0](https://github.com/gofhir/ucum/compare/v3.3.0...v4.0.0) (2026-08-01)
 
 
