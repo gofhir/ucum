@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.2](https://github.com/gofhir/ucum/compare/v2.0.1...v2.0.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* **make ValidateInProperty resolve real properties** ([#15](https://github.com/gofhir/ucum/issues/15)) ([dda7f54](https://github.com/gofhir/ucum/commit/dda7f5482ca59b9f43db2d3a76f34e4650f13e0c))
+
+  The method only worked for units canonicalizing to a single base unit with exponent 1. Everything else compared a canonical unit string against a property name, so it could never match: `ValidateInProperty("N", "force")` reported `has property "g.m.s-2"`, and `("L", "volume")`, `("mm[Hg]", "pressure")` and `("mol", "amount of substance")` failed the same way. It was exported with 0% test coverage.
+
+  Behaviour changes in three ways. Units that genuinely have the requested property are now accepted — atomic units against the property UCUM declares for them, compound expressions dimensionally against the units that declare it (`m/s2` as acceleration, `kg.m/s2` as force, `g/L` as mass concentration). An atomic unit is judged *strictly* by its declared property, so `mol` is no longer accepted as a `fraction` even though both are dimensionless in UCUM. And an unknown property name is now an error rather than a silent mismatch.
+
+  Properties cannot be resolved dimensionally alone: UCUM gives 15 canonical forms to more than one property — `"1"` to 11 of them, `"m"` to 4 — so the residual ambiguity for compound expressions is documented on the method.
+
 ## [2.0.1](https://github.com/gofhir/ucum/compare/v2.0.0...v2.0.1) (2026-08-01)
 
 
