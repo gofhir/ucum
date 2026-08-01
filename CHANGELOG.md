@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.1.0](https://github.com/gofhir/ucum/compare/v4.0.0...v4.1.0) (2026-08-01)
+
+
+### Bug Fixes
+
+* **fhir:** allow wk, d, h and min in date/time arithmetic ([#45](https://github.com/gofhir/ucum/issues/45)) ([57bbd3f](https://github.com/gofhir/ucum/commit/57bbd3f563db7c5a83db9f9a4f5b5fa6be0cde5b))
+
+  `AllowedInDateTimeArithmetic` rejected four units that the official conformance suite accepts. From `FHIR/fhir-test-cases`, `r4/fhirpath/tests-fhir-r4.xml`, where an expression without `invalid=` must evaluate without error:
+
+  ```
+  valid    @1973-12-25 + 1 'd'      valid    + 1 'wk'    valid  + 1 'min'   valid  + 1 'h'
+  INVALID  @1973-12-25 + 1 'mo'     INVALID  + 1 'a'
+  ```
+
+  Only `'a'` and `'mo'` are rejected, and the reason is not magnitude: those are the two units whose calendar length varies. A week is above seconds and is exactly seven days in both systems, so it is allowed.
+
+  The specification's prose says otherwise — an error is signalled for "a definite-quantity duration above seconds" — but the suite is what conformance is measured against, and its rule is also the one that holds up.
+
+  **This is a behavioural change, and deliberately not a major release.** The previous answer was a bug that contradicted the suite, so no caller can reasonably have depended on it, and nothing in the API surface moves. A `wk`, `d`, `h` or `min` that was rejected before is now accepted. `CalendarEquivalentOf` is unchanged.
+
+  Reported by the [gofhir/fhirpath](https://github.com/gofhir/fhirpath) engine while upgrading.
+
 ## [4.0.0](https://github.com/gofhir/ucum/compare/v3.3.0...v4.0.0) (2026-08-01)
 
 
