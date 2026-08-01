@@ -98,6 +98,16 @@ func (s *service) parseCached(code string) (*term, error) {
 	return t, nil
 }
 
+// Definitions reports which UCUM release these definitions declare themselves
+// to be.
+func (s *service) Definitions() Definitions {
+	return Definitions{
+		Version:      s.model.Version,
+		Revision:     s.model.Revision,
+		RevisionDate: s.model.RevisionDate,
+	}
+}
+
 // Validate checks if the given code is a valid UCUM expression.
 func (s *service) Validate(code string) error {
 	_, err := s.parseCached(code)
