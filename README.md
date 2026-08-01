@@ -8,6 +8,35 @@ The UCUM definitions (`ucum-essence.xml`) are embedded, so there is nothing to f
 go get github.com/gofhir/ucum/v2
 ```
 
+## Scope
+
+This library is a UCUM engine and the FHIR-facing pieces built on it. It is deliberately **not** a terminology server, and it does not carry a browsable catalogue of units.
+
+That division follows from how UCUM works. Its FHIR CodeSystem is declared `content: not-present` — UCUM is a *grammar*, not a list, and it generates arbitrarily many valid codes (`mg/dL`, `mg/dL/h`, `10*3/uL`, …). There is no complete set to enumerate. So the operations split cleanly:
+
+| concern | belongs to |
+|---|---|
+| `$expand`, `$validate-code`, `$lookup` | a terminology server |
+| the grammar, conversion, canonical forms, exactness | this package |
+| the FHIR value set, calendar durations, Quantity comparison | `ucum/fhir` |
+
+A server implementing `$validate-code` over UCUM calls `Validate`, precisely because a `not-present` CodeSystem cannot be checked against a table. One implementing `$expand` over `ucum-common` reads `fhir.CommonCodes()`. This package supplies what those operations cannot invent; it does not perform them.
+
+The consequence for callers is that "which units…" questions are answered by combining the value set with the engine, not by a catalogue API:
+
+```go
+// Units in the value set that a value in mg/dL can be converted to.
+for _, code := range fhir.CommonCodes() {
+    if ok, err := svc.IsComparable("mg/dL", code); err == nil && ok {
+        // 21 of them: g/L, g/dL, mg/L, ng/mL, ...
+    }
+}
+```
+
+Search by display name and filtering by property work the same way, over `fhir.CommonDisplay` and `ValidateInProperty`.
+
+The `Model` type and its friends are exported but inert — no exported function accepts one, and the service's own model is private. They are a leftover of the port from Java and will be unexported in the next major version. Nothing is lost: their one useful part, the exact numeric values, is reachable through `UnitValue.Rat()` and `Prefix.Rat()`.
+
 ## Quickstart
 
 ```go
