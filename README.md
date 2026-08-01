@@ -266,12 +266,17 @@ The lexer and parser are ports of [FHIR/Ucum-java](https://github.com/FHIR/Ucum-
 |---|---|---|
 | Special-unit conversion | `HoldingHandler` holds the code and units without converting, so `[pH]`, `B`, `Np`, `bit_s`, `[p'diop]` and the homeopathic potencies reduce to base units with a factor of 1 | all 21 convert, each pinned to the specification's normative tables |
 | Temperature | `Converter` raises `Not handled yet (special unit with offset from 0 at intersect)`; its comment notes that fixing it *"requires a total rework of the architecture"* | works, including `[degRe]` |
-| Registered handlers | a hardcoded list, missing `[degRe]`, `B[10.nV]`, `[m/s2/Hz^(1/2)]`, `[hp'_M]` and `[hp'_Q]`, and registering `[hp_X]`/`[hp_C]` (arbitrary-unit codes) for the special units | built from the `<function>` each definition declares; an unknown function is a construction error |
+| Reading the definitions | `XmlDefinitionsParser` does not read the `<function>` element, so for `Cel` it keeps `Unit="cel(1 K)"` — a string its own expression parser cannot parse | the `<function>` is parsed, giving the reference quantity of every special unit |
+| Registered handlers | a hardcoded list — the consequence of the row above, since without `<function>` there are no parameters to read. Missing `[degRe]`, `B[10.nV]`, `[m/s2/Hz^(1/2)]`, `[hp'_M]` and `[hp'_Q]`, and registering `[hp_X]`/`[hp_C]` (arbitrary-unit codes) for the special units | built from the function each definition declares; an unknown function name is a construction error |
 | Arbitrary units | `isArbitrary` is not in its model, so they cannot be told apart | each is its own dimension, per UCUM §24 |
 | `ValidateInProperty` | requires the canonical form to be a single base unit, plus a hardcoded case for `concentration` | declared property for atoms, dimensional for compounds |
 | Decimal precision | propagated through every operation, in a bespoke numeric type | exact `big.Rat` core, precision in `fhir.Decimal` — better for conversion, weaker for arithmetic |
 
-Where Java was ahead: it has always enforced UCUM §11 (prefixes only on metric atoms), which this package only started doing in v3.0.0.
+Where Java is ahead:
+
+- It has always enforced UCUM §11 (prefixes only on metric atoms), which this package only started doing in v3.0.0.
+- It parses and keeps UCUM's case-insensitive codes (`CODE`, so `M` for metre), which this package discards. Neither library's expression parser accepts them, but Java holds the data if it ever wants to.
+- Precision propagates through its arithmetic; here it is a layer in `fhir.Decimal` (see Known limitations).
 
 `TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 
