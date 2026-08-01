@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/gofhir/ucum/compare/v2.0.0...v2.0.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* add the /v2 major version suffix to the module path ([#13](https://github.com/gofhir/ucum/issues/13)) ([442e6f4](https://github.com/gofhir/ucum/commit/442e6f443d1dc052b8d676a4feef7c8f8fc106a7))
+
 ## [2.0.0](https://github.com/gofhir/ucum/compare/v1.0.1...v2.0.0) (2026-08-01)
 
 
