@@ -7,6 +7,22 @@
 
 * support UCUM's case-insensitive vocabulary ([#40](https://github.com/gofhir/ucum/issues/40)) ([a435a8f](https://github.com/gofhir/ucum/commit/a435a8f8617d1fae1593f7fe9c9a6b05bc20adf1))
 
+  UCUM defines a case-insensitive variant of every symbol and calls the two variants incompatible. Only the case-sensitive half was implemented; `NewCaseInsensitive` and `NewCaseInsensitiveFromReader` provide the other.
+
+  ```go
+  cs, _ := ucum.New()                  // case-sensitive: what FHIR uses
+  ci, _ := ucum.NewCaseInsensitive()
+
+  cs.Canonical(1, "G")   // Gauss
+  ci.Canonical(1, "G")   // gram
+  ```
+
+  The vocabularies are chosen at construction and never mixed — that example is why. Within the case-insensitive variant case carries no meaning, so `MG/DL`, `mg/dl` and `Mg/Dl` are one code. Nothing changes for existing callers: `New` still resolves the case-sensitive vocabulary, which is what FHIR uses.
+
+  Canonical forms are reported in case-sensitive codes in both variants, so a canonical form remains a stable comparison key regardless of which vocabulary produced it. Two pairs cannot be told apart case-insensitively: `l`/`L`, which are synonyms, and `[iU]`/`[IU]`, which are distinct arbitrary units — a consequence of that variant being, as the specification puts it, the greatest common denominator.
+
+  With this the package covers the standard's vocabulary in full: every one of the 305 defined units resolves in both variants, verified by a self-check rather than assumed.
+
 ## [3.2.0](https://github.com/gofhir/ucum/compare/v3.1.0...v3.2.0) (2026-08-01)
 
 
