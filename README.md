@@ -222,12 +222,26 @@ c.Compare(fhir.Quantity{Value: 1, Code: "mg/dL"},
           fhir.Quantity{Exact: v, Code: "g/L"})    // 0: equal, as the data says
 ```
 
+**Precision.** FHIR requires that implementations preserve the precision a decimal was written with — `0.010` is a different value from `0.01`, even though they are the same number. `fhir.Decimal` carries both:
+
+```go
+d, _ := fhir.ParseDecimal("0.010")
+d.SignificantFigures()   // 2
+d.String()               // "0.010", not "0.01"
+
+out, _ := c.ConvertDecimal(d, "L", "mL")
+out.String()             // "10", still 2 significant figures
+out.Rat()                // exact underneath, whatever the rendering
+```
+
+A unit conversion multiplies by an exactly known factor, so it neither adds nor removes significant figures — the result carries the input's precision. `ConvertDecimal` refuses the non-rational scales (`[pH]`, bel, prism diopter), where the result is an approximation and claiming the input's precision for it would be false.
+
 Every rule in the subpackage cites the document it comes from, and where FHIR and UCUM disagree the disagreement is documented rather than silently resolved — FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines it as 30.4375, and this library follows UCUM.
 
 ## Known limitations
 - **Significant figures are not modelled** — see below. This was previously the place where unaudited special-unit handlers were listed; all 21 have since been checked against the UCUM specification's normative definition tables, and `TestAllSpecialHandlersAgainstSpec` pins each one to an independently checkable reference point.
 - **The definitions are not part of the public API.** The `Model`, `Unit`, `Prefix` and `UnitValue` types were exported but inert — no exported function accepted one — and are now internal. Use `ExactService` for exact numbers; there is nothing a caller could do with the model that the service does not do better.
-- **Significant figures.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input. `fhir.Quantity.Exact` preserves a decimal's *value* exactly, but nothing here models its *precision*.
+- **Precision is modelled in `fhir.Decimal`, not in the core.** The root package rounds correctly but carries no notion of significant figures; `ExactService` gives exact values, and `fhir.Decimal` adds the declared precision on top. Plain decimal notation cannot express a precision coarser than the integer part — 150 to two figures and to three both render as `"150"` — so `SignificantFigures()` remains the authority there.
 
 ## Licence
 

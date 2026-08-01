@@ -165,6 +165,30 @@ func (c *Comparator) canonicalPair(a, b Quantity) (ra, rb *big.Rat, err error) {
 	return ca.Value, cb.Value, nil
 }
 
+// ConvertDecimal converts a value between units, preserving the precision its
+// source declared.
+//
+// The conversion itself is exact — it runs through the rational API — and the
+// result carries the same significant figures as the input. That follows from
+// how precision propagates: a unit conversion multiplies by an exactly known
+// factor, and multiplying by an exact quantity neither adds nor removes
+// significant figures.
+//
+//	d, _ := fhir.ParseDecimal("1.50")            // 3 significant figures
+//	out, _ := c.ConvertDecimal(d, "g/L", "mg/dL")
+//	out.String()                                 // "150", still 3 figures
+//
+// It fails for the scales with no exact rational form — pH, bel, prism diopter —
+// where the result would be an approximation and claiming the input's precision
+// for it would be a lie. Use Convert on the service for those.
+func (c *Comparator) ConvertDecimal(d Decimal, from, to string) (Decimal, error) {
+	out, err := c.svc.ConvertRat(d.Rat(), from, to)
+	if err != nil {
+		return Decimal{}, err
+	}
+	return NewDecimal(out, d.SignificantFigures()), nil
+}
+
 // Comparable reports whether two quantities can be compared at all, that is,
 // whether their units share a canonical form.
 func (c *Comparator) Comparable(a, b Quantity) (bool, error) {
