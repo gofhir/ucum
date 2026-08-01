@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/gofhir/ucum/compare/v3.0.0...v3.1.0) (2026-08-01)
+
+
+### Features
+
+* **fhir:** model decimal precision, and add LICENSE and NOTICE ([#33](https://github.com/gofhir/ucum/issues/33)) ([5b5f469](https://github.com/gofhir/ucum/commit/5b5f469afd3c94dee5016936bdc988aa754f3ed6))
+
 ## [3.0.0](https://github.com/gofhir/ucum/compare/v2.2.0...v3.0.0) (2026-08-01)
 
 
