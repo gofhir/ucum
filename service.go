@@ -18,6 +18,12 @@ type service struct {
 	// arbitraryBases gives every arbitrary unit its own dimension. Populated
 	// once at construction and read-only afterwards.
 	arbitraryBases map[string]*BaseUnit
+
+	// codesByProperty maps a lower-cased property name to the codes of the units
+	// that declare it. Built at construction; the canonical forms behind them
+	// are resolved lazily and memoised in propertyForms.
+	codesByProperty map[string][]string
+	propertyForms   sync.Map // map[string]map[string]bool
 }
 
 // newService creates a fully wired service.
@@ -39,10 +45,29 @@ func newService(r io.Reader) (*service, error) {
 		}
 	}
 
+	// Index the declared properties. Canonicalizing every unit here would slow
+	// construction down for a feature most callers never use, so only the codes
+	// are collected now.
+	codesByProperty := make(map[string][]string)
+	addProperty := func(prop, code string) {
+		if prop == "" {
+			return
+		}
+		key := strings.ToLower(prop)
+		codesByProperty[key] = append(codesByProperty[key], code)
+	}
+	for _, bu := range m.BaseUnits {
+		addProperty(bu.Property, bu.Code)
+	}
+	for _, du := range m.DefinedUnits {
+		addProperty(du.Property, du.Code)
+	}
+
 	return &service{
-		model:          m,
-		parser:         newParser(m),
-		arbitraryBases: arbitrary,
+		model:           m,
+		parser:          newParser(m),
+		arbitraryBases:  arbitrary,
+		codesByProperty: codesByProperty,
 	}, nil
 }
 
@@ -72,26 +97,108 @@ func (s *service) Validate(code string) error {
 	return nil
 }
 
-// ValidateInProperty validates the code and checks that its canonical form
-// has the expected property (dimension).
+// ValidateInProperty validates the code and checks that it measures the given
+// property, case-insensitively.
+//
+// An atomic unit is checked against the property UCUM declares for it, and that
+// is the whole answer for it.
+//
+// A compound expression has no declared property, so it is checked
+// dimensionally: its canonical form must match that of a unit which does declare
+// the property. That is the best the definitions allow, and it is not airtight —
+// UCUM gives 15 canonical forms to more than one property, so "m.s-1" tells
+// velocity from acceleration but "1" cannot tell "amount of substance" from
+// "fraction". Atomic codes never take that path, which is why they are handled
+// separately rather than folded into the same comparison.
 func (s *service) ValidateInProperty(code, property string) error {
 	if err := s.Validate(code); err != nil {
 		return err
 	}
-	can, err := s.getCanonical(code)
+	t, can, err := s.canonicalParts(code)
 	if err != nil {
 		return err
 	}
-	// Determine the property from canonical base units.
-	p := canonicalProperty(can, s.model)
-	if !strings.EqualFold(p, property) {
+
+	// An atomic unit carries its property in the definitions, so that is the
+	// answer — no dimensional fallback. Falling back would accept mol as a
+	// "fraction", since mol is dimensionless in UCUM and so shares its canonical
+	// form.
+	if declared, ok := declaredProperty(t); ok {
+		if strings.EqualFold(declared, property) {
+			return nil
+		}
+		if _, err := s.canonicalFormsOfProperty(property); err != nil {
+			return &ValidationError{Code: code, Message: err.Error(), Offset: -1}
+		}
 		return &ValidationError{
 			Code:    code,
-			Message: fmt.Sprintf("unit %q has property %q, expected %q", code, p, property),
+			Message: fmt.Sprintf("unit %q does not measure %q (it measures %q)", code, property, declared),
 			Offset:  -1,
 		}
 	}
-	return nil
+
+	forms, err := s.canonicalFormsOfProperty(property)
+	if err != nil {
+		return &ValidationError{Code: code, Message: err.Error(), Offset: -1}
+	}
+	if forms[composeCanonicalUnits(can)] {
+		return nil
+	}
+
+	return &ValidationError{
+		Code:    code,
+		Message: fmt.Sprintf("unit %q does not measure %q (its canonical form is %s)", code, property, composeCanonicalUnits(can)),
+		Offset:  -1,
+	}
+}
+
+// declaredProperty returns the property UCUM declares for a term that is a
+// single unit with exponent 1. A prefix does not change the property, but an
+// exponent does (m is length, m2 is area), so exponents are excluded.
+func declaredProperty(t *term) (string, bool) {
+	if t == nil || t.term != nil {
+		return "", false
+	}
+	sym, ok := t.comp.(*symbol)
+	if !ok || sym.exponent != 1 || sym.unit == nil {
+		return "", false
+	}
+	if sym.unit.Property == "" {
+		return "", false
+	}
+	return sym.unit.Property, true
+}
+
+// canonicalFormsOfProperty returns the canonical forms of the units declaring a
+// property. Results are memoised: resolving one property canonicalizes only its
+// own units, and never more than once.
+func (s *service) canonicalFormsOfProperty(property string) (map[string]bool, error) {
+	key := strings.ToLower(strings.TrimSpace(property))
+	if v, ok := s.propertyForms.Load(key); ok {
+		forms, ok := v.(map[string]bool)
+		if !ok {
+			return nil, fmt.Errorf("ucum: unexpected property cache entry type %T", v)
+		}
+		return forms, nil
+	}
+
+	codes, ok := s.codesByProperty[key]
+	if !ok {
+		return nil, fmt.Errorf("unknown property %q", property)
+	}
+
+	forms := make(map[string]bool)
+	for _, code := range codes {
+		can, err := s.getCanonical(code)
+		if err != nil {
+			// A definition this package cannot canonicalize contributes nothing;
+			// the remaining units of the property still describe it.
+			continue
+		}
+		forms[composeCanonicalUnits(can)] = true
+	}
+	s.propertyForms.Store(key, forms)
+	return forms, nil
 }
 
 // Canonical returns the canonical (base-unit) form of a value+code pair.
@@ -584,21 +691,6 @@ func mergeCanonicalUnits(a, b *canonical) *canonical {
 		value: decimalFromInt(1),
 		units: mergeUnitLists(a.units, b.units, 1),
 	}
-}
-
-// Property resolution.
-
-// canonicalProperty determines the property from canonical base units.
-func canonicalProperty(can *canonical, _ *Model) string {
-	if len(can.units) == 0 {
-		return "dimensionless"
-	}
-	// If single base unit with exponent 1, return its property directly.
-	if len(can.units) == 1 && can.units[0].exponent == 1 {
-		return can.units[0].base.Property
-	}
-	// For compound units, build a dimension string.
-	return composeCanonicalUnits(can)
 }
 
 // Human-readable analysis.

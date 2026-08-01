@@ -600,3 +600,108 @@ func TestDivideNonRationalScale(t *testing.T) {
 		t.Errorf("Divide(1 [pH], 1 mol/L).Code = %q, want %q", got.Code, "1")
 	}
 }
+func TestValidateInPropertyAccepts(t *testing.T) {
+	svc := newTestService(t)
+	cases := [][2]string{
+		// atomic units, matched against their declared property
+		{"m", "length"},
+		{"kg", "mass"},
+		{"g", "mass"},
+		{"s", "time"},
+		{"K", "temperature"},
+		{"Cel", "temperature"},
+		{"N", "force"},
+		{"L", "volume"},
+		{"mol", "amount of substance"},
+		{"Pa", "pressure"},
+		{"mm[Hg]", "pressure"},
+		{"[IU]", "arbitrary"},
+		{"J", "energy"},
+		{"Hz", "frequency"},
+		// case-insensitive, as before
+		{"m", "LENGTH"},
+		{"N", "Force"},
+		// compound expressions have no declared property, so these resolve
+		// dimensionally against the units that do declare it
+		{"m/s2", "acceleration"},
+		{"m/s", "velocity"},
+		{"m2", "area"},
+		{"m3", "volume"},
+		{"kg.m/s2", "force"},
+		{"g/L", "mass concentration"},
+	}
+	for _, c := range cases {
+		if err := svc.ValidateInProperty(c[0], c[1]); err != nil {
+			t.Errorf("ValidateInProperty(%q, %q) = %v, want nil", c[0], c[1], err)
+		}
+	}
+}
+
+func TestValidateInPropertyRejects(t *testing.T) {
+	svc := newTestService(t)
+	cases := [][2]string{
+		{"m", "mass"},
+		{"L", "length"},
+		{"N", "pressure"},
+		{"s", "length"},
+		{"m2", "length"},
+		{"kg", "force"},
+		// unknown property
+		{"m", "no such property"},
+		// invalid code
+		{"not-a-unit", "length"},
+	}
+	for _, c := range cases {
+		if err := svc.ValidateInProperty(c[0], c[1]); err == nil {
+			t.Errorf("ValidateInProperty(%q, %q) = nil, want an error", c[0], c[1])
+		}
+	}
+}
+
+// TestValidateInPropertyErrorMessage: the message must name a property, not a
+// canonical unit string, which was the shape of the old bug.
+func TestValidateInPropertyErrorMessage(t *testing.T) {
+	svc := newTestService(t)
+	err := svc.ValidateInProperty("m", "mass")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if got := err.Error(); !contains(got, "length") || !contains(got, "mass") {
+		t.Errorf("error = %q, want it to name both the actual property (length) and the expected one (mass)", got)
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+// TestValidateInPropertyAtomicIsStrict: an atomic unit is judged by its declared
+// property alone. Falling back to a dimensional match would accept these, since
+// mol and 1 share a canonical form and so do m and [hand].
+func TestValidateInPropertyAtomicIsStrict(t *testing.T) {
+	svc := newTestService(t)
+	cases := [][2]string{
+		{"mol", "fraction"},
+		{"mol", "amount of information"},
+		{"m", "height of horses"},
+		{"m", "depth of water"},
+	}
+	for _, c := range cases {
+		if err := svc.ValidateInProperty(c[0], c[1]); err == nil {
+			t.Errorf("ValidateInProperty(%q, %q) = nil, want an error: %q is declared for a different property",
+				c[0], c[1], c[0])
+		}
+	}
+	// The declared property still resolves.
+	if err := svc.ValidateInProperty("mol", "amount of substance"); err != nil {
+		t.Errorf(`ValidateInProperty("mol", "amount of substance") = %v, want nil`, err)
+	}
+	if err := svc.ValidateInProperty("[hd_i]", "height of horses"); err != nil {
+		t.Errorf(`ValidateInProperty("[hd_i]", "height of horses") = %v, want nil`, err)
+	}
+}
