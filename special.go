@@ -1,25 +1,54 @@
 package ucum
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 )
 
-// specialHandler converts between a special unit and its canonical base.
+// specialHandler is the conversion a special unit performs between its own scale
+// and the reference quantity its definition names.
+//
+// A handler carries only the shape of that conversion. Every figure the
+// definitions state — the reference unit and its multiplier — is read from the
+// XML and applied by the canonicalizer, so no handler repeats a number that
+// ucum-essence.xml already gives.
 type specialHandler interface {
 	code() string
-	units() string
 	toCanonical(value float64) float64
 	fromCanonical(value float64) float64
 }
 
-// ratHandler is implemented by the special handlers whose mapping is a rational
+// ratHandler is implemented by the handlers whose mapping is a rational
 // function, so it can be carried through big.Rat with no rounding at all. The
 // logarithmic, trigonometric and square-root handlers deliberately do not
 // implement it: their results are irrational in general.
 type ratHandler interface {
 	toCanonicalRat(value *big.Rat) *big.Rat
 	fromCanonicalRat(value *big.Rat) *big.Rat
+}
+
+// linearHandler is implemented by the handlers whose scale is linear, so that a
+// difference measured on that scale converts by the reference multiplier alone.
+//
+// A special unit inside an algebraic term denotes a difference rather than a
+// point on its scale — a gradient of 1 [degF]/min is a rate of change, not a
+// temperature — so its offset cancels while its scale remains. The logarithmic
+// and trigonometric handlers do not implement it: 10^-pH does not decompose into
+// a factor times a value, so a difference on that scale has no meaning.
+type linearHandler interface {
+	isLinear()
+}
+
+// nativeUnitHandler is implemented by handlers whose output is in a fixed unit
+// regardless of what the definition names as its reference.
+//
+// The math.Atan call yields radians whether the unit is declared against rad
+// ([p'diop]) or deg (%[slope]), so the canonicalizer scales by radians rather
+// than by the declared reference. This is a property of the function, not of the
+// definitions, which is why it belongs here.
+type nativeUnitHandler interface {
+	nativeUnit() string
 }
 
 // mustRat parses an exact decimal or fraction literal from this file. The input
@@ -32,73 +61,103 @@ func mustRat(s string) *big.Rat {
 	return r
 }
 
-// specialHandlers maps special unit codes to their handlers.
-var specialHandlers = map[string]specialHandler{
-	// Temperature (offset units). Constants are given as exact decimal literals
-	// so that the rational and float64 paths cannot drift apart.
-	"Cel":    newOffsetHandler("Cel", "K", "273.15"),
-	"[degF]": newAffineHandler("[degF]", "K", "5/9", "459.67"),
-	// The Reaumur offset is expressed on the Reaumur scale, not the Celsius one:
-	// 0 Re = 273.15 K requires (0 + offset) * 5/4 = 273.15, so offset = 273.15 * 4/5.
-	"[degRe]": newAffineHandler("[degRe]", "K", "5/4", "218.52"),
+// specialFunctions maps a UCUM function name to the conversion it performs.
+//
+// The definitions name the function and give its reference quantity, but not the
+// function's own constants, because the specification states those in prose. So
+// the offsets and logarithm bases live here — keyed by function name rather than
+// by unit code — while every scale, reference unit and multiplier is read from
+// the XML. A unit that reuses an existing function needs no code at all: it works
+// the moment the definitions declare it.
+//
+// Sources, all from the UCUM specification:
+//
+//   - §21-22, temperature: the Celsius, Fahrenheit and Reaumur scales. Only each
+//     scale's origin is here; its size comes from its reference quantity.
+//   - §44 Table 18: hpX(x) = -lg x, hpC(x) = -ln(x)/ln(100), and analogous
+//     functions with bases 1,000 and 50,000.
+//   - §44 Table 18: f_PD(α) = tan(α) × 100, written both "tanTimes100" and
+//     "100tan".
+//   - §45 Table 19: f_pH(x) = -lg x.
+//   - §46 Table 20: "ln", "lg" and "2lg" are the natural logarithm, the decadic
+//     logarithm, and the decadic logarithm times two, with their inverses.
+//   - §47 Table 22: "ld", the binary logarithm.
+//   - §48 Table 21: "sqrt", the square root with the square as its inverse.
+var specialFunctions = map[string]func(code string) specialHandler{
+	// Temperature. Each scale's origin is stated in that scale's own degrees, and
+	// is the one figure the definitions do not carry.
+	"Cel":   func(c string) specialHandler { return newOffsetHandler(c, "273.15") },
+	"degF":  func(c string) specialHandler { return newOffsetHandler(c, "459.67") },
+	"degRe": func(c string) specialHandler { return newOffsetHandler(c, "218.52") },
 
-	// Logarithmic. expDivisor mirrors the UCUM function: 1 for lg, ln and ld,
-	// 2 for lgTimes2, whose inverse is base^(v/2) and not base^(2v).
-	"[pH]": logHandler{unitCode: "[pH]", unitExpr: "mol/l", base: 10, negate: true},
-	"Np":   logHandler{unitCode: "Np", unitExpr: "1", base: math.E},
-	"B":    logHandler{unitCode: "B", unitExpr: "1", base: 10},
-	// The reference level is 2x10^-5 Pa (20 uPa, the hearing threshold), which
-	// the XML spells as value="2" over Unit="10*-5.Pa". The factor belongs in
-	// the reference expression, not in the exponent.
-	"B[SPL]": logHandler{unitCode: "B[SPL]", unitExpr: "2.10*-5.Pa", base: 10, expDivisor: 2},
-	"B[V]":   logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, expDivisor: 2},
-	"B[mV]":  logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, expDivisor: 2},
-	"B[uV]":  logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, expDivisor: 2},
-	// Reference level is 10 nV, not 1 nV: the XML says value="10" over
-	// Unit="nV", the same shape as B[SPL] above.
-	"B[10.nV]": logHandler{unitCode: "B[10.nV]", unitExpr: "10.nV", base: 10, expDivisor: 2},
-	"B[W]":     logHandler{unitCode: "B[W]", unitExpr: "W", base: 10},
-	"B[kW]":    logHandler{unitCode: "B[kW]", unitExpr: "kW", base: 10},
-	"bit_s":    logHandler{unitCode: "bit_s", unitExpr: "1", base: 2},
+	// Logarithmic. expDivisor is 2 for lgTimes2, whose inverse is base^(v/2).
+	"lg":       func(c string) specialHandler { return logHandler{unitCode: c, base: 10, expDivisor: 1} },
+	"lgTimes2": func(c string) specialHandler { return logHandler{unitCode: c, base: 10, expDivisor: 2} },
+	"ln":       func(c string) specialHandler { return logHandler{unitCode: c, base: math.E, expDivisor: 1} },
+	"ld":       func(c string) specialHandler { return logHandler{unitCode: c, base: 2, expDivisor: 1} },
+	"pH":       func(c string) specialHandler { return logHandler{unitCode: c, base: 10, expDivisor: 1, negate: true} },
+	"hpX":      func(c string) specialHandler { return logHandler{unitCode: c, base: 10, expDivisor: 1, negate: true} },
+	"hpC":      func(c string) specialHandler { return logHandler{unitCode: c, base: 100, expDivisor: 1, negate: true} },
+	"hpM":      func(c string) specialHandler { return logHandler{unitCode: c, base: 1000, expDivisor: 1, negate: true} },
+	"hpQ": func(c string) specialHandler {
+		return logHandler{unitCode: c, base: 50000, expDivisor: 1, negate: true}
+	},
 
-	// Trigonometric. atan returns radians, so a handler declared against another
-	// angle unit has to convert into it: perRadian is how many of unitExpr make
-	// up one radian.
-	//
-	// Note that the sources disagree about %[slope]: ucum-essence.xml declares it
-	// against deg, while the specification's Table 18 gives it as 100tan(1 rad),
-	// the same as [p'diop]. The XML is followed here, and the two readings agree
-	// on the canonical result either way — 100 %[slope] is pi/4 rad under both.
-	"[p'diop]": tanHandler{unitCode: "[p'diop]", unitExpr: "rad", factor: 100, perRadian: 1},
-	"%[slope]": tanHandler{unitCode: "%[slope]", unitExpr: "deg", factor: 100, perRadian: 180 / math.Pi},
+	// Trigonometric. The specification writes the same function both ways, and the
+	// XML uses "tanTimes100" for [p'diop] and "100tan" for %[slope].
+	"tanTimes100": func(c string) specialHandler { return tanHandler{unitCode: c, factor: 100} },
+	"100tan":      func(c string) specialHandler { return tanHandler{unitCode: c, factor: 100} },
 
 	// Power.
-	"[m/s2/Hz^(1/2)]": sqrtHandler{unitCode: "[m/s2/Hz^(1/2)]", unitExpr: "m2/s4/Hz"},
-
-	// Homeopathic. The specification's prose describes hpX as "hpX(1 l)", per
-	// liter, but its normative Table 18 gives hpX(1 1) and the XML agrees, so the
-	// reference is the dimensionless 1.
-	"[hp'_X]": logHandler{unitCode: "[hp'_X]", unitExpr: "1", base: 10, negate: true},
-	"[hp'_C]": logHandler{unitCode: "[hp'_C]", unitExpr: "1", base: 100, negate: true},
-	"[hp'_M]": logHandler{unitCode: "[hp'_M]", unitExpr: "1", base: 1000, negate: true},
-	"[hp'_Q]": logHandler{unitCode: "[hp'_Q]", unitExpr: "1", base: 50000, negate: true},
+	"sqrt": func(c string) specialHandler { return sqrtHandler{unitCode: c} },
 }
 
-// offsetHandler converts via canonical = value + offset (Celsius).
+// buildSpecialHandlers builds the handler for every special unit in a model.
+//
+// It fails if the definitions name a function this package does not implement,
+// which is how a new UCUM release announces itself rather than silently
+// misconverting a unit.
+func buildSpecialHandlers(m *Model) (map[string]specialHandler, error) {
+	handlers := make(map[string]specialHandler)
+	for _, du := range m.DefinedUnits {
+		if !du.IsSpecial {
+			continue
+		}
+		if du.Value == nil || du.Value.Function == nil {
+			return nil, fmt.Errorf("special unit %q has no function definition", du.Code)
+		}
+		name := du.Value.Function.Name
+		build, ok := specialFunctions[name]
+		if !ok {
+			return nil, fmt.Errorf("special unit %q uses unsupported function %q", du.Code, name)
+		}
+		handlers[du.Code] = build(du.Code)
+	}
+	return handlers, nil
+}
+
+// offsetHandler shifts the origin of a scale, in that scale's own units:
+// canonical = value + offset.
+//
+// The size of the unit is not here. The definitions give it as the function's
+// reference quantity — Cel is cel(1 K), degF is degf(5 K/9) — so the
+// canonicalizer scales by it. This handler only moves the zero, which is why one
+// type serves Celsius, Fahrenheit and Reaumur alike: they differ in size, and
+// size is data.
 type offsetHandler struct {
-	unitCode, unitExpr string
-	offset             float64
-	offsetRat          *big.Rat
+	unitCode  string
+	offset    float64
+	offsetRat *big.Rat
 }
 
-func newOffsetHandler(code, expr, offset string) offsetHandler {
+func newOffsetHandler(code, offset string) offsetHandler {
 	r := mustRat(offset)
 	f, _ := r.Float64()
-	return offsetHandler{unitCode: code, unitExpr: expr, offset: f, offsetRat: r}
+	return offsetHandler{unitCode: code, offset: f, offsetRat: r}
 }
 
 func (h offsetHandler) code() string                    { return h.unitCode }
-func (h offsetHandler) units() string                   { return h.unitExpr }
+func (h offsetHandler) isLinear()                       {}
 func (h offsetHandler) toCanonical(v float64) float64   { return v + h.offset }
 func (h offsetHandler) fromCanonical(v float64) float64 { return v - h.offset }
 
@@ -110,104 +169,49 @@ func (h offsetHandler) fromCanonicalRat(v *big.Rat) *big.Rat {
 	return new(big.Rat).Sub(v, h.offsetRat)
 }
 
-// affineHandler converts via canonical = (value + offset) * scale (Fahrenheit, Reaumur).
-type affineHandler struct {
-	unitCode, unitExpr string
-	scale, offset      float64
-	scaleRat           *big.Rat
-	offsetRat          *big.Rat
-}
-
-func newAffineHandler(code, expr, scale, offset string) affineHandler {
-	sr, or := mustRat(scale), mustRat(offset)
-	sf, _ := sr.Float64()
-	of, _ := or.Float64()
-	return affineHandler{
-		unitCode: code, unitExpr: expr,
-		scale: sf, offset: of,
-		scaleRat: sr, offsetRat: or,
-	}
-}
-
-func (h affineHandler) code() string                    { return h.unitCode }
-func (h affineHandler) units() string                   { return h.unitExpr }
-func (h affineHandler) toCanonical(v float64) float64   { return (v + h.offset) * h.scale }
-func (h affineHandler) fromCanonical(v float64) float64 { return v/h.scale - h.offset }
-
-func (h affineHandler) toCanonicalRat(v *big.Rat) *big.Rat {
-	return new(big.Rat).Mul(new(big.Rat).Add(v, h.offsetRat), h.scaleRat)
-}
-
-func (h affineHandler) fromCanonicalRat(v *big.Rat) *big.Rat {
-	return new(big.Rat).Sub(new(big.Rat).Quo(v, h.scaleRat), h.offsetRat)
-}
-
 // logHandler converts via canonical = base^(value/expDivisor), negated when the
 // unit counts downwards ([pH], the homeopathic potencies).
-//
-// The divisor comes straight from the UCUM function name: lg, ln and ld are
-// value = log_base(canonical), so the divisor is 1; lgTimes2 is
-// value = 2*lg(canonical), so the divisor is 2 and the inverse is 10^(v/2).
 type logHandler struct {
-	unitCode, unitExpr string
-	base               float64
-	expDivisor         float64 // exponent divisor (default 1)
-	negate             bool
+	unitCode   string
+	base       float64
+	expDivisor float64
+	negate     bool
 }
 
-func (h logHandler) code() string  { return h.unitCode }
-func (h logHandler) units() string { return h.unitExpr }
+func (h logHandler) code() string { return h.unitCode }
+
 func (h logHandler) toCanonical(v float64) float64 {
-	e := v / h.effectiveDivisor()
+	e := v / h.expDivisor
 	if h.negate {
 		e = -e
 	}
 	return math.Pow(h.base, e)
 }
+
 func (h logHandler) fromCanonical(v float64) float64 {
-	d := h.effectiveDivisor()
 	if h.negate {
-		return -math.Log(v) * d / math.Log(h.base)
+		return -math.Log(v) * h.expDivisor / math.Log(h.base)
 	}
-	return math.Log(v) * d / math.Log(h.base)
-}
-func (h logHandler) effectiveDivisor() float64 {
-	if h.expDivisor == 0 {
-		return 1
-	}
-	return h.expDivisor
+	return math.Log(v) * h.expDivisor / math.Log(h.base)
 }
 
 // tanHandler converts via canonical = arctan(value/factor), expressed in the
-// unit the handler declares (prism diopter, percent slope).
-//
-// The math.Atan call yields radians while the declared unit may be something
-// else, so the result is scaled by perRadian — the number of unitExpr in one
-// radian. Every handler sets it explicitly (there is no default): without it, the raw radian figure would be relabelled as the declared unit and
-// then scaled again by that unit's canonical factor.
+// angle unit the definitions name (prism diopter, percent slope).
 type tanHandler struct {
-	unitCode, unitExpr string
-	factor             float64
-	perRadian          float64 // units of unitExpr per radian; 1 when unitExpr is rad
+	unitCode string
+	factor   float64
 }
 
-func (h tanHandler) code() string  { return h.unitCode }
-func (h tanHandler) units() string { return h.unitExpr }
-
-func (h tanHandler) toCanonical(v float64) float64 {
-	return math.Atan(v/h.factor) * h.perRadian
-}
-
-func (h tanHandler) fromCanonical(v float64) float64 {
-	return math.Tan(v/h.perRadian) * h.factor
-}
+func (h tanHandler) code() string                    { return h.unitCode }
+func (h tanHandler) nativeUnit() string              { return "rad" }
+func (h tanHandler) toCanonical(v float64) float64   { return math.Atan(v / h.factor) }
+func (h tanHandler) fromCanonical(v float64) float64 { return math.Tan(v) * h.factor }
 
 // sqrtHandler converts via canonical = value^2.
 type sqrtHandler struct {
-	unitCode, unitExpr string
+	unitCode string
 }
 
 func (h sqrtHandler) code() string                    { return h.unitCode }
-func (h sqrtHandler) units() string                   { return h.unitExpr }
 func (h sqrtHandler) toCanonical(v float64) float64   { return v * v }
 func (h sqrtHandler) fromCanonical(v float64) float64 { return math.Sqrt(v) }

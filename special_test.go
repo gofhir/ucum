@@ -11,10 +11,30 @@ func almostEqual(a, b, tol float64) bool {
 	return math.Abs(a-b) <= tol
 }
 
+// handlerFor returns the conversion built for a special unit from its definition.
+// The handlers are per-service now, since which function a unit performs is data
+// in ucum-essence.xml rather than a fact about this package.
+func handlerFor(t *testing.T, code string) specialHandler {
+	t.Helper()
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := svc.(*service)
+	if !ok {
+		t.Fatal("unexpected service type")
+	}
+	h, ok := s.handlers[code]
+	if !ok {
+		t.Fatalf("no handler for special unit %q", code)
+	}
+	return h
+}
+
 // Celsius (offsetHandler) tests.
 
 func TestCelsiusToCanonical(t *testing.T) {
-	h := specialHandlers["Cel"]
+	h := handlerFor(t, "Cel")
 	tests := []struct {
 		input float64
 		want  float64
@@ -33,7 +53,7 @@ func TestCelsiusToCanonical(t *testing.T) {
 }
 
 func TestCelsiusFromCanonical(t *testing.T) {
-	h := specialHandlers["Cel"]
+	h := handlerFor(t, "Cel")
 	if got := h.fromCanonical(273.15); !almostEqual(got, 0, floatTolerance) {
 		t.Errorf("Cel.fromCanonical(273.15) = %v, want 0", got)
 	}
@@ -43,7 +63,7 @@ func TestCelsiusFromCanonical(t *testing.T) {
 }
 
 func TestCelsiusRoundTrip(t *testing.T) {
-	h := specialHandlers["Cel"]
+	h := handlerFor(t, "Cel")
 	values := []float64{-40, 0, 37, 100, 1000}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -53,28 +73,33 @@ func TestCelsiusRoundTrip(t *testing.T) {
 	}
 }
 
-func TestCelsiusCodeAndUnits(t *testing.T) {
-	h := specialHandlers["Cel"]
+func TestCelsiusCodeAndReference(t *testing.T) {
+	h := handlerFor(t, "Cel")
 	if h.code() != "Cel" {
 		t.Errorf("Cel.code() = %q, want %q", h.code(), "Cel")
 	}
-	if h.units() != "K" {
-		t.Errorf("Cel.units() = %q, want %q", h.units(), "K")
+	// The reference quantity is data in the definitions, not a field on the
+	// handler: Cel is declared cel(1 K).
+	if got := referenceOf(t, "Cel"); got != "1.K" {
+		t.Errorf("Cel reference = %q, want %q", got, "1.K")
 	}
 }
 
 // Fahrenheit (affineHandler) tests.
 
+// The handler moves the origin only, in the unit's own degrees: the size of a
+// Fahrenheit degree is the reference quantity degf(5 K/9) and is applied by the
+// canonicalizer. TestAllSpecialHandlersAgainstSpec covers the whole conversion.
 func TestFahrenheitToCanonical(t *testing.T) {
-	h := specialHandlers["[degF]"]
+	h := handlerFor(t, "[degF]")
 	tests := []struct {
 		name  string
 		input float64
 		want  float64
 	}{
-		{"freezing point", 32, 273.15},
-		{"boiling point", 212, 373.15},
-		{"body temp", 98.6, 310.15},
+		{"freezing point", 32, 32 + 459.67},
+		{"boiling point", 212, 212 + 459.67},
+		{"body temp", 98.6, 98.6 + 459.67},
 		{"absolute zero", -459.67, 0},
 	}
 	for _, tt := range tests {
@@ -88,15 +113,17 @@ func TestFahrenheitToCanonical(t *testing.T) {
 }
 
 func TestFahrenheitFromCanonical(t *testing.T) {
-	h := specialHandlers["[degF]"]
-	got := h.fromCanonical(273.15)
+	h := handlerFor(t, "[degF]")
+	// The canonicalizer has already divided by the scale, so the input is in
+	// Fahrenheit degrees above absolute zero.
+	got := h.fromCanonical(491.67)
 	if !almostEqual(got, 32, 0.01) {
-		t.Errorf("degF.fromCanonical(273.15) = %v, want 32", got)
+		t.Errorf("degF.fromCanonical(491.67) = %v, want 32", got)
 	}
 }
 
 func TestFahrenheitRoundTrip(t *testing.T) {
-	h := specialHandlers["[degF]"]
+	h := handlerFor(t, "[degF]")
 	values := []float64{-459.67, 0, 32, 98.6, 212}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -109,16 +136,16 @@ func TestFahrenheitRoundTrip(t *testing.T) {
 // Reaumur (affineHandler) tests.
 
 func TestReaumurToCanonical(t *testing.T) {
-	h := specialHandlers["[degRe]"]
+	h := handlerFor(t, "[degRe]")
 	// Reaumur scale: 0 Re = 0 Cel, 80 Re = 100 Cel. Expected values come from
 	// the physical definition, not from the handler's own formula.
 	got := h.toCanonical(0)
-	if !almostEqual(got, 273.15, 0.01) {
-		t.Errorf("degRe.toCanonical(0) = %v, want 273.15", got)
+	if !almostEqual(got, 218.52, 0.01) {
+		t.Errorf("degRe.toCanonical(0) = %v, want 218.52 (Reaumur degrees above absolute zero)", got)
 	}
 	got80 := h.toCanonical(80)
-	if !almostEqual(got80, 373.15, 0.01) {
-		t.Errorf("degRe.toCanonical(80) = %v, want 373.15", got80)
+	if !almostEqual(got80, 298.52, 0.01) {
+		t.Errorf("degRe.toCanonical(80) = %v, want 298.52", got80)
 	}
 	// Absolute zero.
 	if got0 := h.toCanonical(-218.52); !almostEqual(got0, 0, 1e-9) {
@@ -127,17 +154,17 @@ func TestReaumurToCanonical(t *testing.T) {
 }
 
 func TestReaumurFromCanonical(t *testing.T) {
-	h := specialHandlers["[degRe]"]
-	if got := h.fromCanonical(273.15); !almostEqual(got, 0, 1e-9) {
-		t.Errorf("degRe.fromCanonical(273.15) = %v, want 0", got)
+	h := handlerFor(t, "[degRe]")
+	if got := h.fromCanonical(218.52); !almostEqual(got, 0, 1e-9) {
+		t.Errorf("degRe.fromCanonical(218.52) = %v, want 0", got)
 	}
-	if got := h.fromCanonical(373.15); !almostEqual(got, 80, 1e-9) {
-		t.Errorf("degRe.fromCanonical(373.15) = %v, want 80", got)
+	if got := h.fromCanonical(298.52); !almostEqual(got, 80, 1e-9) {
+		t.Errorf("degRe.fromCanonical(298.52) = %v, want 80", got)
 	}
 }
 
 func TestReaumurRoundTrip(t *testing.T) {
-	h := specialHandlers["[degRe]"]
+	h := handlerFor(t, "[degRe]")
 	for _, v := range []float64{-218.52, 0, 20, 80, 800} {
 		if got := h.fromCanonical(h.toCanonical(v)); !almostEqual(got, v, 1e-6) {
 			t.Errorf("degRe round-trip(%v) = %v", v, got)
@@ -148,7 +175,7 @@ func TestReaumurRoundTrip(t *testing.T) {
 // PH (logHandler, negate) tests.
 
 func TestPHToCanonical(t *testing.T) {
-	h := specialHandlers["[pH]"]
+	h := handlerFor(t, "[pH]")
 	tests := []struct {
 		input float64
 		want  float64
@@ -167,7 +194,7 @@ func TestPHToCanonical(t *testing.T) {
 }
 
 func TestPHFromCanonical(t *testing.T) {
-	h := specialHandlers["[pH]"]
+	h := handlerFor(t, "[pH]")
 	got := h.fromCanonical(1e-7)
 	if !almostEqual(got, 7, floatTolerance) {
 		t.Errorf("pH.fromCanonical(1e-7) = %v, want 7", got)
@@ -175,7 +202,7 @@ func TestPHFromCanonical(t *testing.T) {
 }
 
 func TestPHRoundTrip(t *testing.T) {
-	h := specialHandlers["[pH]"]
+	h := handlerFor(t, "[pH]")
 	values := []float64{0, 1, 3, 7, 10, 14}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -185,20 +212,78 @@ func TestPHRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPHCodeAndUnits(t *testing.T) {
-	h := specialHandlers["[pH]"]
+func TestPHCodeAndReference(t *testing.T) {
+	h := handlerFor(t, "[pH]")
 	if h.code() != "[pH]" {
 		t.Errorf("pH.code() = %q, want %q", h.code(), "[pH]")
 	}
-	if h.units() != "mol/l" {
-		t.Errorf("pH.units() = %q, want %q", h.units(), "mol/l")
+	if got := referenceOf(t, "[pH]"); got != "1.mol/l" {
+		t.Errorf("pH reference = %q, want %q", got, "1.mol/l")
 	}
+}
+
+// TestSpecialReferencesComeFromDefinitions checks that the reference quantity of
+// every special unit is read from the XML rather than restated in code. These are
+// the figures that used to be hardcoded in special.go, including the two that
+// were wrong there.
+func TestSpecialReferencesComeFromDefinitions(t *testing.T) {
+	want := map[string]string{
+		"Cel":             "1.K",
+		"[degF]":          "5.K/9",
+		"[degRe]":         "5.K/4",
+		"[pH]":            "1.mol/l",
+		"B":               "1.1",
+		"B[V]":            "1.V",
+		"B[SPL]":          "2.10*-5.Pa",
+		"B[10.nV]":        "10.nV",
+		"[p'diop]":        "1.rad",
+		"%[slope]":        "1.deg",
+		"[m/s2/Hz^(1/2)]": "1.m2/s4/Hz",
+		"[hp'_C]":         "1.1",
+	}
+	for code, ref := range want {
+		if got := referenceOf(t, code); got != ref {
+			t.Errorf("reference of %q = %q, want %q", code, got, ref)
+		}
+	}
+}
+
+// handlersOf returns every handler the service built from the definitions.
+func handlersOf(t *testing.T) map[string]specialHandler {
+	t.Helper()
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := svc.(*service)
+	if !ok {
+		t.Fatal("unexpected service type")
+	}
+	return s.handlers
+}
+
+// referenceOf returns the reference expression a special unit's definition gives.
+func referenceOf(t *testing.T, code string) string {
+	t.Helper()
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := svc.(*service)
+	if !ok {
+		t.Fatal("unexpected service type")
+	}
+	u := s.model.getUnit(code)
+	if u == nil || u.Value == nil {
+		t.Fatalf("no definition for %q", code)
+	}
+	return u.Value.Function.Reference()
 }
 
 // Bel (logHandler, power ratio) tests.
 
 func TestBelToCanonical(t *testing.T) {
-	h := specialHandlers["B"]
+	h := handlerFor(t, "B")
 	tests := []struct {
 		input float64
 		want  float64
@@ -217,7 +302,7 @@ func TestBelToCanonical(t *testing.T) {
 }
 
 func TestBelFromCanonical(t *testing.T) {
-	h := specialHandlers["B"]
+	h := handlerFor(t, "B")
 	got := h.fromCanonical(1000)
 	if !almostEqual(got, 3, floatTolerance) {
 		t.Errorf("B.fromCanonical(1000) = %v, want 3", got)
@@ -225,7 +310,7 @@ func TestBelFromCanonical(t *testing.T) {
 }
 
 func TestBelRoundTrip(t *testing.T) {
-	h := specialHandlers["B"]
+	h := handlerFor(t, "B")
 	values := []float64{0, 1, 2, 3, 5, 10}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -238,7 +323,7 @@ func TestBelRoundTrip(t *testing.T) {
 // B[SPL] (logHandler, field quantity defined with lgTimes2) tests.
 
 func TestBelSPLToCanonical(t *testing.T) {
-	h := specialHandlers["B[SPL]"]
+	h := handlerFor(t, "B[SPL]")
 	// lgTimes2 means value = 2*lg(canonical), so toCanonical(v) = 10^(v/2),
 	// expressed in multiples of the reference level.
 	got := h.toCanonical(1)
@@ -253,7 +338,7 @@ func TestBelSPLToCanonical(t *testing.T) {
 }
 
 func TestBelSPLRoundTrip(t *testing.T) {
-	h := specialHandlers["B[SPL]"]
+	h := handlerFor(t, "B[SPL]")
 	values := []float64{0, 0.5, 1, 2, 3}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -266,7 +351,7 @@ func TestBelSPLRoundTrip(t *testing.T) {
 // Neper (logHandler, base e) tests.
 
 func TestNeperToCanonical(t *testing.T) {
-	h := specialHandlers["Np"]
+	h := handlerFor(t, "Np")
 	// 1 Np = e^1 = e
 	got := h.toCanonical(1)
 	if !almostEqual(got, math.E, floatTolerance) {
@@ -280,7 +365,7 @@ func TestNeperToCanonical(t *testing.T) {
 }
 
 func TestNeperRoundTrip(t *testing.T) {
-	h := specialHandlers["Np"]
+	h := handlerFor(t, "Np")
 	values := []float64{0, 1, 2, 3.5}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -293,7 +378,7 @@ func TestNeperRoundTrip(t *testing.T) {
 // Bit_s (logHandler, base 2) tests.
 
 func TestBitSToCanonical(t *testing.T) {
-	h := specialHandlers["bit_s"]
+	h := handlerFor(t, "bit_s")
 	// 8 bits = 2^8 = 256
 	got := h.toCanonical(8)
 	if !almostEqual(got, 256, floatTolerance) {
@@ -312,7 +397,7 @@ func TestBitSToCanonical(t *testing.T) {
 }
 
 func TestBitSRoundTrip(t *testing.T) {
-	h := specialHandlers["bit_s"]
+	h := handlerFor(t, "bit_s")
 	values := []float64{0, 1, 4, 8, 16}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -325,14 +410,14 @@ func TestBitSRoundTrip(t *testing.T) {
 // Homeopathic potencies tests.
 
 func TestHomeopathicToCanonical(t *testing.T) {
-	h := specialHandlers["[hp'_X]"]
+	h := handlerFor(t, "[hp'_X]")
 	// hp'_X uses base 10, negate: 1X = 10^-1 = 0.1
 	got := h.toCanonical(1)
 	if !almostEqual(got, 0.1, floatTolerance) {
 		t.Errorf("hp'_X.toCanonical(1) = %v, want 0.1", got)
 	}
 
-	hc := specialHandlers["[hp'_C]"]
+	hc := handlerFor(t, "[hp'_C]")
 	// hp'_C uses base 100, negate: 1C = 100^-1 = 0.01
 	gotC := hc.toCanonical(1)
 	if !almostEqual(gotC, 0.01, floatTolerance) {
@@ -343,7 +428,7 @@ func TestHomeopathicToCanonical(t *testing.T) {
 // Prism diopter (tanHandler) tests.
 
 func TestPrismDiopterToCanonical(t *testing.T) {
-	h := specialHandlers["[p'diop]"]
+	h := handlerFor(t, "[p'diop]")
 	// ToCanonical(v) = atan(v/100)
 	// At 0: atan(0) = 0
 	got := h.toCanonical(0)
@@ -358,7 +443,7 @@ func TestPrismDiopterToCanonical(t *testing.T) {
 }
 
 func TestPrismDiopterRoundTrip(t *testing.T) {
-	h := specialHandlers["[p'diop]"]
+	h := handlerFor(t, "[p'diop]")
 	values := []float64{0, 1, 10, 50, 100}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -371,27 +456,26 @@ func TestPrismDiopterRoundTrip(t *testing.T) {
 // Percent slope (tanHandler) tests.
 
 func TestPercentSlopeToCanonical(t *testing.T) {
-	h := specialHandlers["%[slope]"]
-	// A 100% slope is a 45 degree incline: atan(1) is pi/4 radians, and the
-	// handler is declared against deg, so it reports 45.
+	h := handlerFor(t, "%[slope]")
+	// The handler yields radians, which is what atan produces; the conversion into
+	// the declared deg is the canonicalizer's job. A 100% slope is a 45 degree
+	// incline, so atan(1) is pi/4. TestPercentSlope covers the whole conversion.
 	got := h.toCanonical(100)
-	if !almostEqual(got, 45, floatTolerance) {
-		t.Errorf("%%[slope].toCanonical(100) = %v, want 45", got)
+	if !almostEqual(got, math.Pi/4, floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(100) = %v, want %v", got, math.Pi/4)
 	}
 	if got0 := h.toCanonical(0); !almostEqual(got0, 0, floatTolerance) {
 		t.Errorf("%%[slope].toCanonical(0) = %v, want 0", got0)
 	}
-	// 50% slope: atan(0.5) in degrees.
-	want50 := math.Atan(0.5) * 180 / math.Pi
-	if got50 := h.toCanonical(50); !almostEqual(got50, want50, floatTolerance) {
-		t.Errorf("%%[slope].toCanonical(50) = %v, want %v", got50, want50)
+	if got50 := h.toCanonical(50); !almostEqual(got50, math.Atan(0.5), floatTolerance) {
+		t.Errorf("%%[slope].toCanonical(50) = %v, want %v", got50, math.Atan(0.5))
 	}
 }
 
 // Sqrt handler tests.
 
 func TestSqrtHandlerToCanonical(t *testing.T) {
-	h := specialHandlers["[m/s2/Hz^(1/2)]"]
+	h := handlerFor(t, "[m/s2/Hz^(1/2)]")
 	// Squaring 3 should give 9.
 	got := h.toCanonical(3)
 	if !almostEqual(got, 9, floatTolerance) {
@@ -405,7 +489,7 @@ func TestSqrtHandlerToCanonical(t *testing.T) {
 }
 
 func TestSqrtHandlerRoundTrip(t *testing.T) {
-	h := specialHandlers["[m/s2/Hz^(1/2)]"]
+	h := handlerFor(t, "[m/s2/Hz^(1/2)]")
 	values := []float64{0, 1, 2, 5, 10, 100}
 	for _, v := range values {
 		got := h.fromCanonical(h.toCanonical(v))
@@ -427,7 +511,7 @@ func TestAllSpecialHandlersRegistered(t *testing.T) {
 		"[hp'_X]", "[hp'_C]", "[hp'_M]", "[hp'_Q]",
 	}
 	for _, code := range expectedCodes {
-		h, ok := specialHandlers[code]
+		h, ok := handlersOf(t)[code]
 		if !ok {
 			t.Errorf("missing handler for %q", code)
 			continue
@@ -436,8 +520,8 @@ func TestAllSpecialHandlersRegistered(t *testing.T) {
 			t.Errorf("handler %q has Code() = %q", code, h.code())
 		}
 	}
-	if len(specialHandlers) != len(expectedCodes) {
-		t.Errorf("specialHandlers has %d entries, want %d", len(specialHandlers), len(expectedCodes))
+	if got := len(handlersOf(t)); got != len(expectedCodes) {
+		t.Errorf("the service built %d handlers, want %d", got, len(expectedCodes))
 	}
 }
 
@@ -477,7 +561,7 @@ func TestLgTimes2Units(t *testing.T) {
 
 func TestLgTimes2RoundTrip(t *testing.T) {
 	for _, code := range []string{"B[V]", "B[mV]", "B[uV]", "B[10.nV]", "B[SPL]", "B", "B[W]", "Np", "bit_s"} {
-		h := specialHandlers[code]
+		h := handlerFor(t, code)
 		for _, v := range []float64{-2, 0, 0.5, 1, 3} {
 			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
 				t.Errorf("%s round-trip(%v) = %v", code, v, got)
@@ -536,7 +620,7 @@ func TestPercentSlope(t *testing.T) {
 
 func TestTanHandlerRoundTrip(t *testing.T) {
 	for _, code := range []string{"[p'diop]", "%[slope]"} {
-		h := specialHandlers[code]
+		h := handlerFor(t, code)
 		for _, v := range []float64{-50, 0, 10, 100} {
 			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
 				t.Errorf("%s round-trip(%v) = %v", code, v, got)
@@ -744,18 +828,109 @@ func TestEverySpecialUnitHasAHandler(t *testing.T) {
 			continue
 		}
 		special++
-		if _, ok := specialHandlers[du.Code]; !ok {
+		if _, ok := s.handlers[du.Code]; !ok {
 			t.Errorf("special unit %q has no handler", du.Code)
 		}
 		if _, err := svc.Canonical(1, du.Code); err != nil {
 			t.Errorf("Canonical(1, %q): %v", du.Code, err)
 		}
 	}
-	if special != len(specialHandlers) {
+	if special != len(s.handlers) {
 		t.Errorf("%d special units in the definitions but %d handlers registered",
-			special, len(specialHandlers))
+			special, len(s.handlers))
 	}
 	if special != 21 {
 		t.Errorf("found %d special units, want 21 for this version of the definitions", special)
+	}
+}
+
+// A special unit inside an algebraic term denotes a difference, not a point on
+// its scale: the offset cancels but the scale does not. 1 degF of difference is
+// 5/9 K, so a gradient of 1 [degF]/min is 5/9 K/min.
+func TestSpecialInAlgebraicTermKeepsItsScale(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+		why      string
+	}{
+		{1, "Cel/min", "K/min", 1, "a Celsius degree and a kelvin are the same size"},
+		{1, "[degF]/min", "K/min", 5.0 / 9.0, "a Fahrenheit degree is 5/9 of a kelvin"},
+		{9, "[degF]/h", "Cel/h", 5, "9 degF of difference is 5 Cel"},
+		{1, "[degRe]/min", "K/min", 1.25, "a Reaumur degree is 5/4 of a kelvin"},
+		{1, "Cel/min", "[degF]/min", 9.0 / 5.0, "between two special units, both scales apply"},
+		{100, "Cel.m", "K.m", 100, "the scale is 1, so the value carries over"},
+		{1, "[degF].m", "K.m", 5.0 / 9.0, "and here it does not"},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > math.Abs(tt.want)*1e-12 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v (%s)",
+				tt.value, tt.from, tt.to, got, tt.want, tt.why)
+		}
+	}
+}
+
+// A standalone special unit keeps meaning a point on its scale, offset included.
+func TestStandaloneSpecialStillUsesTheOffset(t *testing.T) {
+	svc := newTestService(t)
+	tests := []struct {
+		value    float64
+		from, to string
+		want     float64
+	}{
+		{0, "Cel", "K", 273.15},
+		{32, "[degF]", "K", 273.15},
+		{80, "[degRe]", "Cel", 100},
+		{100, "[degF]", "Cel", 37.77777777777778},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(tt.value, tt.from, tt.to)
+		if err != nil {
+			t.Fatalf("Convert(%v, %q, %q): %v", tt.value, tt.from, tt.to, err)
+		}
+		if math.Abs(got-tt.want) > 1e-9 {
+			t.Errorf("Convert(%v, %q, %q) = %v, want %v", tt.value, tt.from, tt.to, got, tt.want)
+		}
+	}
+	p, err := svc.Canonical(1, "Cel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(p.Value-274.15) > 1e-9 {
+		t.Errorf("Canonical(1, Cel) = %v, want 274.15", p.Value)
+	}
+}
+
+// An exponent on a special unit has no meaning: a squared temperature is not a
+// difference, so no scale rescues it.
+func TestSpecialWithExponentIsRejected(t *testing.T) {
+	svc := newTestService(t)
+	for _, code := range []string{"Cel2", "[degF]2", "Cel-1", "[degRe]3"} {
+		if _, err := svc.Canonical(1, code); err == nil {
+			t.Errorf("Canonical(1, %q) = nil error, want an error", code)
+		}
+	}
+}
+
+// A non-linear special unit has no multiplicative scale to fall back on: 10^-pH
+// does not decompose into a factor times a value, so it cannot appear in an
+// algebraic term at all.
+func TestNonLinearSpecialInAlgebraicTermIsRejected(t *testing.T) {
+	svc := newTestService(t)
+	for _, code := range []string{"[pH]/L", "B.m", "B[V]/s", "[p'diop]/m", "Np.s"} {
+		if _, err := svc.Canonical(1, code); err == nil {
+			t.Errorf("Canonical(1, %q) = nil error, want an error", code)
+		}
+	}
+	// Standalone they still work.
+	for _, code := range []string{"[pH]", "B", "B[V]", "[p'diop]", "Np"} {
+		if _, err := svc.Canonical(1, code); err != nil {
+			t.Errorf("Canonical(1, %q) = %v, want nil", code, err)
+		}
 	}
 }
