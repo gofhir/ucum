@@ -87,3 +87,46 @@ func TestParserExponent(t *testing.T) {
 		t.Errorf("exponent = %d, want -2", sym.exponent)
 	}
 }
+
+// TestPrefixRequiresMetricAtom covers UCUM §11 ■1, "Only metric unit atoms may
+// be combined with a prefix".
+func TestPrefixRequiresMetricAtom(t *testing.T) {
+	svc := newTestService(t)
+
+	// Non-metric atoms: a prefixed form is not a valid code.
+	// Every atom below is declared isMetric="no" in the definitions.
+	rejected := []string{
+		"k[ft_i]", "m[lb_av]", "k[in_i]", "c[pi]", "k[oz_av]", "m[yd_i]",
+	}
+	for _, code := range rejected {
+		if err := svc.Validate(code); err == nil {
+			t.Errorf("Validate(%q) = nil, want an error: the atom is not metric", code)
+		}
+	}
+
+	// Metric atoms, base units, and bracket units that are metric: still fine.
+	accepted := []string{
+		"mm", "kg", "kL", "cm3", "us", "nmol",
+		"k[IU]", "m[IU]", "k[iU]", // [IU] and [iU] are isMetric="yes"
+		"mCel",                        // §22 ■3 allows a prefix on a special unit
+		"m[H2O]", "cm[H2O]", "mm[Hg]", // metric bracket units
+		"[ft_i]", "[lb_av]", "[in_i]", "[pi]", // unprefixed, always valid
+	}
+	for _, code := range accepted {
+		if err := svc.Validate(code); err != nil {
+			t.Errorf("Validate(%q) = %v, want nil", code, err)
+		}
+	}
+}
+
+// TestPrefixedNonMetricDoesNotConvert: the codes above must not sneak through
+// into conversion either, which is what makes this more than a validation nicety.
+func TestPrefixedNonMetricDoesNotConvert(t *testing.T) {
+	svc := newTestService(t)
+	if _, err := svc.Convert(1, "k[ft_i]", "m"); err == nil {
+		t.Error(`Convert(1, "k[ft_i]", "m") = nil error, want an error`)
+	}
+	if _, err := svc.Canonical(1, "k[ft_i]"); err == nil {
+		t.Error(`Canonical(1, "k[ft_i]") = nil error, want an error`)
+	}
+}

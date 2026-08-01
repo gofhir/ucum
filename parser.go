@@ -238,11 +238,11 @@ func (p *parser) resolveWithPrefix(lex *lexer, tok, bracket string) (*symbol, er
 		// Try with bracket suffix first.
 		if bracket != "" {
 			u := p.model.getUnit(remainder + bracket)
-			// For bracket units (e.g. [IU], [iU]), allow metric prefixes
-			// even if IsMetric is not set. The UCUM spec permits prefixes
-			// on arbitrary units expressed with bracket notation, and the
-			// Java reference parser does the same.
-			if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(remainder+bracket, "[")) {
+			// UCUM §11 ■1: only metric unit atoms may be combined with a
+			// prefix. Bracket notation makes no difference — [IU] and [iU] take
+			// prefixes because they are declared isMetric="yes", while [ft_i]
+			// and [lb_av] are not and cannot.
+			if u != nil && (u.IsMetric || u.IsBase) {
 				if err := lex.consume(); err != nil {
 					return nil, err
 				}
@@ -277,7 +277,8 @@ func (p *parser) resolveExactPrefixBracket(lex *lexer, tok, bracket string) (*sy
 			continue
 		}
 		u := p.model.getUnit(bracket)
-		if u != nil && (u.IsMetric || u.IsBase || strings.HasPrefix(bracket, "[")) {
+		// UCUM §11 ■1, as above.
+		if u != nil && (u.IsMetric || u.IsBase) {
 			if err := lex.consume(); err != nil {
 				return nil, err
 			}
