@@ -229,6 +229,12 @@ Every rule in the subpackage cites the document it comes from, and where FHIR an
 - **The definitions are not part of the public API.** The `Model`, `Unit`, `Prefix` and `UnitValue` types were exported but inert — no exported function accepted one — and are now internal. Use `ExactService` for exact numbers; there is nothing a caller could do with the model that the service does not do better.
 - **Significant figures.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input. `fhir.Quantity.Exact` preserves a decimal's *value* exactly, but nothing here models its *precision*.
 
-## Credit
+## Licence
 
-The lexer and expression parser are ports of `Lexer.java` and `ExpressionParser.java` from [FHIR/Ucum-java](https://github.com/FHIR/Ucum-java). `ucum-essence.xml` is published by the UCUM organisation.
+BSD 3-Clause; see [LICENSE](LICENSE).
+
+Third-party material travels with its own terms, recorded in [NOTICE](NOTICE):
+
+- **`lexer.go` and `parser.go`** are ports of `Lexer.java` and `ExpressionParser.java` from [FHIR/Ucum-java](https://github.com/FHIR/Ucum-java), BSD 3-Clause, © Health Intersections Pty Ltd. Everything else — the canonicalizer, the exact arithmetic, the special-unit handlers, the FHIR subpackage — is original.
+- **`ucum-essence.xml`** is published by Regenstrief Institute and the UCUM Organization under the [UCUM 1.0 License](https://ucum.org/license), which **forbids modifying it**. It is embedded verbatim and never rewritten; updating to a newer UCUM release means replacing the file, not editing it.
+- **`fhir/ucum-common.tsv`** is extracted from the FHIR `ucum-common` ValueSet, which HL7 dedicates to the public domain under CC0 1.0.

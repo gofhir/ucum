@@ -1,0 +1,67 @@
+This repository is licensed under the BSD 3-Clause License; see LICENSE.
+
+It also redistributes third-party material, each under its own terms. The
+obligations below travel with the code: anyone redistributing this package, in
+source or binary form, carries them too.
+
+
+1. FHIR/Ucum-java — BSD 3-Clause
+--------------------------------
+
+Copyright (c) 2006+, Health Intersections Pty Ltd. All rights reserved.
+
+    https://github.com/FHIR/Ucum-java
+
+The lexer and the expression parser in this package are ports of Lexer.java and
+ExpressionParser.java from that project:
+
+    lexer.go   ported from Lexer.java
+    parser.go  ported from ExpressionParser.java
+
+Everything else here — the canonicalizer, the exact arithmetic, the special-unit
+handlers, the FHIR subpackage — is original work, though the overall shape of
+the service follows the Java one.
+
+BSD 3-Clause requires that redistributions of source code retain the copyright
+notice, the list of conditions and the disclaimer. LICENSE carries all three,
+and both ported files name their origin.
+
+
+2. ucum-essence.xml — UCUM 1.0 License
+--------------------------------------
+
+Copyright (c) 1998-2024, Regenstrief Institute, Inc. and the UCUM Organization.
+All rights reserved.
+
+    https://ucum.org/license
+
+The file is embedded verbatim and redistributed in its entirety, which is what
+that licence permits. Note two conditions in particular, because they constrain
+what may be done downstream:
+
+  - The Work may not be modified. Its content — field names, field contents,
+    descriptions and comments — must not be added to, deleted or changed, and it
+    may not be used to create derivative works. This package therefore reads the
+    file as published and never rewrites it. Updating to a newer UCUM release
+    means replacing the file wholesale, not editing it.
+
+  - Redistribution requires a copyright notice, a notice referring to the
+    licence, a notice referring to the disclaimer of warranties, and the text of
+    or a link to the licence. This section serves that purpose; the link above
+    is the licence.
+
+The Work is provided AS IS, without warranties of any kind.
+
+
+3. fhir/ucum-common.tsv — HL7 FHIR, CC0 1.0
+-------------------------------------------
+
+Extracted from the published ValueSet resource:
+
+    https://hl7.org/fhir/valueset-ucum-common.json
+    http://hl7.org/fhir/ValueSet/ucum-common, version 5.0.0
+
+HL7 dedicates the FHIR specification to the public domain under CC0 1.0, so no
+attribution is required for this material. It is recorded here for provenance,
+and because the file is a mechanical extraction of a published resource rather
+than authored content: see fhir/doc.go for the command that regenerates it.
