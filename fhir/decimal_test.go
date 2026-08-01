@@ -129,8 +129,10 @@ func TestConvertDecimalPreservesPrecision(t *testing.T) {
 		wantSF   int
 	}{
 		{"1.50", "g/L", "mg/dL", "150", 3},
-		{"1.5", "g/L", "mg/dL", "150", 2},
-		{"5.4", "mmol/L", "umol/L", "5400", 2},
+		// Two significant figures cannot be written as "150", which would claim
+		// three, so these render in scientific notation.
+		{"1.5", "g/L", "mg/dL", "1.5e2", 2},
+		{"5.4", "mmol/L", "umol/L", "5.4e3", 2},
 		{"0.010", "L", "mL", "10", 2},
 		{"98.6", "[degF]", "Cel", "37.0", 3},
 	}

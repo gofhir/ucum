@@ -3,6 +3,7 @@ package fhir
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -110,11 +111,11 @@ func (d Decimal) SignificantFigures() int { return d.sigFigs }
 // String renders the value at its declared precision, which is what FHIR asks
 // implementations to preserve for presentation.
 //
-// One limit is inherent to plain decimal notation: when the precision is coarser
-// than the integer part, the two cannot be told apart. 150 to two significant
-// figures and to three both render as "150", because expressing the difference
-// needs scientific notation ("1.5e2"). The declared precision is still available
-// from SignificantFigures.
+// When the precision is coarser than the integer part, plain decimal notation
+// cannot express it — "150" says nothing about whether its trailing zero is
+// significant — so the value is rendered in scientific notation, which can:
+// 150 to two significant figures is "1.5e2". Re-parsing that recovers both the
+// value and the precision.
 //
 // A value with unlimited precision is rendered exactly when it can be — as an
 // integer or a terminating decimal — and to a bounded number of digits when it
@@ -145,7 +146,9 @@ func (d Decimal) round(n int) string {
 	exp := decimalExponent(d.value)
 	places := n - exp
 	if places < 0 {
-		places = 0
+		// Fewer figures than the integer part has digits: plain notation would
+		// silently claim precision the value does not have.
+		return d.scientific(n, exp)
 	}
 	out := d.value.FloatString(places)
 
@@ -159,6 +162,36 @@ func (d Decimal) round(n int) string {
 		out = d.value.FloatString(places)
 	}
 	return out
+}
+
+// scientific renders the value as a mantissa in [1,10) with n significant
+// figures, followed by the power of ten. It is used when plain decimal notation
+// cannot carry the precision.
+//
+// It is reached only when n is smaller than the number of integer digits, so the
+// exponent is at least 2 and the shift is always a division.
+func (d Decimal) scientific(n, exp int) string {
+	out, carried := d.mantissa(n, exp)
+	if carried {
+		// Rounding took the mantissa to 10, which belongs in the exponent:
+		// 996 to two figures is 1.0e3, not 10e2.
+		exp++
+		out, _ = d.mantissa(n, exp)
+	}
+	return out + "e" + strconv.Itoa(exp-1)
+}
+
+// mantissa divides the value down to [1,10) and renders it to n significant
+// figures, reporting whether rounding carried it up to 10.
+func (d Decimal) mantissa(n, exp int) (string, bool) {
+	shift := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exp-1)), nil))
+	out := new(big.Rat).Quo(d.value, shift).FloatString(n - 1)
+	if r, ok := new(big.Rat).SetString(out); ok {
+		if new(big.Rat).Abs(r).Cmp(big.NewRat(10, 1)) >= 0 {
+			return out, true
+		}
+	}
+	return out, false
 }
 
 // decimalExponent returns the position of the leading significant digit: 1 for
@@ -180,4 +213,117 @@ func decimalExponent(r *big.Rat) int {
 		exp--
 	}
 	return exp
+}
+
+// Arithmetic on Decimal keeps the value exact and propagates the declared
+// precision, which are two different things and follow two different rules.
+//
+// The value is always carried exactly, as a rational: 1.0 divided by 3.0 holds
+// 1/3, not 0.333. Only the rendering is rounded, and only to the precision the
+// result is entitled to.
+//
+// The precision rules are the ordinary ones from measurement, and they differ
+// between the two families of operation:
+//
+//   - Multiplication and division carry significant figures: a product is no
+//     better known than its worst-known factor, so the result takes the smaller
+//     count.
+//   - Addition and subtraction carry decimal places: a sum is only as resolved
+//     as its coarsest addend. 1.23 + 4.5 is 5.7, not 5.73, because the second
+//     addend says nothing about hundredths.
+//
+// Conflating the two is a common mistake — the Java reference implementation
+// applies the significant-figure rule to addition, and carries a TODO saying it
+// should be using absolute precision instead.
+//
+// An operand with unlimited precision, written without a decimal point, does not
+// limit the result: an exact count or conversion factor neither adds nor removes
+// precision.
+
+// Mul multiplies two decimals, taking the smaller significant-figure count.
+func (d Decimal) Mul(o Decimal) Decimal {
+	return Decimal{
+		value:   new(big.Rat).Mul(d.Rat(), o.Rat()),
+		sigFigs: combineFigures(d.sigFigs, o.sigFigs),
+	}
+}
+
+// Div divides two decimals, taking the smaller significant-figure count. It
+// fails when the divisor is zero.
+func (d Decimal) Div(o Decimal) (Decimal, error) {
+	if o.Rat().Sign() == 0 {
+		return Decimal{}, fmt.Errorf("division by zero")
+	}
+	return Decimal{
+		value:   new(big.Rat).Quo(d.Rat(), o.Rat()),
+		sigFigs: combineFigures(d.sigFigs, o.sigFigs),
+	}, nil
+}
+
+// Add adds two decimals, keeping the decimal places of the coarser operand.
+func (d Decimal) Add(o Decimal) Decimal {
+	return d.additive(o, new(big.Rat).Add(d.Rat(), o.Rat()))
+}
+
+// Sub subtracts o from d, keeping the decimal places of the coarser operand.
+func (d Decimal) Sub(o Decimal) Decimal {
+	return d.additive(o, new(big.Rat).Sub(d.Rat(), o.Rat()))
+}
+
+// additive assigns the precision of a sum or difference. The resolution of the
+// result is that of its coarsest operand, measured in decimal places, which then
+// has to be expressed back as a significant-figure count for the result's own
+// magnitude.
+func (d Decimal) additive(o Decimal, sum *big.Rat) Decimal {
+	switch {
+	case d.sigFigs <= 0 && o.sigFigs <= 0:
+		return Decimal{value: sum}
+	case d.sigFigs <= 0:
+		return Decimal{value: sum, sigFigs: figuresForPlaces(sum, o.decimalPlaces())}
+	case o.sigFigs <= 0:
+		return Decimal{value: sum, sigFigs: figuresForPlaces(sum, d.decimalPlaces())}
+	}
+
+	places := d.decimalPlaces()
+	if p := o.decimalPlaces(); p < places {
+		places = p
+	}
+	return Decimal{value: sum, sigFigs: figuresForPlaces(sum, places)}
+}
+
+// decimalPlaces returns how many digits after the point the declared precision
+// amounts to, which is the significant-figure count less the position of the
+// leading digit.
+func (d Decimal) decimalPlaces() int {
+	if d.value == nil {
+		return 0
+	}
+	return d.sigFigs - decimalExponent(d.value)
+}
+
+// figuresForPlaces converts a resolution in decimal places back into a
+// significant-figure count for the given value.
+func figuresForPlaces(v *big.Rat, places int) int {
+	figs := places + decimalExponent(v)
+	if figs < 1 {
+		// The result is coarser than its own leading digit — 0.4 - 0.35 to one
+		// decimal place. One figure is the least that can be reported.
+		return 1
+	}
+	return figs
+}
+
+// combineFigures takes the smaller of two significant-figure counts, treating
+// unlimited precision as no constraint.
+func combineFigures(a, b int) int {
+	switch {
+	case a <= 0:
+		return b
+	case b <= 0:
+		return a
+	case a < b:
+		return a
+	default:
+		return b
+	}
 }
