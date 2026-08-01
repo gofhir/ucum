@@ -50,11 +50,13 @@ var specialHandlers = map[string]specialHandler{
 	// The reference level is 2x10^-5 Pa (20 uPa, the hearing threshold), which
 	// the XML spells as value="2" over Unit="10*-5.Pa". The factor belongs in
 	// the reference expression, not in the exponent.
-	"B[SPL]":   logHandler{unitCode: "B[SPL]", unitExpr: "2.10*-5.Pa", base: 10, expDivisor: 2},
-	"B[V]":     logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, expDivisor: 2},
-	"B[mV]":    logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, expDivisor: 2},
-	"B[uV]":    logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, expDivisor: 2},
-	"B[10.nV]": logHandler{unitCode: "B[10.nV]", unitExpr: "10*-9.V", base: 10, expDivisor: 2},
+	"B[SPL]": logHandler{unitCode: "B[SPL]", unitExpr: "2.10*-5.Pa", base: 10, expDivisor: 2},
+	"B[V]":   logHandler{unitCode: "B[V]", unitExpr: "V", base: 10, expDivisor: 2},
+	"B[mV]":  logHandler{unitCode: "B[mV]", unitExpr: "mV", base: 10, expDivisor: 2},
+	"B[uV]":  logHandler{unitCode: "B[uV]", unitExpr: "uV", base: 10, expDivisor: 2},
+	// Reference level is 10 nV, not 1 nV: the XML says value="10" over
+	// Unit="nV", the same shape as B[SPL] above.
+	"B[10.nV]": logHandler{unitCode: "B[10.nV]", unitExpr: "10.nV", base: 10, expDivisor: 2},
 	"B[W]":     logHandler{unitCode: "B[W]", unitExpr: "W", base: 10},
 	"B[kW]":    logHandler{unitCode: "B[kW]", unitExpr: "kW", base: 10},
 	"bit_s":    logHandler{unitCode: "bit_s", unitExpr: "1", base: 2},

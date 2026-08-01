@@ -602,3 +602,37 @@ func TestArbitraryUnitsSelfConsistent(t *testing.T) {
 		t.Errorf("Canonical(1, [IU]).Code = %q, want %q", p.Code, "[IU]")
 	}
 }
+
+// TestBelReferenceLevels pins the reference level of every unit defined with a
+// logarithmic function, which is what value=N over Unit=X in the XML sets.
+// Reading the reported unit alone is not enough: B[SPL] is 2x10^-5 Pa and
+// B[10.nV] is 10 nV, while the rest are one of their reported unit.
+func TestBelReferenceLevels(t *testing.T) {
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// At 0 bel the value is exactly the reference level.
+	tests := []struct {
+		code, in string
+		want     float64
+	}{
+		{"B[V]", "V", 1},
+		{"B[mV]", "mV", 1},
+		{"B[uV]", "uV", 1},
+		{"B[10.nV]", "nV", 10},  // value="10" Unit="nV"
+		{"B[SPL]", "Pa", 2e-05}, // value="2" Unit="10*-5.Pa"
+		{"B[W]", "W", 1},
+		{"B[kW]", "kW", 1},
+	}
+	for _, tt := range tests {
+		got, err := svc.Convert(0, tt.code, tt.in)
+		if err != nil {
+			t.Fatalf("Convert(0, %q, %q): %v", tt.code, tt.in, err)
+		}
+		if !almostEqual(got, tt.want, math.Abs(tt.want)*1e-12) {
+			t.Errorf("Convert(0, %q, %q) = %v, want %v (the reference level)",
+				tt.code, tt.in, got, tt.want)
+		}
+	}
+}
