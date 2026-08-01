@@ -67,10 +67,26 @@ type xmlDefinedUnit struct {
 }
 
 type xmlValue struct {
-	Unit  string `xml:"Unit,attr"`
-	UNIT  string `xml:"UNIT,attr"`
+	Unit     string       `xml:"Unit,attr"`
+	UNIT     string       `xml:"UNIT,attr"`
+	Value    string       `xml:"value,attr"`
+	Text     string       `xml:",chardata"`
+	Function *xmlFunction `xml:"function"`
+}
+
+// xmlFunction is the <function> element a special unit carries in place of a
+// plain numeric value:
+//
+//	<value Unit="degf(5 K/9)"><function name="degF" value="5" Unit="K/9"/></value>
+//
+// Name selects the conversion the unit performs; Value and Unit give its
+// reference quantity — 5 K/9 for degF, 2 10*-5.Pa for B[SPL], 10 nV for
+// B[10.nV]. Reading them keeps those numbers in the definitions rather than
+// duplicated in code.
+type xmlFunction struct {
+	Name  string `xml:"name,attr"`
 	Value string `xml:"value,attr"`
-	Text  string `xml:",chardata"`
+	Unit  string `xml:"Unit,attr"`
 }
 
 const xmlYes = "yes"
@@ -122,6 +138,14 @@ func parseDefinitions(r io.Reader) (*Model, error) {
 				v = decimalFromInt(1)
 			}
 			unitVal = &UnitValue{Unit: xu.Value.Unit, Text: xu.Value.Text, Value: v}
+
+			if xf := xu.Value.Function; xf != nil {
+				fv, err := decimalFromString(xf.Value)
+				if err != nil {
+					return nil, fmt.Errorf("unit %s function value %q: %w", xu.Code, xf.Value, err)
+				}
+				unitVal.Function = &FunctionDef{Name: xf.Name, Value: fv, Unit: xf.Unit}
+			}
 		}
 		model.DefinedUnits = append(model.DefinedUnits, &DefinedUnit{
 			Code: xu.Code, Name: xu.Name, Property: xu.Property,

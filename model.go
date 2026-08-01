@@ -41,6 +41,42 @@ type UnitValue struct {
 	// Rat, which returns the same number exactly. Value will be unexported in
 	// the next major version.
 	Value decimal // numeric multiplier
+
+	// Function is set for special units, whose value is a conversion function
+	// rather than a plain multiplier.
+	Function *FunctionDef
+}
+
+// FunctionDef is the conversion function a special unit performs, as the
+// definitions declare it.
+//
+// Name selects the behavior — Cel, degF, lg, lgTimes2, tanTimes100, sqrt and so
+// on — while Value and Unit give the reference quantity it is measured against.
+// For example, degF is declared as degf(5 K/9), so Name is "degF", Value is 5 and
+// Unit is "K/9".
+type FunctionDef struct {
+	Name  string
+	Value decimal
+	Unit  string
+}
+
+// Rat returns the reference multiplier as an exact rational, or nil if the
+// FunctionDef is nil.
+func (f *FunctionDef) Rat() *big.Rat {
+	if f == nil {
+		return nil
+	}
+	return f.Value.rat()
+}
+
+// Reference returns the reference quantity as a UCUM expression, combining the
+// multiplier with the unit: "5.K/9" for degF, "2.10*-5.Pa" for B[SPL]. This is
+// what a special unit's value scales by.
+func (f *FunctionDef) Reference() string {
+	if f == nil {
+		return ""
+	}
+	return f.Value.String() + "." + f.Unit
 }
 
 // Rat returns the numeric multiplier as an exact rational, or nil if the

@@ -84,10 +84,10 @@ func (s *service) ConversionFactor(from, to string) (*big.Rat, error) {
 
 	// A special unit has no single factor: its scale is affine or worse. The
 	// source is reported first so the error is deterministic when both are.
-	if specialHandlerForTerm(srcTerm) != nil {
+	if s.specialHandlerForTerm(srcTerm) != nil {
 		return nil, fmt.Errorf("ucum: %q: %w", from, ErrNotLinear)
 	}
-	if specialHandlerForTerm(dstTerm) != nil {
+	if s.specialHandlerForTerm(dstTerm) != nil {
 		return nil, fmt.Errorf("ucum: %q: %w", to, ErrNotLinear)
 	}
 
@@ -121,7 +121,7 @@ func (s *service) ConvertRat(value *big.Rat, from, to string) (*big.Rat, error) 
 		return nil, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
 	}
 
-	return convertRatCore(value, convertParts{
+	return s.convertRatCore(value, convertParts{
 		srcTerm: srcTerm, dstTerm: dstTerm,
 		srcCan: srcCan, dstCan: dstCan,
 		from: from, to: to,
@@ -138,9 +138,9 @@ type convertParts struct {
 
 // convertRatCore performs the exact conversion. Callers must have checked
 // comparability and a non-zero destination factor.
-func convertRatCore(value *big.Rat, p convertParts) (*big.Rat, error) {
+func (s *service) convertRatCore(value *big.Rat, p convertParts) (*big.Rat, error) {
 	// Step 1: map the source value onto its canonical scale.
-	result, err := toCanonicalRat(p.srcTerm, p.from, value)
+	result, err := s.toCanonicalRat(p.srcTerm, p.from, value)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func convertRatCore(value *big.Rat, p convertParts) (*big.Rat, error) {
 	result.Quo(result, p.dstCan.value.rat())
 
 	// Step 3: map onto the destination scale.
-	return fromCanonicalRat(p.dstTerm, p.to, result)
+	return s.fromCanonicalRat(p.dstTerm, p.to, result)
 }
 
 // CanonicalRat returns the exact canonical form of a value.
@@ -163,7 +163,7 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 	if err != nil {
 		return RatPair{}, err
 	}
-	mapped, err := toCanonicalRat(t, code, value)
+	mapped, err := s.toCanonicalRat(t, code, value)
 	if err != nil {
 		return RatPair{}, err
 	}
@@ -175,8 +175,8 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 
 // toCanonicalRat maps value onto the canonical scale of the unit denoted by t,
 // exactly. It fails with ErrNotRational for the non-rational special scales.
-func toCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
-	h := specialHandlerForTerm(t)
+func (s *service) toCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
+	h := s.specialHandlerForTerm(t)
 	if h == nil {
 		return new(big.Rat).Set(value), nil
 	}
@@ -189,8 +189,8 @@ func toCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
 
 // fromCanonicalRat maps a canonical value onto the scale of the unit denoted by
 // t, exactly.
-func fromCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
-	h := specialHandlerForTerm(t)
+func (s *service) fromCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
+	h := s.specialHandlerForTerm(t)
 	if h == nil {
 		return value, nil
 	}

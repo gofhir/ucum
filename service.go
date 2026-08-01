@@ -24,6 +24,10 @@ type service struct {
 	// are resolved lazily and memoised in propertyForms.
 	codesByProperty map[string][]string
 	propertyForms   sync.Map // map[string]map[string]bool
+
+	// handlers holds one conversion per special unit, built from the function
+	// each definition names. Read-only after construction.
+	handlers map[string]specialHandler
 }
 
 // newService creates a fully wired service.
@@ -63,11 +67,17 @@ func newService(r io.Reader) (*service, error) {
 		addProperty(du.Property, du.Code)
 	}
 
+	handlers, err := buildSpecialHandlers(m)
+	if err != nil {
+		return nil, fmt.Errorf("ucum: %w", err)
+	}
+
 	return &service{
 		model:           m,
 		parser:          newParser(m),
 		arbitraryBases:  arbitrary,
 		codesByProperty: codesByProperty,
+		handlers:        handlers,
 	}, nil
 }
 
@@ -220,7 +230,7 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 
 	// Preferred path: map and scale entirely in exact arithmetic.
 	if rv := ratFromFloat(value); rv != nil {
-		mapped, err := toCanonicalRat(t, code, rv)
+		mapped, err := s.toCanonicalRat(t, code, rv)
 		switch {
 		case err == nil:
 			out, _ := mapped.Mul(mapped, can.value.rat()).Float64()
@@ -231,7 +241,7 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 	}
 
 	// Non-rational scale or non-finite value: use the float64 handler.
-	return mulExact(mapFloat(t, value), can.value.rat()), can, nil
+	return mulExact(s.mapFloat(t, value), can.value.rat()), can, nil
 }
 
 // mapFloat maps value onto the canonical scale of an already-resolved term,
@@ -242,11 +252,35 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 // does not describe them: the handler has to map the value first (Cel adds an
 // offset, [pH] exponentiates, B[V] takes a power). Skipping it would silently
 // return the raw input value, making canonical forms non-comparable.
-func mapFloat(t *term, value float64) float64 {
-	if h := specialHandlerForTerm(t); h != nil {
+func (s *service) mapFloat(t *term, value float64) float64 {
+	if h := s.specialHandlerForTerm(t); h != nil {
 		return h.toCanonical(value)
 	}
 	return value
+}
+
+// specialContext says how a special unit in a term is to be read.
+//
+// Standalone it denotes a point on its own scale, and its handler applies the
+// whole mapping including any offset: 1 Cel is 274.15 K. Inside an algebraic term
+// it denotes a difference — a gradient of 1 [degF]/min is a rate of change, not a
+// temperature — so the offset cancels while the scale, which the definitions
+// give, still applies.
+type specialContext int
+
+const (
+	specialStandalone specialContext = iota
+	specialAsDelta
+)
+
+// specialContextOf reports how special units in this term are to be read. A term
+// that is a lone special symbol is standalone; anything else puts its units into
+// an algebraic relationship.
+func (s *service) specialContextOf(t *term) specialContext {
+	if s.specialHandlerForTerm(t) != nil {
+		return specialStandalone
+	}
+	return specialAsDelta
 }
 
 // canonicalParts parses a code and canonicalizes it, returning both the AST
@@ -256,7 +290,7 @@ func (s *service) canonicalParts(code string) (*term, *canonical, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	can, err := s.canonicalizeTerm(t)
+	can, err := s.canonicalizeTerm(t, s.specialContextOf(t))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -306,7 +340,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 	// 1/1000000 are not binary fractions while their exact quotient is 1000 —
 	// and the affine temperature handlers compounded it further.
 	if rv := ratFromFloat(value); rv != nil {
-		exact, err := convertRatCore(rv, parts)
+		exact, err := s.convertRatCore(rv, parts)
 		if err == nil {
 			out, _ := exact.Float64()
 			return out, nil
@@ -320,7 +354,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 	result := value
 
 	// Step 1: If source is special, convert value to canonical first.
-	if srcHandler := specialHandlerForTerm(srcTerm); srcHandler != nil {
+	if srcHandler := s.specialHandlerForTerm(srcTerm); srcHandler != nil {
 		result = srcHandler.toCanonical(result)
 	}
 
@@ -328,7 +362,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 	result = mulExact(result, new(big.Rat).Quo(srcCan.value.rat(), dstCan.value.rat()))
 
 	// Step 3: If dest is special, convert from canonical.
-	if dstHandler := specialHandlerForTerm(dstTerm); dstHandler != nil {
+	if dstHandler := s.specialHandlerForTerm(dstTerm); dstHandler != nil {
 		result = dstHandler.fromCanonical(result)
 	}
 
@@ -406,7 +440,7 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 
 	// Preferred path: both operands mapped and combined in exact arithmetic,
 	// with a single rounding at the end.
-	m1, m2, err := mappedRats(t1, t2, v1, v2)
+	m1, m2, err := s.mappedRats(t1, t2, v1, v2)
 	switch {
 	case err == nil && m1 != nil:
 		if div {
@@ -427,7 +461,7 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 	}
 
 	// Non-rational scale or non-finite value: use the float64 handlers.
-	val1, val2 := mapFloat(t1, v1.Value), mapFloat(t2, v2.Value)
+	val1, val2 := s.mapFloat(t1, v1.Value), s.mapFloat(t2, v2.Value)
 	combined := val1 * val2
 	if div {
 		if val2 == 0 {
@@ -441,16 +475,16 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 // mappedRats maps both operands onto their canonical scales exactly, without the
 // canonical factors. It returns nil results when an operand is not finite, and
 // ErrNotRational when a scale has no rational form.
-func mappedRats(t1, t2 *term, v1, v2 Pair) (m1, m2 *big.Rat, err error) {
+func (s *service) mappedRats(t1, t2 *term, v1, v2 Pair) (m1, m2 *big.Rat, err error) {
 	r1, r2 := ratFromFloat(v1.Value), ratFromFloat(v2.Value)
 	if r1 == nil || r2 == nil {
 		return nil, nil, nil
 	}
-	m1, err = toCanonicalRat(t1, v1.Code, r1)
+	m1, err = s.toCanonicalRat(t1, v1.Code, r1)
 	if err != nil {
 		return nil, nil, err
 	}
-	m2, err = toCanonicalRat(t2, v2.Code, r2)
+	m2, err = s.toCanonicalRat(t2, v2.Code, r2)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -463,16 +497,16 @@ func (s *service) getCanonical(code string) (*canonical, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.canonicalizeTerm(t)
+	return s.canonicalizeTerm(t, s.specialContextOf(t))
 }
 
 // canonicalizeTerm recursively converts a term AST into canonical form.
-func (s *service) canonicalizeTerm(t *term) (*canonical, error) {
+func (s *service) canonicalizeTerm(t *term, ctx specialContext) (*canonical, error) {
 	if t == nil {
 		return &canonical{value: decimalFromInt(1)}, nil
 	}
 
-	left, err := s.canonicalizeComponent(t.comp)
+	left, err := s.canonicalizeComponent(t.comp, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +515,7 @@ func (s *service) canonicalizeTerm(t *term) (*canonical, error) {
 		return left, nil
 	}
 
-	right, err := s.canonicalizeTerm(t.term)
+	right, err := s.canonicalizeTerm(t.term, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -497,14 +531,14 @@ func (s *service) canonicalizeTerm(t *term) (*canonical, error) {
 }
 
 // canonicalizeComponent converts a single component to canonical form.
-func (s *service) canonicalizeComponent(c component) (*canonical, error) {
+func (s *service) canonicalizeComponent(c component, ctx specialContext) (*canonical, error) {
 	switch v := c.(type) {
 	case *factor:
 		return &canonical{value: decimalFromInt(int64(v.value))}, nil
 	case *symbol:
-		return s.canonicalizeSymbol(v)
+		return s.canonicalizeSymbol(v, ctx)
 	case *term:
-		return s.canonicalizeTerm(v)
+		return s.canonicalizeTerm(v, ctx)
 	default:
 		return nil, fmt.Errorf("unexpected component type %T", c)
 	}
@@ -512,7 +546,7 @@ func (s *service) canonicalizeComponent(c component) (*canonical, error) {
 
 // canonicalizeSymbol converts a symbol to its canonical form by recursively
 // expanding the unit's definition.
-func (s *service) canonicalizeSymbol(sym *symbol) (*canonical, error) {
+func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonical, error) {
 	u := sym.unit
 
 	// Start with the prefix value (or 1 if no prefix).
@@ -553,18 +587,42 @@ func (s *service) canonicalizeSymbol(sym *symbol) (*canonical, error) {
 		return nil, fmt.Errorf("unit %q has no value definition", u.Code)
 	}
 
-	// For special units, use the handler's unit expression for canonical units,
-	// but the numeric multiplier is 1 (the handler does the real conversion).
 	unitExpr := u.Value.Unit
 	unitValue := u.Value.Value
 
 	if u.IsSpecial {
-		h, ok := specialHandlers[u.Code]
+		h, ok := s.handlers[u.Code]
 		if !ok {
 			return nil, fmt.Errorf("no handler for special unit %q", u.Code)
 		}
-		unitExpr = h.units()
+
+		// A special unit's factor is the canonical form of the reference quantity
+		// its definition names: Cel is cel(1 K) so the factor is 1, degF is
+		// degf(5 K/9) so it is 5/9. Reading it from the definitions is what makes
+		// a gradient in [degF] differ from one in Cel — hardcoding 1 for every
+		// special unit made them identical, and wrong by a factor of 1.8.
+		unitExpr = u.Value.Function.Reference()
 		unitValue = decimalFromInt(1)
+
+		// A handler that produces its result in a fixed unit is scaled by that
+		// unit, not by the declared reference: atan yields radians even when the
+		// definition names deg.
+		if nh, ok := h.(nativeUnitHandler); ok {
+			unitExpr = nh.nativeUnit()
+		}
+
+		if ctx == specialAsDelta {
+			// In an algebraic term the unit denotes a difference: the offset
+			// cancels, the scale does not.
+			if sym.exponent != 1 {
+				return nil, fmt.Errorf("special unit %q cannot carry an exponent (%d): it denotes a point on its own scale",
+					u.Code, sym.exponent)
+			}
+			if _, ok := h.(linearHandler); !ok {
+				return nil, fmt.Errorf("special unit %q is not on a linear scale, so it cannot appear in an algebraic term",
+					u.Code)
+			}
+		}
 	}
 
 	// Parse and canonicalize the unit's value expression.
@@ -579,7 +637,9 @@ func (s *service) canonicalizeSymbol(sym *symbol) (*canonical, error) {
 		return nil, fmt.Errorf("expand unit %q: %w", u.Code, err)
 	}
 
-	can, err := s.canonicalizeTerm(inner)
+	// The reference expression of a special unit contains no special units of its
+	// own, so it canonicalizes in the ordinary way.
+	can, err := s.canonicalizeTerm(inner, specialStandalone)
 	if err != nil {
 		return nil, fmt.Errorf("expand unit %q: %w", u.Code, err)
 	}
@@ -720,9 +780,11 @@ func displayComponentTo(sb *strings.Builder, c component) {
 
 // Special unit detection.
 
-// specialHandlerForTerm returns a specialHandler if the term is a single
-// symbol whose unit is special (no operators, no exponents other than 1).
-func specialHandlerForTerm(t *term) specialHandler {
+// specialHandlerForTerm returns the handler for a term that is a lone special
+// symbol with exponent 1, and nil otherwise. Anything else puts the unit into an
+// algebraic relationship, where it denotes a difference and the handler's offset
+// does not apply.
+func (s *service) specialHandlerForTerm(t *term) specialHandler {
 	if t == nil || t.term != nil {
 		return nil
 	}
@@ -736,9 +798,5 @@ func specialHandlerForTerm(t *term) specialHandler {
 	if sym.exponent != 1 {
 		return nil
 	}
-	h, ok := specialHandlers[sym.unit.Code]
-	if !ok {
-		return nil
-	}
-	return h
+	return s.handlers[sym.unit.Code]
 }
