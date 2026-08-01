@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/gofhir/ucum/v3/fhir"
+	"github.com/gofhir/ucum/v4/fhir"
 )
 
 // TestParseDecimalPrecision pins the rule FHIR states: "0.010 is regarded as
