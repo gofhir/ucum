@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.0.0](https://github.com/gofhir/ucum/compare/v2.2.0...v3.0.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* Model, Unit, BaseUnit, DefinedUnit, Prefix, UnitValue and FunctionDef are no longer exported, along with UnitValue.Rat and Prefix.Rat.
+* **special:** gradients in [degF] and [degRe] change value — they were wrong. Cel2, [degF]2, [pH]/L, B.m and similar now return an error.
+* **parser:** codes combining a prefix with a non-metric atom no longer validate, and no longer convert or canonicalize. They were never valid UCUM.
+
+### Bug Fixes
+
+* move the module path to /v3 ahead of the major release ([#32](https://github.com/gofhir/ucum/issues/32)) ([df90ce9](https://github.com/gofhir/ucum/commit/df90ce9a23e114faf8d83992aeee50bd235ca6fb))
+* **parser:** enforce UCUM §11, only metric atoms take a prefix ([#28](https://github.com/gofhir/ucum/issues/28)) ([80128f9](https://github.com/gofhir/ucum/commit/80128f906f1a6a052a7e07a94a78d9b3c7d58ef7))
+* **special:** read every special-unit parameter from the definitions ([#30](https://github.com/gofhir/ucum/issues/30)) ([966c748](https://github.com/gofhir/ucum/commit/966c748de7424af2187e37d872345462df2537c7))
+
+
+### Code Refactoring
+
+* unexport the definitions model ([#31](https://github.com/gofhir/ucum/issues/31)) ([abd6d33](https://github.com/gofhir/ucum/commit/abd6d339ef6708f5e4ba2ea3d5bf851eecee165d))
+
 ## [2.2.0](https://github.com/gofhir/ucum/compare/v2.1.0...v2.2.0) (2026-08-01)
 
 
