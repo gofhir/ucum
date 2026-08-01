@@ -7,6 +7,11 @@
 
 * add exact accessors for the model's numeric values ([#23](https://github.com/gofhir/ucum/issues/23)) ([c51681e](https://github.com/gofhir/ucum/commit/c51681e803b65a12ce9eea5476261b0b765f25bf))
 
+  `UnitValue.Value` and `Prefix.Value` are exported fields typed with the unexported type `decimal`, so they could be read but not used — their only exported method formats to ten decimal places, rendering the milli prefix as `"0.0010000000"`. `UnitValue.Rat()` and `Prefix.Rat()` return the same numbers as exact `*big.Rat`, with a defensive copy and a nil-safe receiver.
+
+  The fields are now marked `Deprecated` and will be unexported in the next major version, along with the rest of `Model`: no exported function accepts a `Model`, so it is inert and exists only to be inspected.
+
+
 ## [2.1.0](https://github.com/gofhir/ucum/compare/v2.0.2...v2.1.0) (2026-08-01)
 
 
