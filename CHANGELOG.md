@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0](https://github.com/gofhir/ucum/compare/v1.0.1...v2.0.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* Analyze returns a different string for every input. It is a human-readable description, not a parseable code, but anything asserting on or displaying its exact output will see the change. TestServiceAnalyze is updated to the new format.
+
+### Bug Fixes
+
+* exact arithmetic, special-unit canonicalization, a zero-divisor panic, and full official-suite coverage ([#3](https://github.com/gofhir/ucum/issues/3)) ([ba5cac4](https://github.com/gofhir/ucum/commit/ba5cac48de2abbe8c60c84bf47f0eed8392a35a8))
+* **special:** restore the 10 in the B[10.nV] reference level ([#9](https://github.com/gofhir/ucum/issues/9)) ([c87c946](https://github.com/gofhir/ucum/commit/c87c946f2dcc64c931fce04720001fd045e3e296))
+
 ## [1.0.1](https://github.com/gofhir/ucum/compare/v1.0.0...v1.0.1) (2026-03-29)
 
 
