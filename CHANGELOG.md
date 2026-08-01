@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.1.0](https://github.com/gofhir/ucum/compare/v3.0.0...v3.1.0) (2026-08-01)
+
+
+### Features
+
+* **fhir:** model decimal precision, and add LICENSE and NOTICE ([#33](https://github.com/gofhir/ucum/issues/33)) ([5b5f469](https://github.com/gofhir/ucum/commit/5b5f469afd3c94dee5016936bdc988aa754f3ed6))
+
+  **`fhir.Decimal`** carries a value together with the precision its source declared, which FHIR requires implementations to preserve: `0.010` is a different value from `0.01` even though it is the same number, and neither a `float64` nor a `big.Rat` can express the difference.
+
+  ```go
+  d, _ := fhir.ParseDecimal("0.010")   // 2 significant figures
+  out, _ := c.ConvertDecimal(d, "L", "mL")
+  out.String()                         // "10", still 2 significant figures
+  ```
+
+  `ConvertDecimal` converts exactly and preserves the input's significant figures, since a unit conversion multiplies by an exactly known factor. It refuses the non-rational scales, where the result is an approximation.
+
+### Licensing
+
+* the repository now carries a **LICENSE** (BSD 3-Clause) and a **NOTICE**. It previously had neither, which left users without permission to use a published module, and left two obligations unmet: the BSD-3 notice for the `lexer.go` and `parser.go` ports from FHIR/Ucum-java, and the notices the UCUM 1.0 License requires for the embedded `ucum-essence.xml`. That licence also forbids modifying the file, which is recorded in NOTICE because it constrains how future UCUM releases are taken up.
+
 ## [3.0.0](https://github.com/gofhir/ucum/compare/v2.2.0...v3.0.0) (2026-08-01)
 
 
