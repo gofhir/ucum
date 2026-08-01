@@ -117,7 +117,7 @@ var specialFunctions = map[string]func(code string) specialHandler{
 // It fails if the definitions name a function this package does not implement,
 // which is how a new UCUM release announces itself rather than silently
 // misconverting a unit.
-func buildSpecialHandlers(m *Model) (map[string]specialHandler, error) {
+func buildSpecialHandlers(m *ucumModel) (map[string]specialHandler, error) {
 	handlers := make(map[string]specialHandler)
 	for _, du := range m.DefinedUnits {
 		if !du.IsSpecial {

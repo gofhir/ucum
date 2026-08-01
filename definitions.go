@@ -12,7 +12,7 @@ import (
 var embeddedDefinitions embed.FS
 
 // loadDefinitions parses ucum-essence.xml from the given reader, or from embedded if nil.
-func loadDefinitions(r io.Reader) (*Model, error) {
+func loadDefinitions(r io.Reader) (*ucumModel, error) {
 	if r == nil {
 		f, err := embeddedDefinitions.Open("ucum-essence.xml")
 		if err != nil {
@@ -91,7 +91,7 @@ type xmlFunction struct {
 
 const xmlYes = "yes"
 
-func parseDefinitions(r io.Reader) (*Model, error) {
+func parseDefinitions(r io.Reader) (*ucumModel, error) {
 	var root xmlRoot
 	dec := xml.NewDecoder(r)
 	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
@@ -104,7 +104,7 @@ func parseDefinitions(r io.Reader) (*Model, error) {
 		return nil, fmt.Errorf("decode ucum-essence.xml: %w", err)
 	}
 
-	model := &Model{
+	model := &ucumModel{
 		Version:      root.Version,
 		Revision:     root.Revision,
 		RevisionDate: root.RevisionDate,
@@ -116,38 +116,38 @@ func parseDefinitions(r io.Reader) (*Model, error) {
 		if err != nil {
 			return nil, fmt.Errorf("prefix %s value: %w", xp.Code, err)
 		}
-		model.Prefixes = append(model.Prefixes, &Prefix{
+		model.Prefixes = append(model.Prefixes, &prefixDef{
 			Code: xp.Code, Name: xp.Name, Value: val,
 		})
 	}
 
 	// Parse base units
 	for _, xb := range root.BaseUnits {
-		model.BaseUnits = append(model.BaseUnits, &BaseUnit{
+		model.BaseUnits = append(model.BaseUnits, &baseUnit{
 			Code: xb.Code, Name: xb.Name, Property: xb.Property, Dim: xb.Dim,
 		})
 	}
 
 	// Parse defined units
 	for _, xu := range root.Units {
-		var unitVal *UnitValue
+		var unitVal *unitConversion
 		if xu.Value.Value != "" || xu.Value.Unit != "" {
 			v, err := decimalFromString(xu.Value.Value)
 			if err != nil {
 				// Some special units have empty value; default to 1
 				v = decimalFromInt(1)
 			}
-			unitVal = &UnitValue{Unit: xu.Value.Unit, Text: xu.Value.Text, Value: v}
+			unitVal = &unitConversion{unit: xu.Value.Unit, Text: xu.Value.Text, Value: v}
 
 			if xf := xu.Value.Function; xf != nil {
 				fv, err := decimalFromString(xf.Value)
 				if err != nil {
 					return nil, fmt.Errorf("unit %s function value %q: %w", xu.Code, xf.Value, err)
 				}
-				unitVal.Function = &FunctionDef{Name: xf.Name, Value: fv, Unit: xf.Unit}
+				unitVal.Function = &functionDef{Name: xf.Name, Value: fv, unit: xf.Unit}
 			}
 		}
-		model.DefinedUnits = append(model.DefinedUnits, &DefinedUnit{
+		model.DefinedUnits = append(model.DefinedUnits, &definedUnit{
 			Code: xu.Code, Name: xu.Name, Property: xu.Property,
 			IsMetric: xu.IsMetric == xmlYes, IsSpecial: xu.IsSpecial == xmlYes,
 			IsArbitrary: xu.IsArbitrary == xmlYes, Class: xu.Class,

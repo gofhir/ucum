@@ -11,13 +11,13 @@ import (
 
 // service is the concrete implementation of Service.
 type service struct {
-	model  *Model
+	model  *ucumModel
 	parser *parser
 	cache  sync.Map // map[string]*term
 
 	// arbitraryBases gives every arbitrary unit its own dimension. Populated
 	// once at construction and read-only afterwards.
-	arbitraryBases map[string]*BaseUnit
+	arbitraryBases map[string]*baseUnit
 
 	// codesByProperty maps a lower-cased property name to the codes of the units
 	// that declare it. Built at construction; the canonical forms behind them
@@ -38,10 +38,10 @@ func newService(r io.Reader) (*service, error) {
 	}
 	// UCUM makes arbitrary units commensurable with nothing, so each one gets a
 	// synthetic base unit standing for its own dimension.
-	arbitrary := make(map[string]*BaseUnit)
+	arbitrary := make(map[string]*baseUnit)
 	for _, du := range m.DefinedUnits {
 		if du.IsArbitrary {
-			arbitrary[du.Code] = &BaseUnit{
+			arbitrary[du.Code] = &baseUnit{
 				Code:     du.Code,
 				Name:     du.Name,
 				Property: du.Property,
@@ -587,7 +587,7 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 		return nil, fmt.Errorf("unit %q has no value definition", u.Code)
 	}
 
-	unitExpr := u.Value.Unit
+	unitExpr := u.Value.unit
 	unitValue := u.Value.Value
 
 	if u.IsSpecial {
@@ -658,8 +658,8 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 	return can, nil
 }
 
-// findBaseUnit looks up a BaseUnit by code.
-func (s *service) findBaseUnit(code string) *BaseUnit {
+// findBaseUnit looks up a baseUnit by code.
+func (s *service) findBaseUnit(code string) *baseUnit {
 	for _, bu := range s.model.BaseUnits {
 		if bu.Code == code {
 			return bu

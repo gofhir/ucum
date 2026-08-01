@@ -759,10 +759,10 @@ func TestAnalyzeEmptyVersusValidate(t *testing.T) {
 	}
 }
 
-// TestModelValueAccessors covers the exact accessors that replace the
-// deprecated fields, which are typed with an unexported type and so are
-// unusable from outside the package.
-func TestModelValueAccessors(t *testing.T) {
+// TestModelValuesAreExact checks that the definitions are held exactly rather
+// than as rounded floats, which is what the exact API depends on. The model is
+// unexported, so this reaches the values the way the package itself does.
+func TestModelValuesAreExact(t *testing.T) {
 	svc := newTestService(t)
 	s, ok := svc.(*service)
 	if !ok {
@@ -781,46 +781,41 @@ func TestModelValueAccessors(t *testing.T) {
 			t.Errorf("prefix %q not found", code)
 			continue
 		}
-		if got := p.Rat().RatString(); got != want {
-			t.Errorf("Prefix(%q).Rat() = %s, want %s", code, got, want)
+		if got := p.Value.rat().RatString(); got != want {
+			t.Errorf("prefix %q = %s, want %s", code, got, want)
 		}
-		// The deprecated field's String is lossy, which is why Rat exists.
+		// String is lossy, which is why nothing reads a definition through it.
 		if code == "m" && p.Value.String() == want {
-			t.Error("Prefix.Value.String() unexpectedly matched the exact value; the deprecation note is stale")
+			t.Error("decimal.String() unexpectedly produced an exact fraction")
 		}
 	}
 
-	units := map[string]string{
-		"[in_i]": "127/50", // 254e-2 relative to cm, not to m
-		"L":      "1",
-		"min":    "60",
+	// Multipliers are relative to the definition's own unit, not to a base unit:
+	// [in_i] is declared as 254e-2 cm, so the multiplier is 127/50 over "cm".
+	units := map[string]struct{ value, unit string }{
+		"[in_i]": {"127/50", "cm"},
+		"min":    {"60", "s"},
+		"L":      {"1", "l"},
 	}
 	for code, want := range units {
 		u := s.model.getUnit(code)
 		if u == nil || u.Value == nil {
-			t.Errorf("unit %q has no value", code)
+			t.Errorf("unit %q has no definition", code)
 			continue
 		}
-		if got := u.Value.Rat().RatString(); got != want {
-			t.Errorf("Unit(%q).Value.Rat() = %s, want %s", code, got, want)
+		if got := u.Value.Value.rat().RatString(); got != want.value {
+			t.Errorf("unit %q multiplier = %s, want %s", code, got, want.value)
+		}
+		if u.Value.unit != want.unit {
+			t.Errorf("unit %q is defined over %q, want %q", code, u.Value.unit, want.unit)
 		}
 	}
 
-	// Nil receivers are safe.
-	var nilValue *UnitValue
-	if nilValue.Rat() != nil {
-		t.Error("(*UnitValue)(nil).Rat() should be nil")
-	}
-	var nilPrefix *Prefix
-	if nilPrefix.Rat() != nil {
-		t.Error("(*Prefix)(nil).Rat() should be nil")
-	}
-
-	// The accessor must not alias the definition.
+	// decimal.rat returns a copy, so a caller cannot mutate a definition.
 	p := s.model.getPrefix("k")
-	r := p.Rat()
+	r := p.Value.rat()
 	r.Mul(r, big.NewRat(7, 1))
-	if again := p.Rat().RatString(); again != "1000" {
-		t.Errorf("Rat() returned an aliased value: after mutating a copy, prefix k reads %s", again)
+	if again := p.Value.rat().RatString(); again != "1000" {
+		t.Errorf("mutating a copy changed the definition: prefix k reads %s", again)
 	}
 }

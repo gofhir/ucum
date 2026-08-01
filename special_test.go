@@ -688,7 +688,7 @@ func TestArbitraryUnitsSelfConsistent(t *testing.T) {
 }
 
 // TestBelReferenceLevels pins the reference level of every unit defined with a
-// logarithmic function, which is what value=N over Unit=X in the XML sets.
+// logarithmic function, which is what value=N over unitDef=X in the XML sets.
 // Reading the reported unit alone is not enough: B[SPL] is 2x10^-5 Pa and
 // B[10.nV] is 10 nV, while the rest are one of their reported unit.
 func TestBelReferenceLevels(t *testing.T) {
@@ -704,8 +704,8 @@ func TestBelReferenceLevels(t *testing.T) {
 		{"B[V]", "V", 1},
 		{"B[mV]", "mV", 1},
 		{"B[uV]", "uV", 1},
-		{"B[10.nV]", "nV", 10},  // value="10" Unit="nV"
-		{"B[SPL]", "Pa", 2e-05}, // value="2" Unit="10*-5.Pa"
+		{"B[10.nV]", "nV", 10},  // value="10" unitDef="nV"
+		{"B[SPL]", "Pa", 2e-05}, // value="2" unitDef="10*-5.Pa"
 		{"B[W]", "W", 1},
 		{"B[kW]", "kW", 1},
 	}
