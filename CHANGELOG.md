@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/gofhir/ucum/compare/v2.1.0...v2.2.0) (2026-08-01)
+
+
+### Features
+
+* add exact accessors for the model's numeric values ([#23](https://github.com/gofhir/ucum/issues/23)) ([c51681e](https://github.com/gofhir/ucum/commit/c51681e803b65a12ce9eea5476261b0b765f25bf))
+
 ## [2.1.0](https://github.com/gofhir/ucum/compare/v2.0.2...v2.1.0) (2026-08-01)
 
 
