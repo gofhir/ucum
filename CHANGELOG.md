@@ -7,6 +7,18 @@
 
 * **fhir:** add a FHIR subpackage ([#20](https://github.com/gofhir/ucum/issues/20)) ([9ce2ef4](https://github.com/gofhir/ucum/commit/9ce2ef41b83b1d24586c4268ed87ad4005b77f4f))
 
+  `github.com/gofhir/ucum/v2/fhir` carries the FHIR-specific rules a UCUM engine cannot infer. The root package is unchanged.
+
+  - **ucum-common value set**, embedded from the published resource (version 5.0.0): `InCommonUnits`, `CommonDisplay`, `CommonCodes`. All 840 distinct codes are checked against the engine by a conformance test. The published resource lists 848 concepts but repeats eight codes.
+  - **Calendar durations**: `CalendarEquivalentOf`, `MappedByFHIRQuantityConversion`, `AllowedInDateTimeArithmetic`, `IsDefiniteDuration`. FHIRPath pairs eight UCUM time units with calendar keywords and distinguishes equality from equivalence — only `s` and `ms` are equal, since a UCUM year is exactly 365.25 days. FHIR R5's implicit `Quantity` mapping is a narrower six codes, kept as a separate table.
+  - **Quantity comparison**: `Comparator.Compare`, `Comparable` and `CanonicalKey`, for quantity search. Exact wherever the units allow, with a `float64` fallback for the non-rational scales. `Quantity.Exact` carries a FHIR decimal without float64 rounding, which matters because the float64 nearest `0.01` is not `1/100`.
+
+  Every rule cites the specification it comes from. Where FHIR and UCUM disagree the disagreement is documented rather than resolved: FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines `mo` as a twelfth of a Julian year (30.4375 days), and this library follows UCUM.
+
+### Documentation
+
+* the repository now has a README, covering the exact API, the three classes of unit scale, the FHIR subpackage and the known limitations. Every snippet in it was compiled and run against the published module.
+
 ## [2.0.2](https://github.com/gofhir/ucum/compare/v2.0.1...v2.0.2) (2026-08-01)
 
 
