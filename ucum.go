@@ -65,3 +65,30 @@ func New() (Service, error) {
 func NewFromReader(r io.Reader) (Service, error) {
 	return newService(r)
 }
+
+// NewCaseInsensitive creates a Service that resolves codes in UCUM's
+// case-insensitive vocabulary.
+//
+// UCUM defines a case-insensitive variant of every terminal symbol, "to be used
+// when there is a risk of upper and lower case to be confused", and states that
+// "case insensitive symbols are incompatible to the case sensitive symbols". They
+// are two parallel vocabularies, and a service resolves in one of them only —
+// mixing would make codes ambiguous, since "G" is Gauss case-sensitively and gram
+// case-insensitively.
+//
+// Within this variant case carries no meaning, so "MG/DL", "mg/dl" and "Mg/Dl"
+// are the same code. Use it for data from a system that cannot preserve case;
+// FHIR uses the case-sensitive form, so New is the right choice there.
+//
+// Canonical forms are reported in case-sensitive codes in both variants, so that
+// a canonical form is a stable comparison key regardless of which vocabulary
+// produced it.
+func NewCaseInsensitive() (Service, error) {
+	return newServiceFor(nil, true)
+}
+
+// NewCaseInsensitiveFromReader creates a case-insensitive Service loading
+// definitions from a custom source.
+func NewCaseInsensitiveFromReader(r io.Reader) (Service, error) {
+	return newServiceFor(r, true)
+}
