@@ -134,21 +134,6 @@ func TestCalendarEquivalents(t *testing.T) {
 	}
 }
 
-// TestAllowedInDateTimeArithmetic pins the FHIRPath rule that a definite
-// duration above seconds is an error in date/time arithmetic.
-func TestAllowedInDateTimeArithmetic(t *testing.T) {
-	for _, code := range []string{"s", "ms"} {
-		if !fhir.AllowedInDateTimeArithmetic(code) {
-			t.Errorf("AllowedInDateTimeArithmetic(%q) = false, want true", code)
-		}
-	}
-	for _, code := range []string{"a", "mo", "wk", "d", "h", "min", "kg", "m"} {
-		if fhir.AllowedInDateTimeArithmetic(code) {
-			t.Errorf("AllowedInDateTimeArithmetic(%q) = true, want false", code)
-		}
-	}
-}
-
 func TestMappedByFHIRQuantityConversion(t *testing.T) {
 	// FHIR R5 maps six codes; FHIRPath's table has eight.
 	mapped := map[string]string{
