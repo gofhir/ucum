@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/gofhir/ucum/v3"
@@ -451,5 +452,95 @@ func TestDecimalFloat64(t *testing.T) {
 	}
 	if got := zero.Rat().Sign(); got != 0 {
 		t.Errorf("zero Decimal Rat() sign = %d, want 0", got)
+	}
+}
+
+// The failure paths of the comparator had no tests. What follows checks that each
+// propagates an error naming the code at fault, on both the exact and the
+// float64 route, since they fail in different places.
+func TestComparatorErrorPaths(t *testing.T) {
+	c, err := fhir.NewComparator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const bad = "definitely-not-a-unit"
+	good := fhir.Quantity{Value: 1, Code: "m"}
+	badQ := fhir.Quantity{Value: 1, Code: bad}
+	// [pH] has no rational form, so a pairing with it takes the float64 route.
+	ph := fhir.Quantity{Value: 7, Code: "[pH]"}
+
+	cases := map[string]func() error{
+		"Compare bad first":         func() error { _, err := c.Compare(badQ, good); return err },
+		"Compare bad second":        func() error { _, err := c.Compare(good, badQ); return err },
+		"Compare bad, float route":  func() error { _, err := c.Compare(badQ, ph); return err },
+		"Compare bad second, float": func() error { _, err := c.Compare(ph, badQ); return err },
+		"Comparable bad first":      func() error { _, err := c.Comparable(badQ, good); return err },
+		"Comparable bad second":     func() error { _, err := c.Comparable(good, badQ); return err },
+		"CanonicalKey":              func() error { _, _, err := c.CanonicalKey(badQ); return err },
+		"ConvertDecimal bad source": func() error {
+			d, _ := fhir.ParseDecimal("1.0")
+			_, err := c.ConvertDecimal(d, bad, "m")
+			return err
+		},
+		"ConvertDecimal bad target": func() error {
+			d, _ := fhir.ParseDecimal("1.0")
+			_, err := c.ConvertDecimal(d, "m", bad)
+			return err
+		},
+	}
+	for name, call := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := call()
+			if err == nil {
+				t.Fatal("no error for an invalid code")
+			}
+			if !strings.Contains(err.Error(), bad) {
+				t.Errorf("error does not name the offending code: %v", err)
+			}
+		})
+	}
+}
+
+// TestComparatorRejectsUncanonicalizable: "m/0" parses but cannot be
+// canonicalized, so these fail later than a parse error and must not panic.
+func TestComparatorRejectsUncanonicalizable(t *testing.T) {
+	c, err := fhir.NewComparator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := fhir.Quantity{Value: 1, Code: "m/0"}
+	good := fhir.Quantity{Value: 1, Code: "m"}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panicked on a zero divisor: %v", r)
+		}
+	}()
+	if _, err := c.Compare(zero, good); err == nil {
+		t.Error("Compare with a zero divisor = nil error, want an error")
+	}
+	if _, _, err := c.CanonicalKey(zero); err == nil {
+		t.Error("CanonicalKey with a zero divisor = nil error, want an error")
+	}
+}
+
+// TestNonUCUMSystemRejectedEverywhere: a quantity coded in another system has no
+// UCUM code, so every entry point must refuse it rather than treat the code as
+// UCUM.
+func TestNonUCUMSystemRejectedEverywhere(t *testing.T) {
+	c, err := fhir.NewComparator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	snomed := fhir.Quantity{Value: 1, Code: "258773002", System: "http://snomed.info/sct"}
+	good := fhir.Quantity{Value: 1, Code: "mL"}
+
+	if _, err := c.Compare(good, snomed); !errors.Is(err, fhir.ErrNotUCUMSystem) {
+		t.Errorf("Compare with a SNOMED second operand: %v, want ErrNotUCUMSystem", err)
+	}
+	if _, err := c.Comparable(snomed, good); !errors.Is(err, fhir.ErrNotUCUMSystem) {
+		t.Errorf("Comparable: %v, want ErrNotUCUMSystem", err)
+	}
+	if _, _, err := c.CanonicalKey(snomed); !errors.Is(err, fhir.ErrNotUCUMSystem) {
+		t.Errorf("CanonicalKey: %v, want ErrNotUCUMSystem", err)
 	}
 }
