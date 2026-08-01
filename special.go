@@ -175,32 +175,24 @@ func (h logHandler) effectiveDivisor() float64 {
 // unit the handler declares (prism diopter, percent slope).
 //
 // The math.Atan call yields radians while the declared unit may be something
-// else, so
-// the result is scaled by perRadian — the number of unitExpr in one radian.
-// Without that, the raw radian figure would be relabelled as the declared unit and
+// else, so the result is scaled by perRadian — the number of unitExpr in one
+// radian. Every handler sets it explicitly (there is no default): without it, the raw radian figure would be relabelled as the declared unit and
 // then scaled again by that unit's canonical factor.
 type tanHandler struct {
 	unitCode, unitExpr string
 	factor             float64
-	perRadian          float64 // units of unitExpr per radian (1 when unitExpr is rad)
+	perRadian          float64 // units of unitExpr per radian; 1 when unitExpr is rad
 }
 
 func (h tanHandler) code() string  { return h.unitCode }
 func (h tanHandler) units() string { return h.unitExpr }
 
 func (h tanHandler) toCanonical(v float64) float64 {
-	return math.Atan(v/h.factor) * h.effectivePerRadian()
+	return math.Atan(v/h.factor) * h.perRadian
 }
 
 func (h tanHandler) fromCanonical(v float64) float64 {
-	return math.Tan(v/h.effectivePerRadian()) * h.factor
-}
-
-func (h tanHandler) effectivePerRadian() float64 {
-	if h.perRadian == 0 {
-		return 1
-	}
-	return h.perRadian
+	return math.Tan(v/h.perRadian) * h.factor
 }
 
 // sqrtHandler converts via canonical = value^2.
