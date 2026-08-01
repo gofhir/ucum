@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/gofhir/ucum/compare/v3.2.0...v3.3.0) (2026-08-01)
+
+
+### Features
+
+* support UCUM's case-insensitive vocabulary ([#40](https://github.com/gofhir/ucum/issues/40)) ([a435a8f](https://github.com/gofhir/ucum/commit/a435a8f8617d1fae1593f7fe9c9a6b05bc20adf1))
+
 ## [3.2.0](https://github.com/gofhir/ucum/compare/v3.1.0...v3.2.0) (2026-08-01)
 
 
