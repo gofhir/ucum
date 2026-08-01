@@ -14,6 +14,10 @@ type service struct {
 	model  *Model
 	parser *parser
 	cache  sync.Map // map[string]*term
+
+	// arbitraryBases gives every arbitrary unit its own dimension. Populated
+	// once at construction and read-only afterwards.
+	arbitraryBases map[string]*BaseUnit
 }
 
 // newService creates a fully wired service.
@@ -22,9 +26,23 @@ func newService(r io.Reader) (*service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ucum: load definitions: %w", err)
 	}
+	// UCUM makes arbitrary units commensurable with nothing, so each one gets a
+	// synthetic base unit standing for its own dimension.
+	arbitrary := make(map[string]*BaseUnit)
+	for _, du := range m.DefinedUnits {
+		if du.IsArbitrary {
+			arbitrary[du.Code] = &BaseUnit{
+				Code:     du.Code,
+				Name:     du.Name,
+				Property: du.Property,
+			}
+		}
+	}
+
 	return &service{
-		model:  m,
-		parser: newParser(m),
+		model:          m,
+		parser:         newParser(m),
+		arbitraryBases: arbitrary,
 	}, nil
 }
 
@@ -426,6 +444,20 @@ func (s *service) canonicalizeSymbol(sym *symbol) (*canonical, error) {
 		val := prefixVal.pow(sym.exponent)
 		return &canonical{
 			value: val,
+			units: []canonicalUnit{{base: bu, exponent: sym.exponent}},
+		}, nil
+	}
+
+	// Arbitrary unit: its own dimension, never reducible to a number. Expanding
+	// it through its definition would make [IU] compare equal to [iU], to mol
+	// and to 1, and convert between them with a meaningless factor.
+	if u.IsArbitrary {
+		bu := s.arbitraryBases[u.Code]
+		if bu == nil {
+			return nil, fmt.Errorf("arbitrary unit %q not found", u.Code)
+		}
+		return &canonical{
+			value: prefixVal.pow(sym.exponent),
 			units: []canonicalUnit{{base: bu, exponent: sym.exponent}},
 		}, nil
 	}
