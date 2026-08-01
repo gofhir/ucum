@@ -3,6 +3,26 @@
 ## [4.0.0](https://github.com/gofhir/ucum/compare/v3.3.0...v4.0.0) (2026-08-01)
 
 
+### Migration
+
+The import path changes, as it does for every Go major:
+
+```go
+import "github.com/gofhir/ucum/v4"
+import "github.com/gofhir/ucum/v4/fhir"
+```
+
+The only behavioural change is `fhir.Decimal.String`, and only for a value whose declared precision is coarser than its integer part:
+
+```go
+d := fhir.NewDecimal(big.NewRat(150, 1), 2)
+d.String()   // v4: "1.5e2"     v3: "150"
+```
+
+Plain notation could not express two significant figures of 150 — `"150"` claims three — so it now renders in scientific notation, which re-parses back to the same value and precision. Values whose precision fits in plain notation are unchanged, so `1.50` still renders `"1.50"` and `150` at three figures still renders `"150"`.
+
+Everything else is additive: `Mul`, `Div`, `Add` and `Sub` on `fhir.Decimal` are new, and the rest of the API is untouched.
+
 ### ⚠ BREAKING CHANGES
 
 * **fhir:** Decimal.String returns scientific notation for a value whose declared precision is coarser than its integer part. It previously returned plain notation, overstating the precision.
@@ -10,6 +30,18 @@
 ### Features
 
 * **fhir:** propagate precision through arithmetic, and render it honestly ([#42](https://github.com/gofhir/ucum/issues/42)) ([b97722f](https://github.com/gofhir/ucum/commit/b97722f4d0e4fff1a3e70285480d5d73ee872540))
+
+  `Decimal` gains `Mul`, `Div`, `Add` and `Sub`, propagating precision by the rules of measurement — which differ between the two families and are easy to conflate:
+
+  ```go
+  a, _ := fhir.ParseDecimal("1.23")
+  b, _ := fhir.ParseDecimal("4.5")
+
+  a.Mul(b).String()   // "5.5"  significant figures: the smaller count wins
+  a.Add(b).String()   // "5.7"  decimal places: the coarser addend wins
+  ```
+
+  A sum is only as resolved as its coarsest addend, so `1.23 + 4.5` is `5.7` and not `5.73`. The value underneath stays exact throughout — `1.0 / 3.0` holds `1/3` — and only the rendering is rounded. An operand written without a decimal point has unlimited precision and does not constrain the result.
 
 
 ### Bug Fixes
