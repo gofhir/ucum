@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.0.0](https://github.com/gofhir/ucum/compare/v1.0.1...v2.0.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **Analyze** returns a different string for every input. It now renders the display format of the official HL7 test suite: `Analyze("m3.kg-1.s-2")` was `"meter3.kilogram-1.second-2"` and is now `"(meter ^ 3) * (kilogram ^ -1) * (second ^ -2)"`. It is a human-readable description rather than a parseable code, but anything asserting on or displaying it will see the change. `Analyze("")` also returns `"(unity)"` instead of an error, as the suite requires; `Validate("")` still rejects it.
+* **Divide** is added to the `Service` interface, next to `Multiply`. Code that calls the interface is unaffected; code that *implements* `ucum.Service` — a test double, for instance — must add the method.
+* **Arbitrary units** ([IU], [iU], [arb'U], ...) are now each their own dimension, as UCUM requires. Conversions and comparisons between different arbitrary units, or between an arbitrary unit and a dimensionless one, now fail instead of returning a meaningless number: `Convert(1, "[arb'U]", "[IU]")` was `1` and is now an error, and `IsComparable("[IU]", "mol")` was `true` and is now `false`. `Canonical` reports the arbitrary unit as its own canonical code rather than `"1"`. Conversions that only rescale the rest of the expression still work, such as `Convert(5, "[IU]/L", "[IU]/mL")`.
+* **Numeric results change in the last bits** wherever a conversion is now exact. `Convert(1, "L", "mL")` was `1000.0000000000001137` and is `1000`; `Convert(100, "[degF]", "Cel")` was `37.777777777777828` and is `37.777777777777778`. Any test asserting on the old inexact values will fail.
+* **Canonical applies the special-unit handler**, which it previously skipped. `Canonical(1, "Cel")` was `{1 K}` and is `{274.15 K}`. Code that compared canonical forms of special units was silently comparing raw scale values.
+* **Conversions involving a zero divisor now return an error** instead of panicking or returning `+Inf`. `Canonical(1, "m/0")` panicked; `Convert(1, "1", "0")` returned `+Inf`.
+
+### Features
+
+* **exact rational API.** `ExactService` adds `ConversionFactor(from, to) (*big.Rat, error)`, `ConvertRat(value *big.Rat, from, to)` and `CanonicalRat(value *big.Rat, code)`, for callers that need results free of `float64` rounding. Additive and behind its own interface, so `Service` keeps its shape; the value returned by `New` also satisfies it. `big.Rat` is stdlib, so the dependency set stays empty. Errors distinguish the three classes a unit can fall into: `ErrNotLinear` for the affine scales, where no single factor exists but `ConvertRat` is still exact, and `ErrNotRational` for the logarithmic and trigonometric ones, where no exact rational result exists at all ([#3](https://github.com/gofhir/ucum/issues/3))
+* **`Divide`** on `Service`, mirroring `Multiply` including the exact path ([#3](https://github.com/gofhir/ucum/issues/3))
+* the full official HL7 test suite now runs: all 573 cases across validation, conversion, multiplication, division and display-name generation. The `<division>` and `<displayNameGeneration>` sections, 12 cases, were previously skipped in silence because the XML structs did not map them ([#3](https://github.com/gofhir/ucum/issues/3))
+
+### Bug Fixes
+
+* exact arithmetic, special-unit canonicalization, a zero-divisor panic, and full official-suite coverage ([#3](https://github.com/gofhir/ucum/issues/3)) ([ba5cac4](https://github.com/gofhir/ucum/commit/ba5cac48de2abbe8c60c84bf47f0eed8392a35a8))
+* **special:** `[degRe]` used the Celsius offset, putting `0 °Ré` at `341.4375 K` instead of `273.15 K` ([#3](https://github.com/gofhir/ucum/issues/3))
+* **special:** the five units defined with `lgTimes2` computed `10^(2v)` instead of `10^(v/2)` ([#4](https://github.com/gofhir/ucum/issues/4))
+* **special:** `B[SPL]` lost the `2` in its `2×10⁻⁵ Pa` reference level ([#5](https://github.com/gofhir/ucum/issues/5))
+* **special:** `%[slope]` returned radians labelled as degrees, off by `180/π` ([#6](https://github.com/gofhir/ucum/issues/6))
+* **special:** restore the 10 in the B[10.nV] reference level ([#9](https://github.com/gofhir/ucum/issues/9)) ([c87c946](https://github.com/gofhir/ucum/commit/c87c946f2dcc64c931fce04720001fd045e3e296))
+
 ## [1.0.1](https://github.com/gofhir/ucum/compare/v1.0.0...v1.0.1) (2026-03-29)
 
 
