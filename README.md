@@ -70,6 +70,8 @@ defs.RevisionDate  // "2024-06-17"
 
 The official HL7 test suite (`UcumFunctionalTests.xml`, the one used by `FHIR/Ucum-java`) runs as part of `go test`. All **573 cases pass with zero skips**: 529 validation, 30 conversion, 9 display-name generation, 3 division, 2 multiplication.
 
+The grammar rules of §7 to §13 are checked individually too — integer factors, exponents, nested terms, the solidus, annotations — and there is one place where the specification's prose and its own conformance suite disagree. The prose of §9 reads as though an integer factor could be raised to a power ("2+10 means 2^10 = 1024"), while case 1-108 marks `10+3/ul` invalid with the reason "10 is not a valid unit", and case 1-107 shows the correct form, `10*+3/ul`. The suite governs: an integer is a number, not a unit atom. `TestIntegerFactorTakesNoExponent` pins that, because implementing the prose reading breaks 1-108 — which is how the disagreement was found.
+
 All 21 special units are additionally checked against the specification's normative definition tables — `TestAllSpecialHandlersAgainstSpec` pins each one to an independently verifiable reference point, such as pH 7 being 1e-7 mol/L or a 100% slope being a 45 degree incline.
 
 Be aware of what the official suite does *not* cover, since a green run is easy to over-read: its conversion cases are compared with `1e-6` relative tolerance after significant-figure rounding, none of its 30 conversion cases involves a special unit, none of its 529 validation cases contains a zero divisor, and it has no canonicalization section at all. The tests in this repository go beyond it deliberately, asserting exactness as a property rather than comparing against tolerances.
