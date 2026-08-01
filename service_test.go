@@ -758,3 +758,69 @@ func TestAnalyzeEmptyVersusValidate(t *testing.T) {
 		t.Error(`Validate("") = nil, want an error: the empty string is not a valid code`)
 	}
 }
+
+// TestModelValueAccessors covers the exact accessors that replace the
+// deprecated fields, which are typed with an unexported type and so are
+// unusable from outside the package.
+func TestModelValueAccessors(t *testing.T) {
+	svc := newTestService(t)
+	s, ok := svc.(*service)
+	if !ok {
+		t.Fatal("unexpected service type")
+	}
+
+	prefixes := map[string]string{
+		"m":  "1/1000",
+		"k":  "1000",
+		"u":  "1/1000000",
+		"Ki": "1024",
+	}
+	for code, want := range prefixes {
+		p := s.model.getPrefix(code)
+		if p == nil {
+			t.Errorf("prefix %q not found", code)
+			continue
+		}
+		if got := p.Rat().RatString(); got != want {
+			t.Errorf("Prefix(%q).Rat() = %s, want %s", code, got, want)
+		}
+		// The deprecated field's String is lossy, which is why Rat exists.
+		if code == "m" && p.Value.String() == want {
+			t.Error("Prefix.Value.String() unexpectedly matched the exact value; the deprecation note is stale")
+		}
+	}
+
+	units := map[string]string{
+		"[in_i]": "127/50", // 254e-2 relative to cm, not to m
+		"L":      "1",
+		"min":    "60",
+	}
+	for code, want := range units {
+		u := s.model.getUnit(code)
+		if u == nil || u.Value == nil {
+			t.Errorf("unit %q has no value", code)
+			continue
+		}
+		if got := u.Value.Rat().RatString(); got != want {
+			t.Errorf("Unit(%q).Value.Rat() = %s, want %s", code, got, want)
+		}
+	}
+
+	// Nil receivers are safe.
+	var nilValue *UnitValue
+	if nilValue.Rat() != nil {
+		t.Error("(*UnitValue)(nil).Rat() should be nil")
+	}
+	var nilPrefix *Prefix
+	if nilPrefix.Rat() != nil {
+		t.Error("(*Prefix)(nil).Rat() should be nil")
+	}
+
+	// The accessor must not alias the definition.
+	p := s.model.getPrefix("k")
+	r := p.Rat()
+	r.Mul(r, big.NewRat(7, 1))
+	if again := p.Rat().RatString(); again != "1000" {
+		t.Errorf("Rat() returned an aliased value: after mutating a copy, prefix k reads %s", again)
+	}
+}

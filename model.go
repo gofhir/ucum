@@ -1,5 +1,7 @@
 package ucum
 
+import "math/big"
+
 // Model holds the complete set of UCUM definitions.
 type Model struct {
 	Version      string
@@ -30,16 +32,51 @@ type Unit struct {
 
 // UnitValue holds the conversion definition for a defined unit.
 type UnitValue struct {
-	Unit  string // UCUM expression
-	Text  string
+	Unit string // UCUM expression
+	Text string
+
+	// Deprecated: Value is typed with an unexported type, so a caller outside
+	// the package can read it but do almost nothing with it — its only exported
+	// method, String, formats to ten decimal places and loses precision. Use
+	// Rat, which returns the same number exactly. Value will be unexported in
+	// the next major version.
 	Value decimal // numeric multiplier
+}
+
+// Rat returns the numeric multiplier as an exact rational, or nil if the
+// UnitValue is nil.
+//
+// This is the definition as UCUM states it, with no rounding, and it is relative
+// to UnitValue.Unit rather than to a base unit: [in_i] is defined as 254e-2 cm,
+// so Rat returns 127/50 and Unit returns "cm". For converting values rather than
+// inspecting definitions, use ExactService, which resolves the whole chain.
+func (v *UnitValue) Rat() *big.Rat {
+	if v == nil {
+		return nil
+	}
+	return v.Value.rat()
 }
 
 // Prefix represents an SI prefix (kilo, milli, etc.).
 type Prefix struct {
-	Code  string
-	Name  string
+	Code string
+	Name string
+
+	// Deprecated: Value is typed with an unexported type, so a caller outside
+	// the package can read it but do almost nothing with it — its only exported
+	// method, String, formats to ten decimal places, rendering milli as
+	// "0.0010000000". Use Rat, which returns the same number exactly. Value will
+	// be unexported in the next major version.
 	Value decimal
+}
+
+// Rat returns the prefix multiplier as an exact rational, or nil if the Prefix
+// is nil. Milli is 1/1000 exactly.
+func (p *Prefix) Rat() *big.Rat {
+	if p == nil {
+		return nil
+	}
+	return p.Value.rat()
 }
 
 // BaseUnit represents one of the 7 fundamental SI base units.

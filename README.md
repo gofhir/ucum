@@ -197,7 +197,7 @@ Every rule in the subpackage cites the document it comes from, and where FHIR an
 
 ## Known limitations
 - **Significant figures are not modelled** — see below. This was previously the place where unaudited special-unit handlers were listed; all 21 have since been checked against the UCUM specification's normative definition tables, and `TestAllSpecialHandlersAgainstSpec` pins each one to an independently checkable reference point.
-- **`UnitValue.Value` and `Prefix.Value` are exported fields of an unexported type**, so they can be read but barely used. Use `ExactService` for exact numbers rather than reaching into the model. Tracked in [#18](https://github.com/gofhir/ucum/issues/18).
+- **`UnitValue.Value` and `Prefix.Value` are deprecated.** They are exported fields of an unexported type, so they can be read but not used. `UnitValue.Rat()` and `Prefix.Rat()` return the same numbers as exact `*big.Rat`; the fields will be unexported in the next major version. Note that the model is read-only — no exported function accepts a `Model`, so it exists to be inspected, not built.
 - **Significant figures.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input. `fhir.Quantity.Exact` preserves a decimal's *value* exactly, but nothing here models its *precision*.
 
 ## Credit
