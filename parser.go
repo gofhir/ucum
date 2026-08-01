@@ -1,3 +1,12 @@
+// Portions of this file are ported from ExpressionParser.java in FHIR/Ucum-java,
+// which is licensed under the BSD 3-Clause License:
+//
+//	Copyright (c) 2006+, Health Intersections Pty Ltd
+//	All rights reserved.
+//
+// See LICENSE for the full text and NOTICE for the provenance of every
+// third-party component.
+
 package ucum
 
 import (
