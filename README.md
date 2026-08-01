@@ -269,17 +269,27 @@ out.Rat()                // exact underneath, whatever the rendering
 
 A unit conversion multiplies by an exactly known factor, so it neither adds nor removes significant figures — the result carries the input's precision. `ConvertDecimal` refuses the non-rational scales (`[pH]`, bel, prism diopter), where the result is an approximation and claiming the input's precision for it would be false.
 
+Arithmetic propagates precision by the ordinary rules of measurement, which differ between the two families of operation:
+
+```go
+a, _ := fhir.ParseDecimal("1.23")
+b, _ := fhir.ParseDecimal("4.5")
+
+a.Mul(b).String()   // "5.5"  — significant figures: the smaller count wins
+a.Add(b).String()   // "5.7"  — decimal places: the coarser addend wins
+```
+
+Conflating the two is a common mistake: a sum is only as resolved as its coarsest addend, so `1.23 + 4.5` is `5.7` and not `5.73`. The value underneath stays exact regardless — `1.0 / 3.0` holds `1/3`, and only the rendering is rounded.
+
+When the precision is coarser than the integer part, plain notation cannot express it, so the value renders in scientific notation: 150 to two significant figures is `"1.5e2"`, not `"150"`, which would claim three. Re-parsing recovers both the value and the precision.
+
 Every rule in the subpackage cites the document it comes from, and where FHIR and UCUM disagree the disagreement is documented rather than silently resolved — FHIR R5's prose says UCUM defines a month as 30 days, while UCUM defines it as 30.4375, and this library follows UCUM.
 
 ## Known limitations
 
-Three, and all three are limits of a representation rather than gaps in the implementation.
+One, and it comes from the definitions rather than from this implementation.
 
-**Precision does not propagate through arithmetic.** `fhir.Decimal` carries the precision a value was written with, and `ConvertDecimal` preserves it, but there is no arithmetic *between* `Decimal`s — you cannot multiply two and get the smaller of their significant figures. The core is exact (`big.Rat`) and holds no notion of precision, so precision is a layer on top rather than a property of every operation. If that is needed, `fhir.Decimal` is where it belongs.
-
-**The property of a compound expression can be ambiguous.** `ValidateInProperty` judges an atomic unit by the property UCUM declares for it, which is exact. A compound expression has no declared property, so it is judged dimensionally — and UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so a dimensionless compound cannot be distinguished as `amount of substance` rather than `fraction`. This is a limit of the definitions, not of the check.
-
-**Plain decimal notation cannot express a precision coarser than the integer part.** 150 to two significant figures and to three both render as `"150"`. Disambiguating needs scientific notation (`1.5e2`), which is not emitted, so `SignificantFigures()` remains the authority.
+**The property of a compound expression can be ambiguous.** `ValidateInProperty` judges an atomic unit by the property UCUM declares for it, which is exact. A compound expression has no declared property, so it is judged dimensionally — and UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so a dimensionless compound cannot be distinguished as `amount of substance` rather than `fraction`. No amount of implementation fixes that; the reference implementation resolves it with a hardcoded special case for `concentration`.
 
 ## Differences from the Java reference
 
