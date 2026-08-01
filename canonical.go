@@ -8,6 +8,6 @@ type canonical struct {
 
 // canonicalUnit pairs a base unit with its exponent in a canonical form.
 type canonicalUnit struct {
-	base     *BaseUnit
+	base     *baseUnit
 	exponent int
 }

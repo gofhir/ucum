@@ -35,7 +35,7 @@ for _, code := range fhir.CommonCodes() {
 
 Search by display name and filtering by property work the same way, over `fhir.CommonDisplay` and `ValidateInProperty`.
 
-The `Model` type and its friends are exported but inert — no exported function accepts one, and the service's own model is private. They are a leftover of the port from Java and will be unexported in the next major version. Nothing is lost: their one useful part, the exact numeric values, is reachable through `UnitValue.Rat()` and `Prefix.Rat()`.
+The definitions themselves are internal. `Model` and its friends used to be exported — a leftover of the port from Java — but nothing could be done with them: no exported function accepted one, and the service's own model was private. The public surface is now six types: `Service`, `ExactService`, `Pair`, `RatPair` and the two error types.
 
 ## Quickstart
 
@@ -226,7 +226,7 @@ Every rule in the subpackage cites the document it comes from, and where FHIR an
 
 ## Known limitations
 - **Significant figures are not modelled** — see below. This was previously the place where unaudited special-unit handlers were listed; all 21 have since been checked against the UCUM specification's normative definition tables, and `TestAllSpecialHandlersAgainstSpec` pins each one to an independently checkable reference point.
-- **`UnitValue.Value` and `Prefix.Value` are deprecated.** They are exported fields of an unexported type, so they can be read but not used. `UnitValue.Rat()` and `Prefix.Rat()` return the same numbers as exact `*big.Rat`; the fields will be unexported in the next major version. Note that the model is read-only — no exported function accepts a `Model`, so it exists to be inspected, not built.
+- **The definitions are not part of the public API.** The `Model`, `Unit`, `Prefix` and `UnitValue` types were exported but inert — no exported function accepted one — and are now internal. Use `ExactService` for exact numbers; there is nothing a caller could do with the model that the service does not do better.
 - **Significant figures.** Results are correctly rounded, which is a different guarantee from carrying the precision of the input. `fhir.Quantity.Exact` preserves a decimal's *value* exactly, but nothing here models its *precision*.
 
 ## Credit

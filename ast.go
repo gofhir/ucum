@@ -31,8 +31,8 @@ func (term) isComponent() {}
 
 // symbol represents a unit reference with optional prefix and exponent.
 type symbol struct {
-	unit     *Unit
-	prefix   *Prefix
+	unit     *unitDef
+	prefix   *prefixDef
 	exponent int
 }
 

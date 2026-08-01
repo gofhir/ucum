@@ -12,15 +12,15 @@ import (
 //
 // This is a port of Java's ExpressionParser.java from FHIR/Ucum-java.
 type parser struct {
-	model          *Model
-	sortedPrefixes []*Prefix // prefixes sorted longest-code-first
+	model          *ucumModel
+	sortedPrefixes []*prefixDef // prefixes sorted longest-code-first
 }
 
-// newParser creates a parser backed by the given Model.
-func newParser(model *Model) *parser {
+// newParser creates a parser backed by the given ucumModel.
+func newParser(model *ucumModel) *parser {
 	// Pre-sort prefixes by descending code length for deterministic
 	// longest-match resolution.
-	sorted := make([]*Prefix, len(model.Prefixes))
+	sorted := make([]*prefixDef, len(model.Prefixes))
 	copy(sorted, model.Prefixes)
 	sort.Slice(sorted, func(i, j int) bool {
 		return len(sorted[i].Code) > len(sorted[j].Code)

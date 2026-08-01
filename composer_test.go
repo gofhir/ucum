@@ -65,7 +65,7 @@ func TestComposeCanonicalUnits(t *testing.T) {
 	}
 
 	// Find base units for testing.
-	var mBase, sBase *BaseUnit
+	var mBase, sBase *baseUnit
 	for _, bu := range model.BaseUnits {
 		switch bu.Code {
 		case "m":
