@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/gofhir/ucum/v2"
-	"github.com/gofhir/ucum/v2/fhir"
+	"github.com/gofhir/ucum/v3"
+	"github.com/gofhir/ucum/v3/fhir"
 )
 
 // TestCommonUnitsAreValidUCUM is the conformance check that matters most here: a

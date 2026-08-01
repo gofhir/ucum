@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/gofhir/ucum/v2"
+	"github.com/gofhir/ucum/v3"
 )
 
 // Quantity is the part of a FHIR Quantity this package can reason about.

@@ -1,3 +1,3 @@
-module github.com/gofhir/ucum/v2
+module github.com/gofhir/ucum/v3
 
 go 1.24.1

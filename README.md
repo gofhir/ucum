@@ -5,7 +5,7 @@ A [UCUM](https://ucum.org/) (Unified Code for Units of Measure) implementation i
 The UCUM definitions (`ucum-essence.xml`) are embedded, so there is nothing to fetch at runtime.
 
 ```
-go get github.com/gofhir/ucum/v2
+go get github.com/gofhir/ucum/v3
 ```
 
 ## Scope
@@ -183,7 +183,7 @@ exact := svc.(ucum.ExactService)
 The root package implements UCUM and nothing else. The FHIR-specific rules that UCUM cannot infer live in a subpackage:
 
 ```
-go get github.com/gofhir/ucum/v2/fhir
+go get github.com/gofhir/ucum/v3/fhir
 ```
 
 **The ucum-common value set**, embedded from the published FHIR resource (version 5.0.0, 840 distinct codes):
