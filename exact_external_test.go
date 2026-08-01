@@ -9,7 +9,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/gofhir/ucum/v2"
+	"github.com/gofhir/ucum/v3"
 )
 
 func TestExternalExactConversion(t *testing.T) {
