@@ -75,11 +75,11 @@ func NewExact() (ExactService, error) {
 func (s *service) ConversionFactor(from, to string) (*big.Rat, error) {
 	srcTerm, srcCan, err := s.canonicalParts(from)
 	if err != nil {
-		return nil, err
+		return nil, conversionError(from, to, err)
 	}
 	dstTerm, dstCan, err := s.canonicalParts(to)
 	if err != nil {
-		return nil, err
+		return nil, conversionError(from, to, err)
 	}
 
 	// A special unit has no single factor: its scale is affine or worse. The
@@ -95,7 +95,7 @@ func (s *service) ConversionFactor(from, to string) (*big.Rat, error) {
 		return nil, err
 	}
 	if dstCan.value.isZero() {
-		return nil, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
+		return nil, conversionError(from, to, ErrDivisionByZero)
 	}
 	return new(big.Rat).Quo(srcCan.value.rat(), dstCan.value.rat()), nil
 }
@@ -108,17 +108,17 @@ func (s *service) ConvertRat(value *big.Rat, from, to string) (*big.Rat, error) 
 
 	srcTerm, srcCan, err := s.canonicalParts(from)
 	if err != nil {
-		return nil, err
+		return nil, conversionError(from, to, err)
 	}
 	dstTerm, dstCan, err := s.canonicalParts(to)
 	if err != nil {
-		return nil, err
+		return nil, conversionError(from, to, err)
 	}
 	if err := requireComparable(from, to, srcCan, dstCan); err != nil {
 		return nil, err
 	}
 	if dstCan.value.isZero() {
-		return nil, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
+		return nil, conversionError(from, to, ErrDivisionByZero)
 	}
 
 	return s.convertRatCore(value, convertParts{
@@ -161,7 +161,7 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 
 	t, can, err := s.canonicalParts(code)
 	if err != nil {
-		return RatPair{}, err
+		return RatPair{}, validationError(code, err)
 	}
 	mapped, err := s.toCanonicalRat(t, code, value)
 	if err != nil {

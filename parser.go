@@ -103,13 +103,18 @@ func (p *parser) parse(code string) (*term, error) {
 		return nil, fmt.Errorf("parse %q: %w", code, err)
 	}
 
+	// The lexer reports its own position; a parser error is attributed to the
+	// token the parser was looking at when it gave up.
 	t, err := p.parseTerm(lex)
 	if err != nil {
-		return nil, fmt.Errorf("parse %q: %w", code, err)
+		return nil, fmt.Errorf("parse %q: %w", code, withPosition(err, lex.position()))
 	}
 
 	if !lex.finished() {
-		return nil, fmt.Errorf("parse %q: unexpected token %q at end of expression", code, lex.getToken())
+		return nil, fmt.Errorf("parse %q: %w", code, &posError{
+			offset: lex.position(),
+			msg:    fmt.Sprintf("unexpected token %q at end of expression", lex.getToken()),
+		})
 	}
 
 	return t, nil

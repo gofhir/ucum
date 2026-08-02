@@ -58,6 +58,11 @@ type lexer struct {
 	index  int
 	token  string
 	typ    tokenType
+
+	// start is where the current token begins, which is the position a parser
+	// error should point at: the parser knows which token it choked on, not
+	// where inside it.
+	start int
 }
 
 // newLexer creates a new lexer for the given UCUM expression and consumes
@@ -77,6 +82,7 @@ func newLexer(source string) (*lexer, error) {
 func (l *lexer) consume() error {
 	l.token = ""
 	l.typ = tokenNone
+	l.start = l.index
 
 	if l.index >= len(l.source) {
 		return nil
@@ -136,12 +142,12 @@ func (l *lexer) readAnnotation() error {
 			return nil
 		}
 		if ch > 0x7E || ch < 0x20 {
-			return fmt.Errorf("lexer error at position %d: invalid character in annotation", l.index)
+			return &posError{offset: l.index, msg: "invalid character in annotation"}
 		}
 		l.index++
 	}
 
-	return fmt.Errorf("lexer error at position %d: unterminated annotation", start)
+	return &posError{offset: start, msg: "unterminated annotation"}
 }
 
 // readSignedNumber reads a signed number token (e.g. +3 or -2).
@@ -150,7 +156,7 @@ func (l *lexer) readSignedNumber() error {
 	l.index++ // skip sign
 
 	if l.index >= len(l.source) || !isDigit(l.source[l.index]) {
-		return fmt.Errorf("lexer error at position %d: sign must be followed by a digit", start)
+		return &posError{offset: start, msg: "sign must be followed by a digit"}
 	}
 
 	for l.index < len(l.source) && isDigit(l.source[l.index]) {
@@ -224,11 +230,11 @@ func (l *lexer) readGeneralToken() error {
 	}
 
 	if inBracket {
-		return fmt.Errorf("lexer error at position %d: unterminated bracket", start)
+		return &posError{offset: start, msg: "unterminated bracket"}
 	}
 
 	if l.index == start {
-		return fmt.Errorf("lexer error at position %d: unexpected character '%c'", l.index, l.source[l.index])
+		return &posError{offset: l.index, msg: fmt.Sprintf("unexpected character %q", l.source[l.index])}
 	}
 
 	l.token = l.source[start:l.index]
@@ -240,6 +246,11 @@ func (l *lexer) readGeneralToken() error {
 	}
 
 	return nil
+}
+
+// position returns where the current token begins.
+func (l *lexer) position() int {
+	return l.start
 }
 
 // getToken returns the current token value.
@@ -262,7 +273,7 @@ func (l *lexer) finished() bool {
 func (l *lexer) getTokenAsInt() (int, error) {
 	v, err := strconv.Atoi(l.token)
 	if err != nil {
-		return 0, fmt.Errorf("lexer error: token %q is not a valid integer", l.token)
+		return 0, &posError{offset: l.start, msg: fmt.Sprintf("token %q is not a valid integer", l.token)}
 	}
 	return v, nil
 }

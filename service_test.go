@@ -554,8 +554,8 @@ func TestDivideByZero(t *testing.T) {
 					t.Fatalf("Divide panicked: %v", r)
 				}
 			}()
-			if _, err := svc.Divide(tc.v1, tc.v2); !errors.Is(err, errDivisionByZero) {
-				t.Errorf("Divide(%v, %v) error = %v, want errDivisionByZero", tc.v1, tc.v2, err)
+			if _, err := svc.Divide(tc.v1, tc.v2); !errors.Is(err, ErrDivisionByZero) {
+				t.Errorf("Divide(%v, %v) error = %v, want ErrDivisionByZero", tc.v1, tc.v2, err)
 			}
 		})
 	}
