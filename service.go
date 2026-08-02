@@ -298,8 +298,8 @@ func (s *service) canonicalScalar(value float64, code string) (float64, *canonic
 // offset, [pH] exponentiates, B[V] takes a power). Skipping it would silently
 // return the raw input value, making canonical forms non-comparable.
 func (s *service) mapFloat(t *term, value float64) float64 {
-	if h := s.specialHandlerForTerm(t); h != nil {
-		return h.toCanonical(value)
+	if use := s.specialUseForTerm(t); use != nil {
+		return use.toCanonical(value)
 	}
 	return value
 }
@@ -322,7 +322,7 @@ const (
 // that is a lone special symbol is standalone; anything else puts its units into
 // an algebraic relationship.
 func (s *service) specialContextOf(t *term) specialContext {
-	if s.specialHandlerForTerm(t) != nil {
+	if s.specialUseForTerm(t) != nil {
 		return specialStandalone
 	}
 	return specialAsDelta
@@ -399,16 +399,16 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 	result := value
 
 	// Step 1: If source is special, convert value to canonical first.
-	if srcHandler := s.specialHandlerForTerm(srcTerm); srcHandler != nil {
-		result = srcHandler.toCanonical(result)
+	if srcUse := s.specialUseForTerm(srcTerm); srcUse != nil {
+		result = srcUse.toCanonical(result)
 	}
 
 	// Step 2: Multiplicative conversion, exact factor with a single rounding.
 	result = mulExact(result, new(big.Rat).Quo(srcCan.value.rat(), dstCan.value.rat()))
 
 	// Step 3: If dest is special, convert from canonical.
-	if dstHandler := s.specialHandlerForTerm(dstTerm); dstHandler != nil {
-		result = dstHandler.fromCanonical(result)
+	if dstUse := s.specialUseForTerm(dstTerm); dstUse != nil {
+		result = dstUse.fromCanonical(result)
 	}
 
 	return result, nil
@@ -606,10 +606,7 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 	u := sym.unit
 
 	// Start with the prefix value (or 1 if no prefix).
-	prefixVal := decimalFromInt(1)
-	if sym.prefix != nil {
-		prefixVal = sym.prefix.Value
-	}
+	prefixVal := prefixValue(sym)
 
 	if u.IsBase {
 		// Base unit: canonical is itself.
@@ -651,6 +648,7 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 		if !ok {
 			return nil, fmt.Errorf("no handler for special unit %q", u.Code)
 		}
+		use := specialUse{handler: h, alpha: prefixVal}
 
 		// A special unit's factor is the canonical form of the reference quantity
 		// its definition names: Cel is cel(1 K) so the factor is 1, degF is
@@ -663,18 +661,28 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 		// A handler that produces its result in a fixed unit is scaled by that
 		// unit, not by the declared reference: atan yields radians even when the
 		// definition names deg.
-		if nh, ok := h.(nativeUnitHandler); ok {
-			unitExpr = nh.nativeUnit()
+		if native, ok := use.nativeUnit(); ok {
+			unitExpr = native
 		}
 
-		if ctx == specialAsDelta {
+		switch ctx {
+		case specialStandalone:
+			// The prefix belongs to the argument of the conversion function, not
+			// to the canonical factor: UCUM §22.4 defines a scaled special unit
+			// as x = f_s-1(α x'). specialUse applies α there, so it must not be
+			// applied a second time here — doing both is what moved the origin of
+			// the scale with the prefix, making 0 mCel 0.27315 K instead of
+			// 273.15 K, and 1 dB a factor of 1 instead of 10^0.1.
+			prefixVal = decimalFromInt(1)
+		case specialAsDelta:
 			// In an algebraic term the unit denotes a difference: the offset
-			// cancels, the scale does not.
+			// cancels, the scale does not. A prefix scales that difference in the
+			// ordinary way — Δ(αx) = αΔx — so prefixVal stays as it is.
 			if sym.exponent != 1 {
 				return nil, fmt.Errorf("special unit %q cannot carry an exponent (%d): it denotes a point on its own scale",
 					u.Code, sym.exponent)
 			}
-			if _, ok := h.(linearHandler); !ok {
+			if !use.isLinear() {
 				return nil, fmt.Errorf("special unit %q is not on a linear scale, so it cannot appear in an algebraic term",
 					u.Code)
 			}
@@ -836,23 +844,50 @@ func displayComponentTo(sb *strings.Builder, c component) {
 
 // Special unit detection.
 
-// specialHandlerForTerm returns the handler for a term that is a lone special
-// symbol with exponent 1, and nil otherwise. Anything else puts the unit into an
-// algebraic relationship, where it denotes a difference and the handler's offset
-// does not apply.
-func (s *service) specialHandlerForTerm(t *term) specialHandler {
-	if t == nil || t.term != nil {
+// specialUseForTerm returns the special unit a term denotes, together with the
+// scale factor of its prefix, and nil if the term is not a lone special symbol.
+// Anything else puts the unit into an algebraic relationship, where it denotes a
+// difference and the handler's offset does not apply.
+//
+// Redundant parentheses are looked through first. UCUM §22.1-2 says a special
+// unit "cannot take part in any algebraic operations", and a parenthesis is not
+// an operation: "(Cel)" is the same code as "Cel" and has to mean the same
+// thing. The AST cannot tell a group written in the source from the parser's own
+// nesting, so without this "(Cel)" would fall through to the difference reading
+// and lose the 273.15 offset silently.
+func (s *service) specialUseForTerm(t *term) *specialUse {
+	sym := loneSymbol(t)
+	if sym == nil || !sym.unit.IsSpecial || sym.exponent != 1 {
 		return nil
 	}
-	sym, ok := t.comp.(*symbol)
+	h, ok := s.handlers[sym.unit.Code]
 	if !ok {
 		return nil
 	}
-	if !sym.unit.IsSpecial {
-		return nil
+	return &specialUse{handler: h, alpha: prefixValue(sym)}
+}
+
+// loneSymbol returns the single symbol a term denotes, looking through any
+// number of redundant parentheses, and nil if the term is anything else.
+func loneSymbol(t *term) *symbol {
+	for t != nil && t.term == nil {
+		switch comp := t.comp.(type) {
+		case *symbol:
+			return comp
+		case *term:
+			t = comp
+		default:
+			return nil
+		}
 	}
-	if sym.exponent != 1 {
-		return nil
+	return nil
+}
+
+// prefixValue returns the scale factor of a symbol's prefix, or 1 if it has
+// none.
+func prefixValue(sym *symbol) decimal {
+	if sym.prefix == nil {
+		return decimalFromInt(1)
 	}
-	return s.handlers[sym.unit.Code]
+	return sym.prefix.Value
 }

@@ -51,6 +51,78 @@ type nativeUnitHandler interface {
 	nativeUnit() string
 }
 
+// specialUse is a special unit as it appears in a code: its handler together
+// with the scale factor of any prefix in front of it.
+//
+// UCUM §22.3 permits that prefix — "due to the requirement of the SI that does
+// allow prefixes on the degree Celsius, special units may be scaled trough a
+// prefix or an arbitrary numeric factor" — and §22.4 says where it applies. A
+// scaled special unit is the quadruple s = (u, f_s, f_s-1, α), and:
+//
+//	x' = f_s(x) / α    from the proper unit to the special unit
+//	x  = f_s-1(α x')   the reverse
+//
+// So α scales the *argument* of the conversion function, never its result. The
+// difference is not cosmetic: scaling the result would move the origin of the
+// scale along with the prefix, making 0 mCel a different temperature from 0 Cel,
+// and would make 1 dB a factor of 1 — no gain at all — instead of 10^0.1.
+type specialUse struct {
+	handler specialHandler
+	alpha   decimal
+}
+
+// code returns the special unit's code, without the prefix.
+func (s specialUse) code() string { return s.handler.code() }
+
+// toCanonical maps a value on the scaled special scale onto the proper unit:
+// f_s-1(α x').
+func (s specialUse) toCanonical(v float64) float64 {
+	return s.handler.toCanonical(v * s.alpha.float64())
+}
+
+// fromCanonical maps a value on the proper unit onto the scaled special scale:
+// f_s(x) / α.
+func (s specialUse) fromCanonical(v float64) float64 {
+	return s.handler.fromCanonical(v) / s.alpha.float64()
+}
+
+// toCanonicalRat is toCanonical without rounding. It reports false when the
+// handler's mapping has no exact rational form.
+func (s specialUse) toCanonicalRat(v *big.Rat) (*big.Rat, bool) {
+	rh, ok := s.handler.(ratHandler)
+	if !ok {
+		return nil, false
+	}
+	return rh.toCanonicalRat(new(big.Rat).Mul(v, s.alpha.rat())), true
+}
+
+// fromCanonicalRat is fromCanonical without rounding. It reports false when the
+// handler's mapping has no exact rational form.
+func (s specialUse) fromCanonicalRat(v *big.Rat) (*big.Rat, bool) {
+	rh, ok := s.handler.(ratHandler)
+	if !ok {
+		return nil, false
+	}
+	return new(big.Rat).Quo(rh.fromCanonicalRat(v), s.alpha.rat()), true
+}
+
+// isLinear reports whether the underlying scale is linear, which is what lets a
+// difference on it convert by the reference multiplier alone.
+func (s specialUse) isLinear() bool {
+	_, ok := s.handler.(linearHandler)
+	return ok
+}
+
+// nativeUnit returns the fixed unit the handler produces its result in, if it
+// has one.
+func (s specialUse) nativeUnit() (string, bool) {
+	nh, ok := s.handler.(nativeUnitHandler)
+	if !ok {
+		return "", false
+	}
+	return nh.nativeUnit(), true
+}
+
 // mustRat parses an exact decimal or fraction literal from this file. The input
 // is never external, so a parse failure is a programming error.
 func mustRat(s string) *big.Rat {

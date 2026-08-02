@@ -84,10 +84,10 @@ func (s *service) ConversionFactor(from, to string) (*big.Rat, error) {
 
 	// A special unit has no single factor: its scale is affine or worse. The
 	// source is reported first so the error is deterministic when both are.
-	if s.specialHandlerForTerm(srcTerm) != nil {
+	if s.specialUseForTerm(srcTerm) != nil {
 		return nil, fmt.Errorf("ucum: %q: %w", from, ErrNotLinear)
 	}
-	if s.specialHandlerForTerm(dstTerm) != nil {
+	if s.specialUseForTerm(dstTerm) != nil {
 		return nil, fmt.Errorf("ucum: %q: %w", to, ErrNotLinear)
 	}
 
@@ -176,29 +176,29 @@ func (s *service) CanonicalRat(value *big.Rat, code string) (RatPair, error) {
 // toCanonicalRat maps value onto the canonical scale of the unit denoted by t,
 // exactly. It fails with ErrNotRational for the non-rational special scales.
 func (s *service) toCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
-	h := s.specialHandlerForTerm(t)
-	if h == nil {
+	use := s.specialUseForTerm(t)
+	if use == nil {
 		return new(big.Rat).Set(value), nil
 	}
-	rh, ok := h.(ratHandler)
+	mapped, ok := use.toCanonicalRat(value)
 	if !ok {
 		return nil, fmt.Errorf("ucum: %q: %w", code, ErrNotRational)
 	}
-	return rh.toCanonicalRat(value), nil
+	return mapped, nil
 }
 
 // fromCanonicalRat maps a canonical value onto the scale of the unit denoted by
 // t, exactly.
 func (s *service) fromCanonicalRat(t *term, code string, value *big.Rat) (*big.Rat, error) {
-	h := s.specialHandlerForTerm(t)
-	if h == nil {
+	use := s.specialUseForTerm(t)
+	if use == nil {
 		return value, nil
 	}
-	rh, ok := h.(ratHandler)
+	mapped, ok := use.fromCanonicalRat(value)
 	if !ok {
 		return nil, fmt.Errorf("ucum: %q: %w", code, ErrNotRational)
 	}
-	return rh.fromCanonicalRat(value), nil
+	return mapped, nil
 }
 
 // requireComparable reports whether two canonical forms share the same base
