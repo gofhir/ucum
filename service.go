@@ -146,10 +146,7 @@ func (s *service) parseDefinition(expr string) (*term, error) {
 // Validate checks if the given code is a valid UCUM expression.
 func (s *service) Validate(code string) error {
 	_, err := s.parseCached(code)
-	if err != nil {
-		return &ValidationError{Code: code, Message: err.Error(), Offset: -1}
-	}
-	return nil
+	return validationError(code, err)
 }
 
 // ValidateInProperty validates the code and checks that it measures the given
@@ -171,7 +168,7 @@ func (s *service) ValidateInProperty(code, property string) error {
 	}
 	t, can, err := s.canonicalParts(code)
 	if err != nil {
-		return err
+		return validationError(code, err)
 	}
 
 	// An atomic unit carries its property in the definitions, so that is the
@@ -260,7 +257,7 @@ func (s *service) canonicalFormsOfProperty(property string) (map[string]bool, er
 func (s *service) Canonical(value float64, code string) (Pair, error) {
 	v, can, err := s.canonicalScalar(value, code)
 	if err != nil {
-		return Pair{}, err
+		return Pair{}, validationError(code, err)
 	}
 	return Pair{Value: v, Code: composeCanonicalUnits(can)}, nil
 }
@@ -346,20 +343,20 @@ func (s *service) canonicalParts(code string) (*term, *canonical, error) {
 func (s *service) Convert(value float64, from, to string) (float64, error) {
 	srcTerm, err := s.parseCached(from)
 	if err != nil {
-		return 0, &ConversionError{From: from, To: to, Message: err.Error()}
+		return 0, conversionError(from, to, err)
 	}
 	dstTerm, err := s.parseCached(to)
 	if err != nil {
-		return 0, &ConversionError{From: from, To: to, Message: err.Error()}
+		return 0, conversionError(from, to, err)
 	}
 
 	srcCan, err := s.getCanonical(from)
 	if err != nil {
-		return 0, &ConversionError{From: from, To: to, Message: err.Error()}
+		return 0, conversionError(from, to, err)
 	}
 	dstCan, err := s.getCanonical(to)
 	if err != nil {
-		return 0, &ConversionError{From: from, To: to, Message: err.Error()}
+		return 0, conversionError(from, to, err)
 	}
 
 	// Check comparability: canonical unit strings must match.
@@ -369,7 +366,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 
 	// A zero destination factor ("0", "m/0" cancels to it) would divide by zero.
 	if dstCan.value.isZero() {
-		return 0, &ConversionError{From: from, To: to, Message: errDivisionByZero.Error()}
+		return 0, conversionError(from, to, ErrDivisionByZero)
 	}
 
 	parts := convertParts{
@@ -391,7 +388,7 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 			return out, nil
 		}
 		if !errors.Is(err, ErrNotRational) {
-			return 0, err
+			return 0, conversionError(from, to, err)
 		}
 		// Non-rational scale: fall through to the float64 handlers below.
 	}
@@ -418,11 +415,11 @@ func (s *service) Convert(value float64, from, to string) (float64, error) {
 func (s *service) IsComparable(code1, code2 string) (bool, error) {
 	can1, err := s.getCanonical(code1)
 	if err != nil {
-		return false, err
+		return false, validationError(code1, err)
 	}
 	can2, err := s.getCanonical(code2)
 	if err != nil {
-		return false, err
+		return false, validationError(code2, err)
 	}
 	return composeCanonicalUnits(can1) == composeCanonicalUnits(can2), nil
 }
@@ -439,7 +436,7 @@ func (s *service) Analyze(code string) (string, error) {
 	}
 	t, err := s.parseCached(code)
 	if err != nil {
-		return "", err
+		return "", validationError(code, err)
 	}
 	return displayName(t), nil
 }
@@ -461,16 +458,16 @@ func (s *service) Divide(v1, v2 Pair) (Pair, error) {
 func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 	t1, can1, err := s.canonicalParts(v1.Code)
 	if err != nil {
-		return Pair{}, err
+		return Pair{}, validationError(v1.Code, err)
 	}
 	t2, can2, err := s.canonicalParts(v2.Code)
 	if err != nil {
-		return Pair{}, err
+		return Pair{}, validationError(v2.Code, err)
 	}
 
 	div := op == opDivision
 	if div && can2.value.isZero() {
-		return Pair{}, errDivisionByZero
+		return Pair{}, validationError(v2.Code, ErrDivisionByZero)
 	}
 
 	sign := 1
@@ -493,7 +490,7 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 			// input is exactly the bottom of its scale, which float64 cannot
 			// represent for Cel or [degF]. Guarded so big.Rat.Quo cannot panic.
 			if m2.Sign() == 0 {
-				return Pair{}, errDivisionByZero
+				return Pair{}, zeroDivisorValue(v2)
 			}
 			m1.Quo(m1, m2)
 		} else {
@@ -502,7 +499,7 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 		out, _ := m1.Mul(m1, factor).Float64()
 		return Pair{Value: out, Code: code}, nil
 	case err != nil && !errors.Is(err, ErrNotRational):
-		return Pair{}, err
+		return Pair{}, validationError(v1.Code, err)
 	}
 
 	// Non-rational scale or non-finite value: use the float64 handlers.
@@ -510,11 +507,24 @@ func (s *service) combine(v1, v2 Pair, op operator) (Pair, error) {
 	combined := val1 * val2
 	if div {
 		if val2 == 0 {
-			return Pair{}, errDivisionByZero
+			return Pair{}, zeroDivisorValue(v2)
 		}
 		combined = val1 / val2
 	}
 	return Pair{Value: mulExact(combined, factor), Code: code}, nil
+}
+
+// zeroDivisorValue reports a divisor whose *value* is zero, as opposed to a unit
+// expression that cancels to zero. Both are ErrDivisionByZero, since a caller
+// asking "was this a division by zero?" means the same question either way, but
+// the message says which one happened.
+func zeroDivisorValue(divisor Pair) error {
+	return &ValidationError{
+		Code:    divisor.Code,
+		Message: fmt.Sprintf("the divisor has a value of zero (%v %s)", divisor.Value, divisor.Code),
+		Offset:  -1,
+		Err:     ErrDivisionByZero,
+	}
 }
 
 // mappedRats maps both operands onto their canonical scales exactly, without the
@@ -746,7 +756,7 @@ func divideCanonicals(left, right *canonical) (*canonical, error) {
 	// A zero factor is syntactically valid ("m/0"), so the divisor has to be
 	// checked here rather than left to big.Rat, which panics.
 	if right.value.isZero() {
-		return nil, errDivisionByZero
+		return nil, ErrDivisionByZero
 	}
 	result := &canonical{
 		value: left.value.div(right.value),
