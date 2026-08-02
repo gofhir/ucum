@@ -218,3 +218,21 @@ func TestRedundantParenthesesDoNotChangeMeaning(t *testing.T) {
 		t.Error(`Convert(1, "(Cel)2", "K2") = nil error, want an error`)
 	}
 }
+
+// TestRedundantParenthesesKeepTheDeclaredProperty is the same rule in
+// ValidateInProperty. An atom is judged by the property UCUM declares for it,
+// and a parenthesised atom is still an atom — otherwise it falls to the
+// dimensional comparison, which cannot tell a dimensionless "amount of
+// substance" from a "fraction".
+func TestRedundantParenthesesKeepTheDeclaredProperty(t *testing.T) {
+	svc := newTestService(t)
+
+	for _, code := range []string{"mol", "(mol)", "((mol))"} {
+		if err := svc.ValidateInProperty(code, "fraction"); err == nil {
+			t.Errorf("ValidateInProperty(%q, \"fraction\") = nil, want an error: it measures amount of substance", code)
+		}
+		if err := svc.ValidateInProperty(code, "amount of substance"); err != nil {
+			t.Errorf("ValidateInProperty(%q, \"amount of substance\") = %v, want nil", code, err)
+		}
+	}
+}

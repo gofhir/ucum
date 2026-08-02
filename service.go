@@ -29,8 +29,10 @@ type service struct {
 	defParser *parser
 	defCache  sync.Map // map[string]*term
 
-	// arbitraryBases gives every arbitrary unit its own dimension. Populated
-	// once at construction and read-only afterwards.
+	// baseByCode indexes the seven base units, and arbitraryBases gives every
+	// arbitrary unit its own dimension. Both are populated once at construction
+	// and read-only afterwards.
+	baseByCode     map[string]*baseUnit
 	arbitraryBases map[string]*baseUnit
 
 	// codesByProperty maps a lower-cased property name to the codes of the units
@@ -56,6 +58,11 @@ func newServiceFor(r io.Reader, insensitive bool) (*service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ucum: load definitions: %w", err)
 	}
+	bases := make(map[string]*baseUnit, len(m.BaseUnits))
+	for _, bu := range m.BaseUnits {
+		bases[bu.Code] = bu
+	}
+
 	// UCUM makes arbitrary units commensurable with nothing, so each one gets a
 	// synthetic base unit standing for its own dimension.
 	arbitrary := make(map[string]*baseUnit)
@@ -97,6 +104,7 @@ func newServiceFor(r io.Reader, insensitive bool) (*service, error) {
 		parser:          newParserFor(m, insensitive),
 		cache:           newTermCache(),
 		defParser:       newParser(m),
+		baseByCode:      bases,
 		arbitraryBases:  arbitrary,
 		codesByProperty: codesByProperty,
 		handlers:        handlers,
@@ -208,12 +216,15 @@ func (s *service) ValidateInProperty(code, property string) error {
 // declaredProperty returns the property UCUM declares for a term that is a
 // single unit with exponent 1. A prefix does not change the property, but an
 // exponent does (m is length, m2 is area), so exponents are excluded.
+//
+// Redundant parentheses are looked through, for the same reason as in
+// specialUseForTerm: "(mol)" is the same code as "mol". Without that, a
+// parenthesised atom fell to the dimensional comparison and "(mol)" was accepted
+// as a "fraction" — mol is dimensionless in UCUM, so it shares that canonical
+// form — while "mol" was correctly refused.
 func declaredProperty(t *term) (string, bool) {
-	if t == nil || t.term != nil {
-		return "", false
-	}
-	sym, ok := t.comp.(*symbol)
-	if !ok || sym.exponent != 1 || sym.unit == nil {
+	sym := loneSymbol(t)
+	if sym == nil || sym.exponent != 1 || sym.unit == nil {
 		return "", false
 	}
 	if sym.unit.Property == "" {
@@ -735,12 +746,7 @@ func (s *service) canonicalizeSymbol(sym *symbol, ctx specialContext) (*canonica
 
 // findBaseUnit looks up a baseUnit by code.
 func (s *service) findBaseUnit(code string) *baseUnit {
-	for _, bu := range s.model.BaseUnits {
-		if bu.Code == code {
-			return bu
-		}
-	}
-	return nil
+	return s.baseByCode[code]
 }
 
 // Canonical arithmetic helpers.
