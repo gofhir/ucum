@@ -50,20 +50,35 @@ func (d decimal) sub(o decimal) decimal { return decimal{new(big.Rat).Sub(d.val,
 func (d decimal) mul(o decimal) decimal { return decimal{new(big.Rat).Mul(d.val, o.val)} }
 func (d decimal) div(o decimal) decimal { return decimal{new(big.Rat).Quo(d.val, o.val)} }
 
+// pow raises d to an integer power by square-and-multiply, in about log2(n)
+// multiplications rather than n of them.
+//
+// The difference is not academic here: prefixed units raise powers of ten, so
+// the iterative version made canonicalizing "m1000000" take 312ms and scale
+// linearly from there. The exponent is bounded at parse time as well — see
+// MaxExponent — because the *result* still grows with n however few
+// multiplications produce it.
 func (d decimal) pow(n int) decimal {
 	if n == 0 {
 		return decimalFromInt(1)
 	}
-	base := d
-	neg := false
-	if n < 0 {
-		neg = true
+	neg := n < 0
+	if neg {
 		n = -n
 	}
+
 	result := decimalFromInt(1)
-	for i := 0; i < n; i++ {
-		result = result.mul(base)
+	base := d
+	for n > 0 {
+		if n&1 == 1 {
+			result = result.mul(base)
+		}
+		n >>= 1
+		if n > 0 {
+			base = base.mul(base)
+		}
 	}
+
 	if neg {
 		result = decimalFromInt(1).div(result)
 	}
