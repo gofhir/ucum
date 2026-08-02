@@ -35,7 +35,19 @@ for _, code := range fhir.CommonCodes() {
 
 Search by display name and filtering by property work the same way, over `fhir.CommonDisplay` and `ValidateInProperty`.
 
-The definitions themselves are internal. `Model` and its friends used to be exported — a leftover of the port from Java — but nothing could be done with them: no exported function accepted one, and the service's own model was private. The public surface is now six types: `Service`, `ExactService`, `Pair`, `RatPair` and the two error types.
+The definitions themselves are internal, as is everything else. The root package is two files — the interfaces, the constructors and the error types — and the implementation sits under `internal/`, split by layer:
+
+```
+internal/ucumerr   the error types and sentinels
+internal/decimal   exact rational arithmetic
+internal/model     the definitions in memory, with their indexes
+internal/essence   ucum-essence.xml and its reader
+internal/expr      the grammar: lexer, parser, AST, composer
+internal/special   the conversions for the non-ratio scales
+internal/engine    canonicalization and conversion
+```
+
+The public surface is `Service`, `ExactService`, `Identified`, `Pair`, `RatPair`, `Definitions`, the two error types and the sentinels below. `Model` and its friends used to be exported — a leftover of the port from Java — but nothing could be done with them, and they are gone.
 
 ## Quickstart
 
@@ -95,6 +107,8 @@ The grammar rules of §7 to §13 are checked individually too — integer factor
 
 All 21 special units are additionally checked against the specification's normative definition tables — `TestAllSpecialHandlersAgainstSpec` pins each one to an independently verifiable reference point, such as pH 7 being 1e-7 mol/L or a 100% slope being a 45 degree incline.
 
+Two fuzz targets run over the same corpus. `FuzzValidate` states that a code either parses or returns a `*ValidationError` whose offset lies inside it, and that whatever parses survives canonicalization, is comparable with itself and converts to itself as the identity. `FuzzComposeRoundTrip` states that rendering an AST and re-parsing it yields the same unit — which is how the dropped parentheses in `mL/(kg.min)` were found, in the first second of the first run.
+
 Be aware of what the official suite does *not* cover, since a green run is easy to over-read: its conversion cases are compared with `1e-6` relative tolerance after significant-figure rounding, none of its 30 conversion cases involves a special unit, none of its 529 validation cases contains a zero divisor, and it has no canonicalization section at all. The tests in this repository go beyond it deliberately, asserting exactness as a property rather than comparing against tolerances.
 
 ## Exact arithmetic
@@ -146,7 +160,22 @@ svc.Canonical(100, "[degF]")   // {310.9277777777778, "K"}
 svc.Canonical(50, "Cel")       // {323.15, "K"}
 ```
 
-That matters if you normalise before comparing, which is the natural thing to do: 100 °F is *colder* than 50 °C, and the canonical values say so.
+That matters if you normalize before comparing, which is the natural thing to do: 100 °F is *colder* than 50 °C, and the canonical values say so.
+
+**A prefix scales the argument of the conversion, not its result.** UCUM §22.3 allows the prefix and §22.4 says where it applies: a scaled special unit is `s = (u, f_s, f_s-1, α)` with `x = f_s-1(α x')`. Scaling the result instead would move the origin of the scale along with the prefix.
+
+```go
+svc.Canonical(0, "mCel")      // {273.15, "K"}  — 0 mCel is 0 Cel
+svc.Canonical(1, "kCel")      // {1273.15, "K"}
+svc.Convert(1, "dB", "1")     // 1.2589…  — a gain of 1 dB is 10^0.1
+svc.Convert(20, "dB", "1")    // 100
+```
+
+**In an algebraic term a special unit denotes a difference**, so the offset cancels and only the scale remains: `Convert(1, "Cel/min", "K/min")` is 1. That reading is refused where a difference has no meaning — `[pH]/min` and `B/s` are errors, since `10^-pH` does not decompose into a factor times a value.
+
+Note that a *quantity* is not a unit. `Divide(Pair{1, "Cel"}, Pair{1, "min"})` divides a temperature, which is a point on its scale, by a time, and gives 4.569 K/s. Both readings are right for the question asked; `TestGradientReadingDependsOnTheQuestion` pins them side by side.
+
+Parentheses are not an operation, so `(Cel)` is the same code as `Cel` and means the same thing.
 
 ## Arbitrary units
 
@@ -173,36 +202,58 @@ The dimensional half is not airtight, and cannot be: UCUM gives 15 canonical for
 
 ## Errors
 
+Every failure carries a typed error, and the sentinel behind it survives the wrapping. A bad code is a `*ValidationError`; a failed conversion between two codes is a `*ConversionError`.
+
 ```go
 var ve *ucum.ValidationError
-if errors.As(err, &ve) { /* invalid code */ }
+if errors.As(err, &ve) {
+    // ve.Code, ve.Message, and ve.Offset: the byte position in the code, or -1
+    // when the failure has no single position.
+}
 
 var ce *ucum.ConversionError
 if errors.As(err, &ce) { /* incommensurable units, or a zero divisor */ }
+
+if errors.Is(err, ucum.ErrDivisionByZero) { /* "m/0", or a zero divisor value */ }
 ```
 
 ```
-Validate("m/")        invalid UCUM code "m/": parse "m/": unexpected end of expression
+Validate("m/")        invalid UCUM code "m/" at position 2: parse "m/": unexpected end of expression
+Validate("nope")      invalid UCUM code "nope" at position 0: parse "nope": unknown unit "nope"
 Convert(1, "m", "s")  cannot convert "m" to "s": units are not comparable: m vs s
-Canonical(1, "m/0")   division by zero in unit expression
+Canonical(1, "m/0")   invalid UCUM code "m/0": division by zero in unit expression
 ```
 
-A zero divisor is well-formed UCUM, so `Validate("m/0")` accepts it and canonicalization is where it fails — with an error, not a panic.
+A zero divisor is well-formed UCUM, so `Validate("m/0")` accepts it and canonicalization is where it fails — with an error, not a panic. Because it surfaces there, it can come out of `Canonical`, `Convert`, `IsComparable`, `Multiply`, `Divide`, `ValidateInProperty` and all three exact methods; `errors.Is` matches it on every one.
+
+### Bounds
+
+UCUM states no limit on the size of a code, because it describes a notation rather than an implementation. One that takes codes from the network needs limits anyway: without them a short string exhausts the process. `"m2000000000"` spent minutes building an integer of billions of digits, and two hundred nested parentheses crashed canonicalization with a Go stack overflow, which `recover` cannot catch.
+
+| constant | value | error |
+|---|---|---|
+| `MaxCodeLength` | 1024 bytes | `ErrCodeTooLong` |
+| `MaxNestingDepth` | 100 | `ErrCodeTooComplex` |
+| `MaxExponent` | ±1000 | `ErrExponentTooLarge` |
+
+They sit far above anything real: the longest code in the official suite is 17 bytes, the longest in `ucum-common` is 21, the deepest nesting in either is one, and no definition uses an exponent outside [-4, 4].
+
+`MaxCacheEntries` (4096 per generation) bounds the parse cache for the same reason — an annotation is free text, so `mg/dL{lot17}` is a valid code and there are unboundedly many of them. Eviction costs a reparse, not an error, and a code that stays in use stays cached.
 
 ## Performance
 
-Measured on an M-series laptop, 400 iterations × 3 runs:
+Measured on an M-series laptop, 2000 iterations:
 
 | operation | ns/op |
 |---|---|
-| `Validate` | 11–19 |
-| `IsComparable` | 376 |
-| `ConvertSimple` | 850 |
-| `Canonical` | 1226 |
-| `ConvertSpecial` | 1613 |
-| `New` | 1581173 |
+| `Validate` | 11–16 |
+| `IsComparable` | 385 |
+| `ConvertSimple` | 798 |
+| `Canonical` | 1443 |
+| `ConvertSpecial` | 3029 |
+| `New` | 1702658 |
 
-`New` parses the embedded definitions, so call it once. Everything else is cheap and the parse cache makes repeated codes cheaper.
+`New` parses the embedded definitions, so call it once. Everything else is cheap and the parse cache makes repeated codes cheaper: a cache hit is a `sync.Map` load, with no lock and no write, which is why `Validate` stays in the tens of nanoseconds even under a flood of distinct codes.
 
 ## Custom definitions
 
@@ -291,9 +342,11 @@ Every rule in the subpackage cites the document it comes from, and where FHIR an
 
 ## Known limitations
 
-One, and it comes from the definitions rather than from this implementation.
-
 **The property of a compound expression can be ambiguous.** `ValidateInProperty` judges an atomic unit by the property UCUM declares for it, which is exact. A compound expression has no declared property, so it is judged dimensionally — and UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so a dimensionless compound cannot be distinguished as `amount of substance` rather than `fraction`. No amount of implementation fixes that; the reference implementation resolves it with a hardcoded special case for `concentration`.
+
+**A logarithmic scale with an extreme prefix exceeds float64.** A zetta-bel canonicalizes to 10^(10^21), which overflows to `+Inf`; an atto-bel to 10^(10^-18), which rounds to exactly 1 and comes back as 0. Neither is a defect of the conversion — those values have no float64 representation — and the exact API refuses those scales outright with `ErrNotRational` rather than returning a rounded answer dressed up as an exact one. The prefixes that occur in practice, down to `dB` and up to `kB`, are unaffected.
+
+**A numeric factor multiplying a special unit is read as a difference.** UCUM §22.3 says a special unit may be scaled "trough a prefix *or an arbitrary numeric factor*", so `2.Cel` should denote a scale with α = 2. A prefix is handled that way; a numeric factor is not, and `1.Cel` takes the algebraic reading instead, where the offset cancels. `Cel` and `(Cel)` are unaffected, and no code in the official suite or the FHIR value set has this shape.
 
 ## Differences from the Java reference
 
@@ -312,8 +365,9 @@ The lexer and parser are ports of [FHIR/Ucum-java](https://github.com/FHIR/Ucum-
 Where Java is ahead:
 
 - It has always enforced UCUM §11 (prefixes only on metric atoms), which this package only started doing in v3.0.0.
-- It parses and keeps UCUM's case-insensitive codes (`CODE`, so `M` for metre), which this package discards. Neither library's expression parser accepts them, but Java holds the data if it ever wants to.
 - Precision propagates through its arithmetic; here it is a layer in `fhir.Decimal` (see Known limitations).
+
+Java keeps UCUM's case-insensitive codes (`CODE`, so `M` for metre) as data but its expression parser does not accept them. This package resolves them, through `NewCaseInsensitive` — see [The two vocabularies](#the-two-vocabularies).
 
 `TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 
