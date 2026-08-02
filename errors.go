@@ -1,180 +1,101 @@
 package ucum
 
 import (
-	"errors"
-	"fmt"
+	"github.com/gofhir/ucum/v4/internal/engine"
+	"github.com/gofhir/ucum/v4/internal/ucumerr"
 )
 
-// ErrDivisionByZero is returned when a unit expression divides by a zero
-// factor, as in "m/0", or when a quantity with a zero value is used as a
-// divisor.
+// The error types and sentinels live in internal/ucumerr so that the lexer, the
+// parser and the engine can construct them without importing this package, which
+// would be a cycle. They are re-exported here because they are part of the public
+// API, and the re-export is exact:
 //
-// Such codes parse successfully — a zero factor is well-formed UCUM — so they
-// are rejected during canonicalization instead, which means the error can come
-// out of any method that canonicalizes. Match it with errors.Is; it survives
-// the wrapping in ValidationError and ConversionError:
-//
-//	if errors.Is(err, ucum.ErrDivisionByZero) { ... }
-var ErrDivisionByZero = errors.New("division by zero in unit expression")
+//   - The types are aliases, not new types, so errors.As(err, **ucum.ValidationError)
+//     matches an error a lower layer built.
+//   - The sentinels are the same interface values, so errors.Is matches whichever
+//     name a caller reaches for.
+type (
+	// ValidationError indicates an invalid UCUM code. Offset is the byte
+	// position in Code at which the problem was found, or -1 when the failure
+	// has no single position.
+	ValidationError = ucumerr.ValidationError
 
-// Bounds on the size of a code this package will parse, and the errors they
-// produce. Match them with errors.Is.
+	// ConversionError indicates a failed unit conversion between two codes.
+	ConversionError = ucumerr.ConversionError
+)
+
+var (
+	// ErrDivisionByZero is returned when a unit expression divides by a zero
+	// factor, as in "m/0", or when a quantity with a zero value is used as a
+	// divisor.
+	//
+	// Such codes parse successfully — a zero factor is well-formed UCUM — so
+	// they are rejected during canonicalization instead, which means the error
+	// can come out of any method that canonicalizes. Match it with errors.Is; it
+	// survives the wrapping in ValidationError and ConversionError:
+	//
+	//	if errors.Is(err, ucum.ErrDivisionByZero) { ... }
+	ErrDivisionByZero = ucumerr.ErrDivisionByZero
+
+	// ErrCodeTooLong is returned for a code longer than MaxCodeLength.
+	ErrCodeTooLong = ucumerr.ErrCodeTooLong
+
+	// ErrCodeTooComplex is returned for a code nested deeper than
+	// MaxNestingDepth.
+	ErrCodeTooComplex = ucumerr.ErrCodeTooComplex
+
+	// ErrExponentTooLarge is returned for an exponent whose magnitude exceeds
+	// MaxExponent.
+	ErrExponentTooLarge = ucumerr.ErrExponentTooLarge
+
+	// ErrNotLinear is returned by ConversionFactor when one of the units sits on
+	// a non-ratio scale. Between Cel and [degF] the relation is affine
+	// (Cel = ([degF] - 32) * 5/9), so no single multiplicative factor describes
+	// it; use ConvertRat instead.
+	ErrNotLinear = engine.ErrNotLinear
+
+	// ErrNotRational is returned by ConvertRat and CanonicalRat when a special
+	// unit's mapping is not a rational function — logarithmic ([pH], B, Np,
+	// bit_s, [hp'_X]), trigonometric ([p'diop], %[slope]) or square root. Their
+	// results are irrational in general, so they cannot be represented exactly
+	// as a *big.Rat. Use Convert or Canonical for those.
+	ErrNotRational = engine.ErrNotRational
+
+	// ErrNilValue is returned when a *big.Rat argument is nil.
+	ErrNilValue = engine.ErrNilValue
+)
+
+// MaxCacheEntries is how many parsed codes a service keeps per cache generation.
+//
+// A service caches the codes it is given so that repeating one is cheap, and what
+// it is given is not under its control: an annotation is free text, so
+// "mg/dL{lot17}" is a valid code and there are unboundedly many of them. The
+// bound is generous — a deployment sees tens of distinct codes, not thousands —
+// and eviction costs a reparse, not an error.
+const MaxCacheEntries = engine.MaxCacheEntries
+
+// Bounds on the size of a code this package will parse.
 //
 // UCUM states no such bounds, because it describes a notation rather than an
 // implementation. An implementation that takes codes from the network needs them
 // anyway: without them a short string is enough to exhaust the process. "m2e9"
-// spent minutes building an integer of billions of digits, and two hundred
-// nested parentheses crashed canonicalization with a stack overflow, which
-// recover cannot catch.
+// spent minutes building an integer of billions of digits, and two hundred nested
+// parentheses crashed canonicalization with a stack overflow, which recover
+// cannot catch.
 //
-// They are set far above anything real. The longest code in the official suite
-// is 17 bytes, the longest in the FHIR ucum-common value set is 21, the deepest
+// They are set far above anything real. The longest code in the official suite is
+// 17 bytes, the longest in the FHIR ucum-common value set is 21, the deepest
 // nesting in either is one, and no definition in ucum-essence.xml uses an
 // exponent outside [-4, 4].
 const (
 	// MaxCodeLength is the longest code accepted, in bytes. It also bounds the
 	// depth of an expression written without parentheses, since each level costs
 	// at least one byte.
-	MaxCodeLength = 1024
+	MaxCodeLength = ucumerr.MaxCodeLength
 
 	// MaxNestingDepth is the deepest parenthesis nesting accepted.
-	MaxNestingDepth = 100
+	MaxNestingDepth = ucumerr.MaxNestingDepth
 
 	// MaxExponent is the largest exponent magnitude accepted.
-	MaxExponent = 1000
+	MaxExponent = ucumerr.MaxExponent
 )
-
-var (
-	// ErrCodeTooLong is returned for a code longer than MaxCodeLength.
-	ErrCodeTooLong = errors.New("code is too long")
-
-	// ErrCodeTooComplex is returned for a code nested deeper than
-	// MaxNestingDepth.
-	ErrCodeTooComplex = errors.New("code is nested too deeply")
-
-	// ErrExponentTooLarge is returned for an exponent whose magnitude exceeds
-	// MaxExponent.
-	ErrExponentTooLarge = errors.New("exponent is too large")
-)
-
-// ValidationError indicates an invalid UCUM code.
-type ValidationError struct {
-	// Code is the code that failed.
-	Code string
-
-	// Message describes the failure.
-	Message string
-
-	// Offset is the byte position in Code at which the problem was found, or -1
-	// when the failure has no single position — a well-formed code that measures
-	// the wrong property, for instance.
-	Offset int
-
-	// Err is the underlying cause, if any. It is what errors.Is and errors.As
-	// see through.
-	Err error
-}
-
-func (e *ValidationError) Error() string {
-	if e.Offset >= 0 {
-		return fmt.Sprintf("invalid UCUM code %q at position %d: %s", e.Code, e.Offset, e.Message)
-	}
-	return fmt.Sprintf("invalid UCUM code %q: %s", e.Code, e.Message)
-}
-
-// Unwrap returns the underlying cause.
-func (e *ValidationError) Unwrap() error { return e.Err }
-
-// ConversionError indicates a failed unit conversion.
-type ConversionError struct {
-	// From and To are the codes of the conversion that failed.
-	From string
-	To   string
-
-	// Message describes the failure.
-	Message string
-
-	// Err is the underlying cause, if any. It is what errors.Is and errors.As
-	// see through.
-	Err error
-}
-
-func (e *ConversionError) Error() string {
-	return fmt.Sprintf("cannot convert %q to %q: %s", e.From, e.To, e.Message)
-}
-
-// Unwrap returns the underlying cause.
-func (e *ConversionError) Unwrap() error { return e.Err }
-
-// posError carries the position at which a code failed to lex or parse, so that
-// ValidationError can report it as a number instead of leaving it buried in
-// prose.
-type posError struct {
-	offset int
-	msg    string
-
-	// err is the cause, kept so that a sentinel behind a positioned error is
-	// still reachable with errors.Is.
-	err error
-}
-
-func (e *posError) Error() string { return e.msg }
-
-// Unwrap returns the underlying cause.
-func (e *posError) Unwrap() error { return e.err }
-
-// withPosition attaches a position to an error that does not already carry one.
-// The innermost position wins: the lexer knows exactly where it stopped, while
-// the parser only knows which token it was looking at.
-func withPosition(err error, offset int) error {
-	if err == nil {
-		return nil
-	}
-	var pe *posError
-	if errors.As(err, &pe) {
-		return err
-	}
-	return &posError{offset: offset, msg: err.Error(), err: err}
-}
-
-// offsetOf returns the position an error carries, or -1 if it carries none.
-func offsetOf(err error) int {
-	var pe *posError
-	if errors.As(err, &pe) {
-		return pe.offset
-	}
-	return -1
-}
-
-// validationError wraps an internal error as a ValidationError for the code it
-// came from, keeping the cause reachable through errors.Is. An error that is
-// already a ValidationError is returned unchanged, so an inner code is not
-// renamed by an outer call.
-func validationError(code string, err error) error {
-	if err == nil {
-		return nil
-	}
-	var ve *ValidationError
-	if errors.As(err, &ve) {
-		return err
-	}
-	return &ValidationError{
-		Code:    code,
-		Message: err.Error(),
-		Offset:  offsetOf(err),
-		Err:     err,
-	}
-}
-
-// conversionError wraps an internal error as a ConversionError between two
-// codes. An error that is already a ConversionError is returned unchanged.
-func conversionError(from, to string, err error) error {
-	if err == nil {
-		return nil
-	}
-	var ce *ConversionError
-	if errors.As(err, &ce) {
-		return err
-	}
-	return &ConversionError{From: from, To: to, Message: err.Error(), Err: err}
-}

@@ -1,0 +1,170 @@
+// Package essence reads ucum-essence.xml, the published UCUM definitions, into a
+// model.
+//
+// The file is embedded verbatim and never rewritten: its license forbids
+// modifying it, so updating to a newer UCUM release means replacing the file.
+package essence
+
+import (
+	"embed"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/gofhir/ucum/v4/internal/decimal"
+	"github.com/gofhir/ucum/v4/internal/model"
+)
+
+//go:embed ucum-essence.xml
+var embeddedDefinitions embed.FS
+
+// Load parses ucum-essence.xml from the given reader, or from embedded if nil.
+// Load reads definitions from r, or the embedded ucum-essence.xml if r is nil.
+func Load(r io.Reader) (*model.Model, error) {
+	if r == nil {
+		f, err := embeddedDefinitions.Open("ucum-essence.xml")
+		if err != nil {
+			return nil, fmt.Errorf("open embedded definitions: %w", err)
+		}
+		defer func() { _ = f.Close() }()
+		r = f
+	}
+	return parse(r)
+}
+
+// XML structures for unmarshaling ucum-essence.xml.
+
+type xmlRoot struct {
+	XMLName      xml.Name         `xml:"root"`
+	Version      string           `xml:"version,attr"`
+	Revision     string           `xml:"revision,attr"`
+	RevisionDate string           `xml:"revision-date,attr"`
+	Prefixes     []xmlPrefix      `xml:"prefix"`
+	BaseUnits    []xmlBaseUnit    `xml:"base-unit"`
+	Units        []xmlDefinedUnit `xml:"unit"`
+}
+
+type xmlPrefix struct {
+	Code        string   `xml:"Code,attr"`
+	CodeUC      string   `xml:"CODE,attr"`
+	Name        string   `xml:"name"`
+	PrintSymbol string   `xml:"printSymbol"`
+	Value       xmlValue `xml:"value"`
+}
+
+type xmlBaseUnit struct {
+	Code        string `xml:"Code,attr"`
+	CodeUC      string `xml:"CODE,attr"`
+	Dim         string `xml:"dim,attr"`
+	Name        string `xml:"name"`
+	PrintSymbol string `xml:"printSymbol"`
+	Property    string `xml:"property"`
+}
+
+type xmlDefinedUnit struct {
+	Code        string   `xml:"Code,attr"`
+	CodeUC      string   `xml:"CODE,attr"`
+	IsMetric    string   `xml:"isMetric,attr"`
+	IsSpecial   string   `xml:"isSpecial,attr"`
+	IsArbitrary string   `xml:"isArbitrary,attr"`
+	Class       string   `xml:"class,attr"`
+	Name        string   `xml:"name"`
+	PrintSymbol string   `xml:"printSymbol"`
+	Property    string   `xml:"property"`
+	Value       xmlValue `xml:"value"`
+}
+
+type xmlValue struct {
+	Unit     string       `xml:"Unit,attr"`
+	UNIT     string       `xml:"UNIT,attr"`
+	Value    string       `xml:"value,attr"`
+	Text     string       `xml:",chardata"`
+	Function *xmlFunction `xml:"function"`
+}
+
+// xmlFunction is the <function> element a special unit carries in place of a
+// plain numeric value:
+//
+//	<value Unit="degf(5 K/9)"><function name="degF" value="5" Unit="K/9"/></value>
+//
+// Name selects the conversion the unit performs; Value and Unit give its
+// reference quantity — 5 K/9 for degF, 2 10*-5.Pa for B[SPL], 10 nV for
+// B[10.nV]. Reading them keeps those numbers in the definitions rather than
+// duplicated in code.
+type xmlFunction struct {
+	Name  string `xml:"name,attr"`
+	Value string `xml:"value,attr"`
+	Unit  string `xml:"Unit,attr"`
+}
+
+const xmlYes = "yes"
+
+func parse(r io.Reader) (*model.Model, error) {
+	var root xmlRoot
+	dec := xml.NewDecoder(r)
+	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		if strings.EqualFold(charset, "ascii") || strings.EqualFold(charset, "us-ascii") {
+			return input, nil
+		}
+		return nil, fmt.Errorf("unsupported charset: %s", charset)
+	}
+	if err := dec.Decode(&root); err != nil {
+		return nil, fmt.Errorf("decode ucum-essence.xml: %w", err)
+	}
+
+	m := &model.Model{
+		Version:      root.Version,
+		Revision:     root.Revision,
+		RevisionDate: root.RevisionDate,
+	}
+
+	// Parse prefixes
+	for _, xp := range root.Prefixes {
+		val, err := decimal.FromString(xp.Value.Value)
+		if err != nil {
+			return nil, fmt.Errorf("prefix %s value: %w", xp.Code, err)
+		}
+		m.Prefixes = append(m.Prefixes, &model.Prefix{
+			Code: xp.Code, CodeCI: xp.CodeUC, Name: xp.Name, Value: val,
+		})
+	}
+
+	// Parse base units
+	for _, xb := range root.BaseUnits {
+		m.BaseUnits = append(m.BaseUnits, &model.BaseUnit{
+			Code: xb.Code, CodeCI: xb.CodeUC, Name: xb.Name,
+			Property: xb.Property, Dim: xb.Dim,
+		})
+	}
+
+	// Parse defined units
+	for _, xu := range root.Units {
+		var unitVal *model.Conversion
+		if xu.Value.Value != "" || xu.Value.Unit != "" {
+			v, err := decimal.FromString(xu.Value.Value)
+			if err != nil {
+				// Some special units have empty value; default to 1
+				v = decimal.FromInt(1)
+			}
+			unitVal = &model.Conversion{Unit: xu.Value.Unit, Text: xu.Value.Text, Value: v}
+
+			if xf := xu.Value.Function; xf != nil {
+				fv, err := decimal.FromString(xf.Value)
+				if err != nil {
+					return nil, fmt.Errorf("unit %s function value %q: %w", xu.Code, xf.Value, err)
+				}
+				unitVal.Function = &model.Function{Name: xf.Name, Value: fv, Unit: xf.Unit}
+			}
+		}
+		m.DefinedUnits = append(m.DefinedUnits, &model.DefinedUnit{
+			Code: xu.Code, CodeCI: xu.CodeUC, Name: xu.Name, Property: xu.Property,
+			IsMetric: xu.IsMetric == xmlYes, IsSpecial: xu.IsSpecial == xmlYes,
+			IsArbitrary: xu.IsArbitrary == xmlYes, Class: xu.Class,
+			Value: unitVal,
+		})
+	}
+
+	m.BuildIndexes()
+	return m, nil
+}

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gofhir/ucum/v4/internal/decimal"
 )
 
 // UCUM states no bound on the length of a code, the depth of its parentheses or
@@ -119,7 +121,7 @@ func TestExponentiationIsSubQuadratic(t *testing.T) {
 	// shapes rather than absolute times, which vary with the machine.
 	start := time.Now()
 	for i := 0; i < 100; i++ {
-		_ = small.pow(1000)
+		_ = small.Pow(1000)
 	}
 	elapsed := time.Since(start)
 
@@ -128,24 +130,24 @@ func TestExponentiationIsSubQuadratic(t *testing.T) {
 	}
 
 	// And it stays correct: pow is used for every prefixed unit.
-	two := decimalFromInt(2)
-	if got := two.pow(10); got.String() != "1024" {
+	two := decimal.FromInt(2)
+	if got := two.Pow(10); got.String() != "1024" {
 		t.Errorf("2^10 = %s, want 1024", got)
 	}
-	if got := two.pow(-3); got.String() != "0.1250000000" {
+	if got := two.Pow(-3); got.String() != "0.1250000000" {
 		t.Errorf("2^-3 = %s, want 0.125", got)
 	}
-	if got := two.pow(0); got.String() != "1" {
+	if got := two.Pow(0); got.String() != "1" {
 		t.Errorf("2^0 = %s, want 1", got)
 	}
-	if got := decimalFromInt(-3).pow(3); got.String() != "-27" {
+	if got := decimal.FromInt(-3).Pow(3); got.String() != "-27" {
 		t.Errorf("(-3)^3 = %s, want -27", got)
 	}
 }
 
-func decimalFromString2(t *testing.T, s string) decimal {
+func decimalFromString2(t *testing.T, s string) decimal.Decimal {
 	t.Helper()
-	d, err := decimalFromString(s)
+	d, err := decimal.FromString(s)
 	if err != nil {
 		t.Fatal(err)
 	}

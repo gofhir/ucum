@@ -156,3 +156,13 @@ func boolErr(_ bool, err error) error       { return err }
 func analyzeErr(_ string, err error) error  { return err }
 func ratErr(_ *big.Rat, err error) error    { return err }
 func ratPairErr(_ RatPair, err error) error { return err }
+
+// newTestService builds a service over the embedded definitions.
+func newTestService(t *testing.T) Service {
+	t.Helper()
+	svc, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc
+}
