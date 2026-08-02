@@ -1,0 +1,16 @@
+version: 2
+
+updates:
+  # The GitHub Actions used by the workflows are the only dependencies this
+  # repository has: the module itself deliberately has none, which the Verify job
+  # enforces. Pinned actions go stale silently, so they get watched.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
