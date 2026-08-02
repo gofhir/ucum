@@ -395,6 +395,10 @@ Java keeps UCUM's case-insensitive codes (`CODE`, so `M` for metre) as data but 
 
 `TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: every claim about UCUM cites the section of the specification that makes it, no figure the definitions already carry is restated in Go, and `make all` runs what CI runs. Vulnerability reports go through [SECURITY.md](SECURITY.md), which explains why a panic on a parsed code is treated as one.
+
 ## License
 
 BSD 3-Clause; see [LICENSE](LICENSE).

@@ -114,7 +114,7 @@ func TestLimitsAcceptEverythingReal(t *testing.T) {
 // Iterative multiplication made Canonical(1, "m1000000") take 312ms and scaled
 // linearly from there.
 func TestExponentiationIsSubQuadratic(t *testing.T) {
-	small := decimalFromString2(t, "1.0000001")
+	small := mustDecimal(t, "1.0000001")
 
 	// Square-and-multiply does about log2(n) multiplications, so a thousandfold
 	// increase in the exponent must not cost a thousandfold in time. Compare
@@ -145,7 +145,8 @@ func TestExponentiationIsSubQuadratic(t *testing.T) {
 	}
 }
 
-func decimalFromString2(t *testing.T, s string) decimal.Decimal {
+// mustDecimal parses an exact literal, failing the test if it cannot.
+func mustDecimal(t *testing.T, s string) decimal.Decimal {
 	t.Helper()
 	d, err := decimal.FromString(s)
 	if err != nil {
