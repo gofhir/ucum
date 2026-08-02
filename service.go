@@ -16,12 +16,16 @@ type service struct {
 	// parser resolves codes supplied by a caller, in whichever of UCUM's two
 	// vocabularies this service was built for.
 	parser *parser
-	cache  sync.Map // map[string]*term
+	cache  *termCache
 
 	// defParser resolves the expressions inside the definitions, which are always
 	// written in case-sensitive codes: the year is defined as "a_j", not as its
 	// case-insensitive spelling "ANN_J". Expanding a definition therefore never
 	// uses the caller's vocabulary.
+	//
+	// defCache is unbounded, unlike cache, and can be: its keys come from the
+	// definitions, so there are as many as ucum-essence.xml has unit expressions
+	// and no caller can add to them.
 	defParser *parser
 	defCache  sync.Map // map[string]*term
 
@@ -91,6 +95,7 @@ func newServiceFor(r io.Reader, insensitive bool) (*service, error) {
 	return &service{
 		model:           m,
 		parser:          newParserFor(m, insensitive),
+		cache:           newTermCache(),
 		defParser:       newParser(m),
 		arbitraryBases:  arbitrary,
 		codesByProperty: codesByProperty,
@@ -100,18 +105,14 @@ func newServiceFor(r io.Reader, insensitive bool) (*service, error) {
 
 // parseCached parses a UCUM code, caching the result.
 func (s *service) parseCached(code string) (*term, error) {
-	if v, ok := s.cache.Load(code); ok {
-		t, ok := v.(*term)
-		if !ok {
-			return nil, fmt.Errorf("ucum: unexpected cache entry type %T", v)
-		}
+	if t, ok := s.cache.load(code); ok {
 		return t, nil
 	}
 	t, err := s.parser.parse(code)
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Store(code, t)
+	s.cache.store(code, t)
 	return t, nil
 }
 
