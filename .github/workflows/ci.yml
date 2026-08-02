@@ -104,9 +104,7 @@ jobs:
       # library and the toolchain: a vulnerability in encoding/xml or math/big
       # reaches this package like any other.
       - name: Run govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   verify:
     name: Verify
