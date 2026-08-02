@@ -97,6 +97,10 @@ func (p *parser) parse(code string) (*term, error) {
 	if code == "" {
 		return nil, fmt.Errorf("UCUM expression is empty")
 	}
+	if len(code) > MaxCodeLength {
+		return nil, fmt.Errorf("parse: %w: %d bytes, the limit is %d",
+			ErrCodeTooLong, len(code), MaxCodeLength)
+	}
 
 	lex, err := newLexer(code)
 	if err != nil {
@@ -105,7 +109,7 @@ func (p *parser) parse(code string) (*term, error) {
 
 	// The lexer reports its own position; a parser error is attributed to the
 	// token the parser was looking at when it gave up.
-	t, err := p.parseTerm(lex)
+	t, err := p.parseTerm(lex, 0)
 	if err != nil {
 		return nil, fmt.Errorf("parse %q: %w", code, withPosition(err, lex.position()))
 	}
@@ -122,14 +126,14 @@ func (p *parser) parse(code string) (*term, error) {
 
 // parseCompOrAnnotation parses either a component or an annotation (treated as
 // factor(1)). It also consumes any trailing annotation after the component.
-func (p *parser) parseCompOrAnnotation(lex *lexer) (component, error) {
+func (p *parser) parseCompOrAnnotation(lex *lexer, depth int) (component, error) {
 	if lex.getType() == tokenAnnotation {
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
 		return &factor{value: 1}, nil
 	}
-	comp, err := p.parseComp(lex)
+	comp, err := p.parseComp(lex, depth)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +152,15 @@ func (p *parser) parseCompOrAnnotation(lex *lexer) (component, error) {
 //	     | compOrAnnotation [ ("/" | ".") compOrAnnotation ]*
 //
 // Operators are left-associative: a/b/c = (a/b)/c.
-func (p *parser) parseTerm(lex *lexer) (*term, error) {
+func (p *parser) parseTerm(lex *lexer, depth int) (*term, error) {
+	// Every level of nesting is a frame in this parser and another in every
+	// walk over the AST it produces. Canonicalization recurses over both, and a
+	// Go stack overflow is a fatal error rather than a panic, so the bound has
+	// to be here, before the AST exists.
+	if depth > MaxNestingDepth {
+		return nil, fmt.Errorf("%w: more than %d levels", ErrCodeTooComplex, MaxNestingDepth)
+	}
+
 	var result *term
 
 	// Leading "/" -> implicit factor(1) divided by the next comp.
@@ -156,7 +168,7 @@ func (p *parser) parseTerm(lex *lexer) (*term, error) {
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
-		right, err := p.parseCompOrAnnotation(lex)
+		right, err := p.parseCompOrAnnotation(lex, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +178,7 @@ func (p *parser) parseTerm(lex *lexer) (*term, error) {
 			term: &term{comp: right},
 		}
 	} else {
-		comp, err := p.parseCompOrAnnotation(lex)
+		comp, err := p.parseCompOrAnnotation(lex, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -186,7 +198,7 @@ func (p *parser) parseTerm(lex *lexer) (*term, error) {
 			return nil, err
 		}
 
-		right, err := p.parseCompOrAnnotation(lex)
+		right, err := p.parseCompOrAnnotation(lex, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +218,7 @@ func (p *parser) parseTerm(lex *lexer) (*term, error) {
 //	comp = NUMBER
 //	     | SYMBOL [NUMBER]
 //	     | "(" term ")"
-func (p *parser) parseComp(lex *lexer) (component, error) {
+func (p *parser) parseComp(lex *lexer, depth int) (component, error) {
 	switch lex.getType() {
 	case tokenNumber:
 		n, err := lex.getTokenAsInt()
@@ -229,7 +241,7 @@ func (p *parser) parseComp(lex *lexer) (component, error) {
 		if err := lex.consume(); err != nil {
 			return nil, err
 		}
-		t, err := p.parseTerm(lex)
+		t, err := p.parseTerm(lex, depth+1)
 		if err != nil {
 			return nil, err
 		}
@@ -384,15 +396,25 @@ func (p *parser) resolveFullWithBracket(lex *lexer, tok, bracket string) (*symbo
 // parseExponent checks if the next token is a number and, if so, consumes it
 // as an exponent. Returns 1 if there is no exponent.
 func (p *parser) parseExponent(lex *lexer) (int, error) {
-	if lex.getType() == tokenNumber {
-		n, err := lex.getTokenAsInt()
-		if err != nil {
-			return 0, err
-		}
-		if err := lex.consume(); err != nil {
-			return 0, err
-		}
-		return n, nil
+	if lex.getType() != tokenNumber {
+		return 1, nil
 	}
-	return 1, nil
+	n, err := lex.getTokenAsInt()
+	if err != nil {
+		return 0, err
+	}
+	// The value a unit raises to this power grows with it — "k2000000000" is a
+	// power of ten with billions of digits — so it is bounded here rather than
+	// left to exhaust memory later.
+	if n > MaxExponent || n < -MaxExponent {
+		return 0, &posError{
+			offset: lex.position(),
+			msg:    fmt.Sprintf("%v: %d, the limit is ±%d", ErrExponentTooLarge, n, MaxExponent),
+			err:    ErrExponentTooLarge,
+		}
+	}
+	if err := lex.consume(); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
