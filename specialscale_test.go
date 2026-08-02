@@ -166,7 +166,7 @@ func TestPrefixedSpecialAsDeltaScalesTheDifference(t *testing.T) {
 	}
 }
 
-// TestRedundantParenthesesDoNotChangeMeaning pins that a parenthesised code is
+// TestRedundantParenthesesDoNotChangeMeaning pins that a parenthesized code is
 // the same code. UCUM §22.1-2 says a special unit "cannot take part in any
 // algebraic operations", and parentheses are not an operation — so "(Cel)" has
 // to behave exactly like "Cel" rather than falling through to the difference
@@ -212,7 +212,7 @@ func TestRedundantParenthesesDoNotChangeMeaning(t *testing.T) {
 		t.Errorf("Convert(7, \"([pH])\", \"mol/l\") = %v, want 1e-7", got)
 	}
 
-	// An exponent on a parenthesised special unit is still an exponent, and still
+	// An exponent on a parenthesized special unit is still an exponent, and still
 	// has to be refused.
 	if _, err := svc.Convert(1, "(Cel)2", "K2"); err == nil {
 		t.Error(`Convert(1, "(Cel)2", "K2") = nil error, want an error`)
@@ -221,7 +221,7 @@ func TestRedundantParenthesesDoNotChangeMeaning(t *testing.T) {
 
 // TestRedundantParenthesesKeepTheDeclaredProperty is the same rule in
 // ValidateInProperty. An atom is judged by the property UCUM declares for it,
-// and a parenthesised atom is still an atom — otherwise it falls to the
+// and a parenthesized atom is still an atom — otherwise it falls to the
 // dimensional comparison, which cannot tell a dimensionless "amount of
 // substance" from a "fraction".
 func TestRedundantParenthesesKeepTheDeclaredProperty(t *testing.T) {

@@ -37,7 +37,7 @@ type service struct {
 
 	// codesByProperty maps a lower-cased property name to the codes of the units
 	// that declare it. Built at construction; the canonical forms behind them
-	// are resolved lazily and memoised in propertyForms.
+	// are resolved lazily and memoized in propertyForms.
 	codesByProperty map[string][]string
 	propertyForms   sync.Map // map[string]map[string]bool
 
@@ -219,7 +219,7 @@ func (s *service) ValidateInProperty(code, property string) error {
 //
 // Redundant parentheses are looked through, for the same reason as in
 // specialUseForTerm: "(mol)" is the same code as "mol". Without that, a
-// parenthesised atom fell to the dimensional comparison and "(mol)" was accepted
+// parenthesized atom fell to the dimensional comparison and "(mol)" was accepted
 // as a "fraction" — mol is dimensionless in UCUM, so it shares that canonical
 // form — while "mol" was correctly refused.
 func declaredProperty(t *term) (string, bool) {
@@ -234,7 +234,7 @@ func declaredProperty(t *term) (string, bool) {
 }
 
 // canonicalFormsOfProperty returns the canonical forms of the units declaring a
-// property. Results are memoised: resolving one property canonicalizes only its
+// property. Results are memoized: resolving one property canonicalizes only its
 // own units, and never more than once.
 func (s *service) canonicalFormsOfProperty(property string) (map[string]bool, error) {
 	key := strings.ToLower(strings.TrimSpace(property))
@@ -437,7 +437,7 @@ func (s *service) IsComparable(code1, code2 string) (bool, error) {
 }
 
 // Analyze returns a human-readable description of the unit expression, in the
-// display format of the official UCUM test suite: each unit parenthesised with
+// display format of the official UCUM test suite: each unit parenthesized with
 // its full name, exponents written as " ^ n", and operators as " * " and " / ".
 //
 // An empty expression describes the unity, matching the suite, even though
@@ -811,7 +811,7 @@ func mergeUnitLists(left, right []canonicalUnit, sign int) []canonicalUnit {
 const unityDisplayName = "(unity)"
 
 // displayName renders a term in the display format of the official UCUM test
-// suite: every unit is parenthesised with its full name, a prefix is
+// suite: every unit is parenthesized with its full name, a prefix is
 // concatenated onto that name ("mm" is "(millimeter)"), an exponent other than
 // 1 is written inside the parentheses as " ^ n", numeric factors appear bare,
 // and the operators are " * " and " / ".
@@ -820,23 +820,23 @@ func displayName(t *term) string {
 		return unityDisplayName
 	}
 	var sb strings.Builder
-	displayTermTo(&sb, t)
+	displayTermTo(&sb, t, false)
 	return sb.String()
 }
 
-func displayTermTo(sb *strings.Builder, t *term) {
-	displayComponentTo(sb, t.comp)
+func displayTermTo(sb *strings.Builder, t *term, rightOperand bool) {
+	displayComponentTo(sb, t.comp, rightOperand)
 	if t.term != nil {
 		if t.op == opDivision {
 			sb.WriteString(" / ")
 		} else {
 			sb.WriteString(" * ")
 		}
-		displayTermTo(sb, t.term)
+		displayTermTo(sb, t.term, true)
 	}
 }
 
-func displayComponentTo(sb *strings.Builder, c component) {
+func displayComponentTo(sb *strings.Builder, c component, rightOperand bool) {
 	switch v := c.(type) {
 	case *factor:
 		fmt.Fprintf(sb, "%d", v.value)
@@ -851,11 +851,22 @@ func displayComponentTo(sb *strings.Builder, c component) {
 		}
 		sb.WriteString(")")
 	case *term:
-		// Rendered without extra parentheses: the AST does not distinguish a
-		// group written in the source from the parser's own nesting, and adding
-		// them here would bracket every operator. composeTerm makes the same
-		// choice, so the two renderings stay consistent.
-		displayTermTo(sb, v)
+		// A group on the right of an operator keeps its brackets, for the reason
+		// given in composeComponentTo: without them the description of
+		// "mL/(kg.min)" reads as "mL/kg.min", which denotes a different unit.
+		// The left operand of a chain needs none, since the operators are
+		// left-associative.
+		// Redundant parentheses are looked through first, so that "((a.b))" is
+		// recognized as carrying an operator and "((m))" as not.
+		inner := unwrapTerm(v)
+		parenthesize := rightOperand && inner.term != nil
+		if parenthesize {
+			sb.WriteString("[")
+		}
+		displayTermTo(sb, inner, false)
+		if parenthesize {
+			sb.WriteString("]")
+		}
 	}
 }
 
@@ -884,20 +895,32 @@ func (s *service) specialUseForTerm(t *term) *specialUse {
 	return &specialUse{handler: h, alpha: prefixValue(sym)}
 }
 
+// unwrapTerm looks through terms that hold nothing but a single nested term,
+// which is what redundant parentheses produce, and returns the innermost one.
+// "((m))" and "m" both come back as the term holding the symbol m.
+func unwrapTerm(t *term) *term {
+	for t != nil && t.term == nil {
+		inner, ok := t.comp.(*term)
+		if !ok {
+			return t
+		}
+		t = inner
+	}
+	return t
+}
+
 // loneSymbol returns the single symbol a term denotes, looking through any
 // number of redundant parentheses, and nil if the term is anything else.
 func loneSymbol(t *term) *symbol {
-	for t != nil && t.term == nil {
-		switch comp := t.comp.(type) {
-		case *symbol:
-			return comp
-		case *term:
-			t = comp
-		default:
-			return nil
-		}
+	t = unwrapTerm(t)
+	if t == nil || t.term != nil {
+		return nil
 	}
-	return nil
+	sym, ok := t.comp.(*symbol)
+	if !ok {
+		return nil
+	}
+	return sym
 }
 
 // prefixValue returns the scale factor of a symbol's prefix, or 1 if it has

@@ -25,6 +25,35 @@ func TestComposerRoundTrip(t *testing.T) {
 	}
 }
 
+// TestAnalyzeKeepsGroups is the same rule in the public Analyze, whose output is
+// read by a person. A description of "mL/(kg.min)" that reads as "mL/kg.min"
+// names a different unit; the brackets are square so they cannot be confused
+// with the parentheses Analyze already puts around every unit name.
+func TestAnalyzeKeepsGroups(t *testing.T) {
+	svc := newTestService(t)
+
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"mL/(kg.min)", "(milliliter) / [(kilogram) * (minute)]"},
+		{"kg/(s.m2)", "(kilogram) / [(second) * (meter ^ 2)]"},
+		{"(kg/s).m2", "(kilogram) / (second) * (meter ^ 2)"},
+		{"kg.m/s2", "(kilogram) * (meter) / (second ^ 2)"},
+		{"(m)", "(meter)"},
+	}
+	for _, tt := range tests {
+		got, err := svc.Analyze(tt.code)
+		if err != nil {
+			t.Errorf("Analyze(%q): %v", tt.code, err)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("Analyze(%q) = %q, want %q", tt.code, got, tt.want)
+		}
+	}
+}
+
 func TestComposerExactOutput(t *testing.T) {
 	model, err := loadDefinitions(nil)
 	if err != nil {
@@ -44,6 +73,30 @@ func TestComposerExactOutput(t *testing.T) {
 		{"%", "%"},
 		{"[lb_av]", "[lb_av]"},
 		{"mg/dL", "mg/dL"},
+
+		// A group on the right of an operator keeps its parentheses. Dropping
+		// them changes the unit, because the operators are left-associative:
+		// "kg/s.m2" is kg.m2.s-1, not kg.m-2.s-1. Found by FuzzComposeRoundTrip,
+		// on codes taken from the FHIR ucum-common value set.
+		{"kg/(s.m2)", "kg/(s.m2)"},
+		{"mL/(kg.min)", "mL/(kg.min)"},
+		{"mL/min/(173.10*-2.m2)", "mL/min/(173.10*-2.m2)"},
+		{"m.(s/kg)", "m.(s/kg)"},
+
+		// A group on the left needs none, since that is what left-associativity
+		// already means.
+		{"(kg/s).m2", "kg/s.m2"},
+		{"(m/s)/kg", "m/s/kg"},
+
+		// Redundant parentheses are dropped, and looked through when deciding
+		// whether the group carries an operator at all.
+		{"(m)", "m"},
+		{"((m))", "m"},
+		{"0/((1.A))", "0/(1.A)"},
+		{"kg/((s.m2))", "kg/(s.m2)"},
+
+		// Annotations carry no meaning and do not survive the round trip.
+		{"mg/dL{lot17}", "mg/dL"},
 	}
 
 	for _, tt := range tests {
