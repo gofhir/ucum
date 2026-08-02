@@ -189,6 +189,66 @@ func (c *Comparator) ConvertDecimal(d Decimal, from, to string) (Decimal, error)
 	return NewDecimal(out, d.SignificantFigures()), nil
 }
 
+// Add returns a + b, in the units of a.
+//
+// FHIRPath defines arithmetic over quantities and says that "implementations
+// that do support units shall do so as specified by [UCUM]", so the right
+// operand is converted to the unit of the left one before the addition. The
+// conversion and the sum are both exact, which is the point: ten quantities of
+// 0.1 L add up to exactly 1 L, where ten float64 tenths do not.
+//
+// It fails with ucum.ErrNotLinear if either quantity sits on a non-ratio scale —
+// see the note on Sub — and with an error if the units are not comparable.
+func (c *Comparator) Add(a, b Quantity) (Quantity, error) {
+	return c.additive(a, b, true)
+}
+
+// Sub returns a - b, in the units of a, under the same rules as Add.
+//
+// Both refuse the non-ratio scales rather than returning a number. Adding two
+// points on an affine scale gives an answer that depends on the unit it is
+// carried out in: 20 Cel + 20 Cel is 40 Cel, while the same sum done in kelvin
+// is 586.3 K, which is 313.15 Cel. Neither is more correct than the other, so
+// there is nothing to return. The same holds for the logarithmic scales, where
+// adding two bels is not adding their values at all.
+//
+// A temperature *difference* is a different quantity, and UCUM has no separate
+// unit for it. Where a rate or a gradient is meant, name the compound unit and
+// convert it — Convert(1, "Cel/min", "K/min") — which is the reading in which
+// the offset cancels.
+func (c *Comparator) Sub(a, b Quantity) (Quantity, error) {
+	return c.additive(a, b, false)
+}
+
+// additive is the shared body of Add and Sub.
+func (c *Comparator) additive(a, b Quantity, add bool) (Quantity, error) {
+	if err := checkSystems(a, b); err != nil {
+		return Quantity{}, err
+	}
+
+	// ConversionFactor does three jobs here: it rejects a unit on a non-ratio
+	// scale with ErrNotLinear, which is exactly the case that has no answer; it
+	// rejects incommensurable units; and it returns the exact factor for
+	// everything else.
+	factor, err := c.svc.ConversionFactor(b.Code, a.Code)
+	if err != nil {
+		return Quantity{}, err
+	}
+
+	av, bv := a.rat(), b.rat()
+	if av == nil || bv == nil {
+		return Quantity{}, fmt.Errorf("quantity value is not finite")
+	}
+
+	bv.Mul(bv, factor)
+	if add {
+		av.Add(av, bv)
+	} else {
+		av.Sub(av, bv)
+	}
+	return Quantity{Exact: av, Code: a.Code, System: a.System}, nil
+}
+
 // Comparable reports whether two quantities can be compared at all, that is,
 // whether their units share a canonical form.
 func (c *Comparator) Comparable(a, b Quantity) (bool, error) {

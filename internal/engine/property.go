@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gofhir/ucum/v4/internal/expr"
@@ -116,4 +117,24 @@ func (s *Service) canonicalFormsOfProperty(property string) (map[string]bool, er
 	}
 	s.propertyForms.Store(key, forms)
 	return forms, nil
+}
+
+// Properties returns the names of the quantities the definitions declare, sorted
+// and deduplicated.
+//
+// It exists to close the loop with ValidateInProperty, which is otherwise a
+// guessing game: the property names come from ucum-essence.xml, so a caller has
+// no way to know that "mass concentration" is spelled that way and not
+// "concentration", and a wrong guess is reported as "unknown property" rather
+// than as a unit that does not measure it. Every name returned here is one
+// ValidateInProperty accepts.
+//
+// The definitions of UCUM 2.2 declare 101 of them.
+func (s *Service) Properties() []string {
+	out := make([]string, 0, len(s.codesByProperty))
+	for p := range s.codesByProperty {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
 }

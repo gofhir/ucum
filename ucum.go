@@ -7,6 +7,7 @@
 package ucum
 
 import (
+	"fmt"
 	"io"
 	"math/big"
 
@@ -57,6 +58,51 @@ type (
 // implementation of that interface and force a new major version on everyone.
 type Identified interface {
 	Definitions() Definitions
+}
+
+// PropertyLister is implemented by a service that can enumerate the properties
+// its definitions declare — length, mass, force, mass concentration, and the
+// hundred or so others in UCUM 2.2.
+//
+// It closes the loop with ValidateInProperty, which is otherwise a guessing
+// game: the names come from ucum-essence.xml, so nothing tells a caller that the
+// spelling is "mass concentration" rather than "concentration", and a wrong
+// guess is reported as an unknown property rather than as a unit that does not
+// measure it.
+//
+//	props := svc.(ucum.PropertyLister).Properties()
+//
+// Like Identified, it is a separate interface rather than a method on Service,
+// so that adding it breaks no existing implementation of that interface.
+type PropertyLister interface {
+	Properties() []string
+}
+
+// ValidateCanonicalUnits reports whether code reduces to the given canonical
+// form, which is the question "is this a length?" asked dimensionally rather
+// than by name.
+//
+// The canonical form is written the way Canonical returns it: base units in
+// alphabetical order with their exponents, so "g.m-3" for a mass concentration
+// and "g.m.s-2" for a force. Note that the canonical unit of mass is the gram,
+// not the kilogram, so "kg" is a valid code but never a canonical form.
+//
+// It is a function rather than a method because it needs nothing a Service does
+// not already expose, which means it works against any implementation of the
+// interface, including a test double.
+func ValidateCanonicalUnits(svc Service, code, canonical string) error {
+	pair, err := svc.Canonical(1, code)
+	if err != nil {
+		return err
+	}
+	if pair.Code != canonical {
+		return &ValidationError{
+			Code:    code,
+			Message: fmt.Sprintf("unit %q does not reduce to %q (its canonical form is %s)", code, canonical, pair.Code),
+			Offset:  -1,
+		}
+	}
+	return nil
 }
 
 // ExactService extends Service with exact rational arithmetic, for callers that

@@ -198,7 +198,20 @@ svc.ValidateInProperty("m", "mass")             // error
 svc.ValidateInProperty("mol", "fraction")       // error — mol declares "amount of substance"
 ```
 
-The dimensional half is not airtight, and cannot be: UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so for a compound dimensionless expression the check cannot tell `amount of substance` from `fraction`. Atomic codes never take that path.
+`Properties()` enumerates the 101 the definitions declare, which is what makes the check usable: the names come from `ucum-essence.xml`, so nothing otherwise tells a caller that the spelling is `mass concentration` and not `concentration`, and a wrong guess is reported as an unknown property rather than as a unit that does not measure it.
+
+```go
+props := svc.(ucum.PropertyLister).Properties()  // ["(unclassified)", "acceleration", "acidity", …]
+```
+
+The same question asked dimensionally is `ValidateCanonicalUnits`, a free function rather than a method, since it needs nothing the interface does not already expose:
+
+```go
+ucum.ValidateCanonicalUnits(svc, "N", "g.m.s-2")   // nil
+ucum.ValidateCanonicalUnits(svc, "kg", "kg")       // error: the canonical mass unit is the gram
+```
+
+The dimensional half of `ValidateInProperty` is not airtight, and cannot be: UCUM gives 15 canonical forms to more than one property. `"1"` is claimed by 11 of them, so for a compound dimensionless expression the check cannot tell `amount of substance` from `fraction`. Atomic codes never take that path.
 
 ## Errors
 
@@ -301,6 +314,17 @@ c.Compare(fhir.Quantity{Value: 100, Code: "[degF]"},
           fhir.Quantity{Value: 50, Code: "Cel"})   // -1: 100 °F is colder
 c.CanonicalKey(fhir.Quantity{Value: 1, Code: "L"}) // "m3", 0.001 — an index key
 ```
+
+**Quantity arithmetic**, which FHIRPath defines over quantities and requires to follow UCUM. The right operand is converted to the unit of the left one, exactly:
+
+```go
+c.Add(fhir.Quantity{Value: 1, Code: "m"},
+      fhir.Quantity{Value: 50, Code: "cm"})        // 3/2 m, exactly
+c.Add(fhir.Quantity{Value: 1, Code: "mg/dL"},
+      fhir.Quantity{Value: 1, Code: "g/L"})        // 101 mg/dL, exactly
+```
+
+Both `Add` and `Sub` refuse a non-ratio scale with `ucum.ErrNotLinear`, because there is no answer to give: 20 Cel + 20 Cel is 40 Cel, while the same sum carried out in kelvin is 313.15 Cel, and neither is more correct. Where a rate or a gradient is meant, name the compound unit instead — `Convert(1, "Cel/min", "K/min")` — which is the reading in which the offset cancels.
 
 A FHIR `decimal` arrives as text, and the `float64` nearest `0.01` is not `1/100`, so an exact comparison of a `float64` reports differences the source data does not have. Carry the decimal instead:
 
