@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.2.0](https://github.com/gofhir/ucum/compare/v4.1.0...v4.2.0) (2026-08-03)
+
+
+### Features
+
+* bound code size so a short string cannot exhaust the process ([fde2013](https://github.com/gofhir/ucum/commit/fde2013e2e98d1f81ced37fcefd4f1aade7c21ca))
+* bound the parse cache, which caller input could grow without limit ([cf7cf3c](https://github.com/gofhir/ucum/commit/cf7cf3c64c4eee84bde264e2d7be7fd4abc79312))
+* close the three gaps against Java and FHIRPath ([db0a63b](https://github.com/gofhir/ucum/commit/db0a63b545e50e7ae44443270713485f0c71615e))
+* export ErrDivisionByZero, and report where a code broke ([22275c7](https://github.com/gofhir/ucum/commit/22275c70fa08251bd478f6bcc4ca546559487998))
+
+
+### Bug Fixes
+
+* apply a special unit's prefix to the function argument, per §22.4 ([35a2111](https://github.com/gofhir/ucum/commit/35a21119fde531cca77c98a793e54419dda96646))
+* look through parentheses in ValidateInProperty, and pin the gradient reading ([73e64e8](https://github.com/gofhir/ucum/commit/73e64e832fdb5435cc09d2de181392573bdea777))
+
 ## [4.1.0](https://github.com/gofhir/ucum/compare/v4.0.0...v4.1.0) (2026-08-01)
 
 
