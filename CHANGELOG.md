@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/gofhir/ucum/compare/v4.2.0...v4.3.0) (2026-10-16)
+
+
+### Features
+
+* Multiply and Divide write the result in the operands' own units ([#50](https://github.com/gofhir/ucum/issues/50)) ([00124e9](https://github.com/gofhir/ucum/commit/00124e9e575c6493c17f6c05c7f2e419d0fab283))
+
 ## [4.2.0](https://github.com/gofhir/ucum/compare/v4.1.0...v4.2.0) (2026-08-03)
 
 
