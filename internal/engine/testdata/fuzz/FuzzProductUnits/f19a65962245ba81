@@ -1,0 +1,5 @@
+go test fuzz v1
+string("L700.aL")
+string("0")
+float64(0.5833333333333334)
+float64(0.25)

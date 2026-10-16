@@ -33,11 +33,12 @@ fmt:
 conformance:
 	$(GO) test -v -run TestFunctional ./internal/engine/
 
-# Longer than CI runs them. Both targets have found real bugs.
+# Longer than CI runs them. The first two have found real bugs.
 .PHONY: fuzz
 fuzz:
 	$(GO) test -run XXX -fuzz FuzzValidate -fuzztime $(FUZZTIME) ./internal/engine/
 	$(GO) test -run XXX -fuzz FuzzComposeRoundTrip -fuzztime $(FUZZTIME) ./internal/engine/
+	$(GO) test -run XXX -fuzz FuzzProductUnits -fuzztime $(FUZZTIME) ./internal/engine/
 
 .PHONY: bench
 bench:

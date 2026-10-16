@@ -1,0 +1,5 @@
+go test fuzz v1
+string("a1")
+string("L100.aL")
+float64(28)
+float64(0.25)

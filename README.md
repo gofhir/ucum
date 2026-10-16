@@ -68,6 +68,8 @@ svc.Divide(ucum.Pair{Value: 1.5, Code: "g"}, ucum.Pair{Value: 2, Code: "m"}) // 
 svc.ValidateInProperty("N", "force")           // nil
 ```
 
+`Multiply` and `Divide` write the result in the operands' own units, not in base units, as FHIRPath does: `12 cm * 3 cm` is `{36, "cm2"}`, not `{0.0036, "m2"}`. The same atom adds its exponents, and where it carries two prefixes both are read in the smaller one, so `2 cm * 2 m` is `{400, "cm2"}` in either order and `1 km / 1 m` is `{1000, "1"}`. Different atoms stay apart even when they share a dimension (`L * dm3` is `"L.dm3"`), annotations are dropped, and the result is always commensurable with, and equal in value to, the canonical one. An operand with a special unit (`Cel`, `[pH]`, `Cel/min`) or an arbitrary unit (`[IU]`), or a value that is not finite, keeps the canonical result.
+
 A `Service` is safe for concurrent use and caches parsed expressions internally, so build one and share it.
 
 To report which UCUM release you are running against — a FHIR server declaring the version of the code system it supports, for instance:

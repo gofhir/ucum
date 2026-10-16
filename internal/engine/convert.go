@@ -174,12 +174,15 @@ func (s *Service) IsComparable(code1, code2 string) (bool, error) {
 	return expr.ComposeCanonicalUnits(can1) == expr.ComposeCanonicalUnits(can2), nil
 }
 
-// Multiply multiplies two value/unit pairs.
+// Multiply multiplies two value/unit pairs. The result is written in the
+// operands' own units (12 cm times 3 cm is 36 cm2), or in the canonical unit
+// when an operand is a special or arbitrary unit; see productResult.
 func (s *Service) Multiply(v1, v2 Pair) (Pair, error) {
 	return s.combine(v1, v2, expr.OpMultiplication)
 }
 
-// Divide divides two value/unit pairs.
+// Divide divides two value/unit pairs, with the result unit chosen as Multiply
+// chooses it: 12 cm2 divided by 3 cm is 4 cm.
 func (s *Service) Divide(v1, v2 Pair) (Pair, error) {
 	return s.combine(v1, v2, expr.OpDivision)
 }
@@ -188,6 +191,10 @@ func (s *Service) Divide(v1, v2 Pair) (Pair, error) {
 // its canonical scale, combine the operands, combine the canonical factors and
 // round once; they differ in the operator and in division having to reject a
 // zero divisor.
+//
+// The exact result is then rewritten in the operands' own units where they
+// allow it. Where they do not, and on the float64 fallback, the result stays in
+// the canonical unit.
 func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 	t1, can1, err := s.canonicalParts(v1.Code)
 	if err != nil {
@@ -229,7 +236,11 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 		} else {
 			m1.Mul(m1, m2)
 		}
-		out, _ := m1.Mul(m1, factor).Float64()
+		m1.Mul(m1, factor)
+		if p, ok := s.productResult(t1, t2, div, m1, code); ok {
+			return p, nil
+		}
+		out, _ := m1.Float64()
 		return Pair{Value: out, Code: code}, nil
 	case err != nil && !errors.Is(err, ErrNotRational):
 		return Pair{}, ucumerr.Validation(v1.Code, err)

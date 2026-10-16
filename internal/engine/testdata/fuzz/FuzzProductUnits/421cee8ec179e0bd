@@ -1,0 +1,5 @@
+go test fuzz v1
+string("cm")
+string("kA.b700")
+float64(3.5)
+float64(0.25)
