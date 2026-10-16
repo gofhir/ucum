@@ -371,18 +371,22 @@ func TestCanonicalExactWhenRepresentable(t *testing.T) {
 	}
 }
 
+// TestMultiplyExactWhenRepresentable holds Multiply to a single rounding. The
+// result is in the operands' own units, so the exact product in canonical units
+// is divided by the canonical factor of the result unit before it is rounded.
 func TestMultiplyExactWhenRepresentable(t *testing.T) {
 	svc, err := New(nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tests := []struct {
-		v1, v2 Pair
+		v1, v2   Pair
+		wantCode string
 	}{
-		{Pair{1, "L"}, Pair{1, "L"}},
-		{Pair{3, "mL"}, Pair{7, "mL"}},
-		{Pair{2.5, "mg/dL"}, Pair{4, "L"}},
-		{Pair{1, "km"}, Pair{1, "mm[Hg]"}},
+		{Pair{1, "L"}, Pair{1, "L"}, "L2"},
+		{Pair{3, "mL"}, Pair{7, "mL"}, "mL2"},
+		{Pair{2.5, "mg/dL"}, Pair{4, "L"}, "mg"},
+		{Pair{1, "km"}, Pair{1, "mm[Hg]"}, "km.mm[Hg]"},
 	}
 	for _, tt := range tests {
 		can1, err := svc.getCanonical(tt.v1.Code)
@@ -397,8 +401,17 @@ func TestMultiplyExactWhenRepresentable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Multiply(%v, %v): %v", tt.v1, tt.v2, err)
 		}
+		if p.Code != tt.wantCode {
+			t.Errorf("Multiply(%v, %v).Code = %q, want %q", tt.v1, tt.v2, p.Code, tt.wantCode)
+			continue
+		}
+		canRes, err := svc.getCanonical(p.Code)
+		if err != nil {
+			t.Fatal(err)
+		}
 		exact := new(big.Rat).Mul(can1.Value.Rat(), can2.Value.Rat())
 		exact.Mul(exact, decimal.RatFromFloat(tt.v1.Value*tt.v2.Value))
+		exact.Quo(exact, canRes.Value.Rat())
 		want, _ := exact.Float64()
 		if p.Value != want {
 			t.Errorf("Multiply(%v, %v) = %.20g, want %.20g (exact, rounded once)",
@@ -488,7 +501,8 @@ func TestDivide(t *testing.T) {
 		{Pair{1.5, "g"}, Pair{2, "m"}, 0.75, "g.m-1"},
 		{Pair{1, "L"}, Pair{1, "mL"}, 1000, "1"},
 		{Pair{1, "m"}, Pair{1, "s"}, 1, "m.s-1"},
-		{Pair{10, "km"}, Pair{2, "h"}, 10000.0 / 7200.0, "m.s-1"},
+		// The result is in the operands' units, not in m.s-1.
+		{Pair{10, "km"}, Pair{2, "h"}, 5, "km.h-1"},
 		{Pair{1, "mol/L"}, Pair{1, "mmol/L"}, 1000, "1"},
 	}
 	for _, tt := range tests {

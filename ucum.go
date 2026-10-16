@@ -22,6 +22,11 @@ type Service interface {
 	Convert(value float64, from, to string) (float64, error)
 	IsComparable(code1, code2 string) (bool, error)
 	Analyze(code string) (string, error)
+
+	// Multiply and Divide write the result in the operands' own units, merging
+	// the same atom into its smaller prefix: 12 cm times 3 cm is 36 cm2, and
+	// 2 cm times 2 m is 400 cm2. An operand with a special or an arbitrary unit,
+	// or a value that is not finite, gives the result in canonical units.
 	Multiply(v1, v2 Pair) (Pair, error)
 	Divide(v1, v2 Pair) (Pair, error)
 }
