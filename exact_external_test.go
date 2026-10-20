@@ -70,6 +70,47 @@ func TestExternalExactErrorsAreDistinguishable(t *testing.T) {
 	}
 }
 
+// UCUM §6 permits only characters 33–126 within curly braces:
+// https://ucum.org/ucum#section-Syntax-RulesfromTheUnifiedCodeforUnitsofMeasure-CurlyBraces
+func TestExternalAnnotationCharacters(t *testing.T) {
+	svc, err := ucum.NewExact()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, code := range []string{"m{patient weight}", "m{ }", "m{\t}", "m{\x7f}"} {
+		t.Run(code, func(t *testing.T) {
+			check := func(err error) {
+				t.Helper()
+				var invalid *ucum.ValidationError
+				if !errors.As(err, &invalid) {
+					t.Errorf("expected ValidationError for %q, got %v", code, err)
+				} else if invalid.Code != code {
+					t.Errorf("ValidationError.Code = %q, want %q", invalid.Code, code)
+				}
+			}
+			check(svc.Validate(code))
+			for _, pair := range [][2]string{{code, "m"}, {"m", code}, {code, code}} {
+				_, err := svc.ConvertRat(big.NewRat(1, 1), pair[0], pair[1])
+				var invalid *ucum.ConversionError
+				if !errors.As(err, &invalid) {
+					t.Errorf("ConvertRat(%q -> %q): expected ConversionError, got %v", pair[0], pair[1], err)
+				}
+			}
+		})
+	}
+	for _, code := range []string{"m{patient_weight}", "m{!}", "m{~}"} {
+		if err := svc.Validate(code); err != nil {
+			t.Errorf("Validate(%q): %v", code, err)
+		}
+		got, err := svc.ConvertRat(big.NewRat(1, 1), code, "m")
+		if err != nil {
+			t.Errorf("ConvertRat(%q -> m): %v", code, err)
+		} else if got.Cmp(big.NewRat(1, 1)) != 0 {
+			t.Errorf("ConvertRat(%q -> m) = %s, want 1", code, got)
+		}
+	}
+}
+
 // TestExternalServiceAssertsToExactService documents the migration path for
 // code that already holds a Service from New().
 func TestExternalServiceAssertsToExactService(t *testing.T) {
