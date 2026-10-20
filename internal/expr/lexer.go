@@ -129,7 +129,7 @@ func (l *lexer) consume() error {
 }
 
 // readAnnotation reads a {annotation} token. The braces are included in the
-// token value. Only ASCII characters are permitted inside the annotation.
+// token value. UCUM §6 permits characters 33–126 inside the annotation.
 func (l *lexer) readAnnotation() error {
 	start := l.index
 	l.index++ // skip opening {
@@ -142,7 +142,7 @@ func (l *lexer) readAnnotation() error {
 			l.typ = tokenAnnotation
 			return nil
 		}
-		if ch > 0x7E || ch < 0x20 {
+		if ch > 0x7E || ch < 0x21 {
 			return ucumerr.At(l.index, "invalid character in annotation")
 		}
 		l.index++
