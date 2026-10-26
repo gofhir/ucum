@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.1](https://github.com/gofhir/ucum/compare/v4.3.0...v4.3.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* CanonicalKey uses Quantity.Exact as given and rounds once ([#57](https://github.com/gofhir/ucum/issues/57)) ([9691ced](https://github.com/gofhir/ucum/commit/9691ced3751286d34a963aa8635af2dbc09d8df5)), closes [#54](https://github.com/gofhir/ucum/issues/54)
+
 ## [4.3.0](https://github.com/gofhir/ucum/compare/v4.2.0...v4.3.0) (2026-10-16)
 
 
