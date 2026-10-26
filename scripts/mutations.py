@@ -21,7 +21,7 @@ PACKAGES = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO, ".cache", "p
 Q = "fhir/quantity.go"
 T = "fhir/canonicalkey_test.go"
 
-M1 = (Q, "if v := q.rat(); v != nil {", "if v := q.rat(); false && v != nil {")
+M1 = (Q, "if q.Exact != nil {\n\t\tp, ok, err", "if false && q.Exact != nil {\n\t\tp, ok, err")
 
 # (id, descripción, [(archivo, viejo, nuevo)], regex de tests, esperado)
 MUTATIONS = [
@@ -32,10 +32,10 @@ MUTATIONS = [
     ("M1/compare", "M1 against the Compare oracle alone", [M1], "CanonicalKeyMatchesCompareCommonUnits$", "kill"),
     ("M1/examples", "M1 against the official examples alone", [M1], "OfficialExamples$", "kill"),
     ("M2", "ignore Exact, use Value",
-     [(Q, "if v := q.rat(); v != nil {", "if v := new(big.Rat).SetFloat64(q.Value); v != nil {")],
+     [(Q, "c.canonicalRat(q.Exact, q.Code)", "c.canonicalRat(new(big.Rat).SetFloat64(q.Value), q.Code)")],
      "CanonicalKeyExactByHand$", "kill"),
     ("M3", "return ErrNotRational instead of falling back",
-     [(Q, "if !errors.Is(err, ucum.ErrNotRational) {\n\t\t\treturn \"\", 0, err", "if true {\n\t\t\treturn \"\", 0, err")],
+     [(Q, "if errors.Is(err, ucum.ErrNotRational) {\n\t\treturn ucum.RatPair{}, false, nil", "if false {\n\t\treturn ucum.RatPair{}, false, nil")],
      "CanonicalKeyNonRationalUsesExact$", "kill"),
     ("M4", "round toward zero",
      [(Q, "f, _ := p.Value.Float64()", "f, _ := new(big.Float).SetPrec(53).SetMode(big.ToZero).SetRat(p.Value).Float64()")],
@@ -53,7 +53,7 @@ MUTATIONS = [
      [(Q, "f, _ := p.Value.Float64()", "f, _ := new(big.Float).SetPrec(200).SetRat(p.Value).Float64()")],
      "CanonicalKeyExactByHand$", "kill"),
     ("M13", "honour Exact only when Value is zero",
-     [(Q, "if v := q.rat(); v != nil {", "if v := q.rat(); v != nil && q.Value == 0 {")],
+     [(Q, "if q.Exact != nil {\n\t\tp, ok, err", "if q.Exact != nil && q.Value == 0 {\n\t\tp, ok, err")],
      "CanonicalKeyExactByHand$", "kill"),
     ("M14", "round through a big.Float as wide as the rational",
      [(Q, "f, _ := p.Value.Float64()", "f, _ := new(big.Float).SetRat(p.Value).Float64()")],
@@ -62,7 +62,7 @@ MUTATIONS = [
      [(Q, "f, _ := p.Value.Float64()", "f, _ := new(big.Rat).Abs(p.Value).Float64()")],
      "CanonicalKeyExactByHand$", "kill"),
     ("M5", "fall back to float64 on any error",
-     [(Q, "if !errors.Is(err, ucum.ErrNotRational) {\n\t\t\treturn \"\", 0, err", "if false {\n\t\t\treturn \"\", 0, err")],
+     [(Q, "if err != nil {\n\t\treturn ucum.RatPair{}, false, err", "if err != nil {\n\t\treturn ucum.RatPair{}, false, nil")],
      "CanonicalKeyPropagatesErrors$", "kill"),
     ("M6", "scale oracle compares keys only: M1 must survive it",
      [M1, (T, "if gotCode != code || got != want {", "if gotCode != code {")],

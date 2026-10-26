@@ -145,24 +145,33 @@ func (c *Comparator) canonicalPair(a, b Quantity) (ra, rb *big.Rat, err error) {
 		return nil, nil, fmt.Errorf("quantity value is not finite")
 	}
 
-	ca, err := c.svc.CanonicalRat(va, a.Code)
-	if err != nil {
-		if errors.Is(err, ucum.ErrNotRational) {
-			return nil, nil, nil
-		}
+	ca, ok, err := c.canonicalRat(va, a.Code)
+	if err != nil || !ok {
 		return nil, nil, err
 	}
-	cb, err := c.svc.CanonicalRat(vb, b.Code)
-	if err != nil {
-		if errors.Is(err, ucum.ErrNotRational) {
-			return nil, nil, nil
-		}
+	cb, ok, err := c.canonicalRat(vb, b.Code)
+	if err != nil || !ok {
 		return nil, nil, err
 	}
 	if ca.Code != cb.Code {
 		return nil, nil, fmt.Errorf("quantities are not comparable: %s vs %s", ca.Code, cb.Code)
 	}
 	return ca.Value, cb.Value, nil
+}
+
+// canonicalRat es la regla que comparten Compare y CanonicalKey: la forma
+// canónica exacta de v en code, o ok en false, sin error, cuando la escala no
+// tiene forma racional (ErrNotRational) y quien llama tiene que usar float64.
+// CanonicalRat no modifica v.
+func (c *Comparator) canonicalRat(v *big.Rat, code string) (p ucum.RatPair, ok bool, err error) {
+	p, err = c.svc.CanonicalRat(v, code)
+	if errors.Is(err, ucum.ErrNotRational) {
+		return ucum.RatPair{}, false, nil
+	}
+	if err != nil {
+		return ucum.RatPair{}, false, err
+	}
+	return p, true, nil
 }
 
 // ConvertDecimal converts a value between units, preserving the precision its
@@ -283,16 +292,17 @@ func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err e
 	if err := checkSystems(q); err != nil {
 		return "", 0, err
 	}
-	// rat es nil solo para un Value no finito, que sigue por float64 como
-	// antes.
-	if v := q.rat(); v != nil {
-		p, err := c.svc.CanonicalRat(v, q.Code)
-		if err == nil {
+	// Solo Exact necesita la vía exacta: Canonical ya convierte un Value a
+	// racional y redondea una vez, y así una escala no racional no se
+	// canonicaliza dos veces.
+	if q.Exact != nil {
+		p, ok, err := c.canonicalRat(q.Exact, q.Code)
+		if err != nil {
+			return "", 0, err
+		}
+		if ok {
 			f, _ := p.Value.Float64()
 			return p.Code, f, nil
-		}
-		if !errors.Is(err, ucum.ErrNotRational) {
-			return "", 0, err
 		}
 	}
 	p, err := c.svc.Canonical(q.float(), q.Code)

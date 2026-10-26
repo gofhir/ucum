@@ -345,7 +345,7 @@ func TestCanonicalKeyScaleCommonUnits(t *testing.T) {
 	// Conteo del ValueSet embebido (fhir.CommonUnitsValueSetVersion): si la
 	// librería clasifica distinto, la cobertura cambia y el test lo dice.
 	if len(linear) != 825 || len(special) != 15 {
-		t.Errorf("%d linear and %d special codes, want 825 and 15", len(linear), len(special))
+		t.Errorf("%d linear and %d special codes, want 825 and 15 (update both with the embedded value set)", len(linear), len(special))
 	}
 	fails := 0
 	for _, u := range linear {

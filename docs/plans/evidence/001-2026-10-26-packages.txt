@@ -1,4 +1,4 @@
-# 2026-10-26 10:13
+# 2026-10-26 11:13
 scripts/fetch-packages.sh
 hl7.fhir.r4.examples-4.0.1.tgz: OK
 hl7.fhir.r4b.examples-4.3.0.tgz: OK
@@ -14,9 +14,9 @@ UCUM_PACKAGES=./.cache/packages go test -count=1 -run TestOfficialExamples -v ./
 === RUN   TestOfficialExamples/R5
     examples_test.go:123: hl7.fhir.r5.examples-5.0.0.tgz: 0 JSON files that do not decode skipped
     examples_test.go:179: 273 distinct quantities: 267 scaled, 798 cross-unit pairs, 1 special codes skipped [Cel], 0 invalid codes skipped []
---- PASS: TestOfficialExamples (3.52s)
-    --- PASS: TestOfficialExamples/R4 (1.45s)
-    --- PASS: TestOfficialExamples/R4B (0.90s)
-    --- PASS: TestOfficialExamples/R5 (1.15s)
+--- PASS: TestOfficialExamples (5.51s)
+    --- PASS: TestOfficialExamples/R4 (1.95s)
+    --- PASS: TestOfficialExamples/R4B (1.74s)
+    --- PASS: TestOfficialExamples/R5 (1.81s)
 PASS
-ok  	github.com/gofhir/ucum/v4/fhir	3.908s
+ok  	github.com/gofhir/ucum/v4/fhir	5.823s

@@ -292,6 +292,34 @@ desempates, `==` en vez de `errors.Is`, `float32`, `q.Code`, sin
 | 3 | Opus | baja | El registro del paso 7 decía M1–M8 | **Aceptado** |
 | 4 | Fable | baja | El comentario de `%[slope]` citaba `100tan(1 deg)`; `ucum-essence.xml:1480-1481` dice `100tan(1 rad)` en `value` y `Unit="deg"` en `function` | **Aceptado**: el comentario cita las dos y que el XML no es coherente. El esperado (rad) no cambia |
 
+### Review posterior al cierre (2026-10-26, `/code-review` sobre `main...fix/canonicalkey-exact`)
+El revisor no pudo correr comandos; cada hallazgo se midió aquí antes de
+decidir. Benchmarks contra v4.3.0 en un worktree (`go test -bench`, 3 corridas;
+asignaciones por llamada):
+
+| Caso | v4.3.0 | antes del ajuste | después |
+| --- | --- | --- | --- |
+| `Value` 0.07 mg/dL | 87 | 88 | 87 |
+| `Value` 7.4 [pH] | 191 | 350 | 191 |
+| `Exact` 0.07 mg/dL | 89 | 84 | 81 |
+| `Exact` 7.4 [pH] | 193 | 348 | 345 |
+
+| # | Hallazgo | Resolución |
+| --- | --- | --- |
+| 1 | Una escala no racional se canonicaliza dos veces | **Confirmado** (tabla). Con 2 el camino de `Value` vuelve a v4.3.0; con `Exact` queda el doble, como en `Compare` desde v4.3.0: evitarlo pide un método público nuevo en `ExactService`. Registrado |
+| 2 | La vía exacta corre también con solo `Value` | **Aceptado**: solo si `Exact != nil` (equivalente por la sonda 0/8350; test 8 lo fija) |
+| 3 | Exponentes enormes cuestan CPU en `CanonicalRat` | **Rechazado** con medición: `1e1000000` cuesta 2,3 ms en `CanonicalKey` y 11 ms en el `SetString` de quien lo construye; `Compare` tenía lo mismo en v4.3.0 |
+| 4 | El desborde da `±Inf` sin error | **Llevado a #55** (misma familia que NaN/Inf) |
+| 5 | La regla «exacto o `float64`» estaba en tres copias | **Aceptado**: `canonicalRat`, compartido por `Compare` y `CanonicalKey` |
+| 6 | `Exact` se copiaba dos veces | **Resuelto por 5**: se pasa `q.Exact` sin copiar; el motor no lo modifica (`internal/engine/exact.go:140`, `internal/special/special.go:110`) |
+| 7 | Conteos 825/15 fijos en el test | **Rechazado**: es deliberado (ronda 1, #6); el mensaje ahora dice que se actualizan con el ValueSet |
+| 8 | `fetch-packages.sh` pierde una última línea sin salto | **Aceptado** (`\|\| [[ -n $file ]]`, probado con `printf 'a b'`) |
+| 9 | Cada mutación copia el repo | **Rechazado** con medición: 33 ms por copia (828 KB), ~0,6 s de una corrida de ~40 s |
+| 10 | `make mutations` no descarga los packages | **Aceptado**: corre `fetch-packages.sh` antes |
+
+Mutaciones M1, M2, M3, M5 y M13 reapuntadas al código nuevo; la línea base y
+las 19 corren como se espera. Evidencia regenerada en `evidence/`.
+
 ## 9. Cierre (2026-10-26)
 - Evidencia generada por los comandos, con fecha, en `docs/plans/evidence/`:
   [`make check`](evidence/001-2026-10-26-check.txt),

@@ -46,9 +46,11 @@ check-packages:
 	UCUM_PACKAGES=$(CURDIR)/.cache/packages $(GO) test -count=1 -run TestOfficialExamples -v ./fhir/
 
 # Prueba los oráculos: cada defecto inyectado en una copia del repo tiene que
-# hacer fallar su test (docs/plans/001-canonicalkey-exact.md, §7).
+# hacer fallar su test (docs/plans/001-canonicalkey-exact.md, §7). Necesita
+# los packages, como check-packages, porque la línea base corre ese test.
 .PHONY: mutations
 mutations:
+	scripts/fetch-packages.sh
 	python3 -I scripts/mutations.py $(CURDIR)/.cache/packages
 
 # The official HL7 suite on its own, which is the conformance question.

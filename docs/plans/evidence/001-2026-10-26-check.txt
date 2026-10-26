@@ -1,10 +1,10 @@
-# 2026-10-26 10:14 go version go1.27.2 darwin/arm64
+# 2026-10-26 11:13 go version go1.27.2 darwin/arm64
 go vet ./...
 golangci-lint run ./...
 0 issues.
 go test ./...
 ok  	github.com/gofhir/ucum/v4	(cached)
-ok  	github.com/gofhir/ucum/v4/fhir	1.298s
+ok  	github.com/gofhir/ucum/v4/fhir	(cached)
 ok  	github.com/gofhir/ucum/v4/internal/decimal	(cached)
 ok  	github.com/gofhir/ucum/v4/internal/engine	(cached)
 ok  	github.com/gofhir/ucum/v4/internal/essence	(cached)

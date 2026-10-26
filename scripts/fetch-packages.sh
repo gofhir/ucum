@@ -11,7 +11,8 @@ list=${1:-$here/scripts/packages.sha256}
 # Absoluta: la verificación final corre dentro de $dir.
 list=$(cd "$(dirname "$list")" && pwd)/$(basename "$list")
 mkdir -p "$dir"
-while read -r sum file; do
+# El || recoge una última línea sin salto de línea final.
+while read -r sum file || [[ -n $file ]]; do
   [[ -z $file ]] && continue
   name=${file%-*}; version=${file##*-}; version=${version%.tgz}
   # Un archivo que no coincide con su SHA-256 (descarga cortada, corrupto) se

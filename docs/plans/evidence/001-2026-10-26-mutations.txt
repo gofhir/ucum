@@ -1,4 +1,8 @@
-# 2026-10-26 10:14
+# 2026-10-26 11:13
+scripts/fetch-packages.sh
+hl7.fhir.r4.examples-4.0.1.tgz: OK
+hl7.fhir.r4b.examples-4.3.0.tgz: OK
+hl7.fhir.r5.examples-5.0.0.tgz: OK
 python3 -I scripts/mutations.py ./.cache/packages
 baseline     ok         every test passes unmutated
 M1           ok         want kill    got kill        back to Canonical(q.float())
