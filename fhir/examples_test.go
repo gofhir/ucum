@@ -68,7 +68,11 @@ func exampleQuantities(t *testing.T, path string) []exampleQuantity {
 		}
 		walkQuantities(doc, seen)
 	}
-	t.Logf("%s: %d JSON files that do not decode skipped", filepath.Base(path), skipped)
+	// Hoy no hay ninguno en R4, R4B ni R5; uno nuevo sacaría cantidades
+	// del corpus sin que nadie lo note.
+	if skipped > 0 {
+		t.Errorf("%s: %d JSON files do not decode", filepath.Base(path), skipped)
+	}
 	out := make([]exampleQuantity, 0, len(seen))
 	for q := range seen {
 		out = append(out, q)

@@ -24,8 +24,15 @@ while read -r sum file || [[ -n $file ]]; do
   if [[ ! -f $dir/$file ]]; then
     url=$(curl -sSf --max-time 60 "https://packages.fhir.org/$name" |
       python3 -I -c 'import json,sys; print(json.load(sys.stdin)["versions"][sys.argv[1]]["dist"]["tarball"])' "$version")
+    # Solo HTTPS; y un archivo que no coincide con su SHA-256 no se queda.
+    [[ $url == https://* ]] || { echo "$name $version: tarball URL is not HTTPS: $url"; exit 1; }
     echo "downloading $name $version ($url)"
-    curl -sSfL --max-time 600 -o "$dir/$file.part" "$url"
+    curl -sSfL --proto '=https' --max-time 600 -o "$dir/$file.part" "$url"
+    if ! (cd "$dir" && echo "$sum  $file.part" | shasum -a 256 -c --status); then
+      rm -f "$dir/$file.part"
+      echo "$file: download does not match its SHA-256"
+      exit 1
+    fi
     mv "$dir/$file.part" "$dir/$file"
   fi
 done < "$list"

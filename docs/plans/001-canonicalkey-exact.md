@@ -320,6 +320,22 @@ asignaciones por llamada):
 Mutaciones M1, M2, M3, M5 y M13 reapuntadas al código nuevo; la línea base y
 las 19 corren como se espera. Evidencia regenerada en `evidence/`.
 
+### Segundo `/code-review` posterior (2026-10-26)
+Sin bugs de corrección en producción.
+
+| # | Hallazgo | Resolución |
+| --- | --- | --- |
+| 1 | Con `Exact` en una escala no racional, el valor pasa por `float64` y puede desbordar | Es la vuelta a `float64` declarada (también en `Compare`); el comentario de `CanonicalKey` ahora lo dice. El desborde ya está en #55 |
+| 2 | Un negativo que no cabe en `float64` da `-0` | **Confirmado** (sonda: `Exact` -1e-400 m da `-0`, `Value` -0 da `+0`). Se normaliza a `+0`, con caso en `TestCanonicalKeyEdges`; M16 |
+| 3 | Test 8 es circular | **Rechazado**: declarado como regresión en «Excepciones a la regla 5» |
+| 4 | `TestCanonicalKeyEdges` fija NaN/Inf | **Rechazado**: regresión deliberada hasta resolver #55, que actualizará el test |
+| 5 | Conteos 825/15 | **Rechazado** (tercera vez; ver ronda 1 #6) |
+| 6 | Doble canonicalización con `Exact` no racional | **Ya registrado** (review anterior, #1) |
+| 7 | JSON que no decodifica solo se registra | **Aceptado**: ahora es error (0 en R4, R4B y R5) |
+| 8 | Las mutaciones copian el repo | **Rechazado** (medido: 33 ms por copia); la caché de compilación de Go es compartida, así que no son compilaciones en frío |
+| 9 | `ka != kb` en `checkCompare` no puede fallar | **Rechazado**: las claves vienen de `CanonicalKey`, no de `Compare`; el mutante «devolver `q.Code`» muere justo ahí (ronda 3) |
+| 10 | `fetch-packages.sh` no exige HTTPS y deja una descarga corrupta | **Aceptado**: exige `https://` (y `--proto '=https'` en las redirecciones) y borra la descarga que no coincide con su SHA-256 |
+
 ## 9. Cierre (2026-10-26)
 - Evidencia generada por los comandos, con fecha, en `docs/plans/evidence/`:
   [`make check`](evidence/001-2026-10-26-check.txt),

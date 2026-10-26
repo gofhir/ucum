@@ -175,6 +175,13 @@ func TestCanonicalKeyEdges(t *testing.T) {
 			t.Errorf("CanonicalKey(%v mg) = (%q, %v, %v), want (\"g\", %v, nil)", math.Inf(sign), code, v, err, math.Inf(sign))
 		}
 	}
+	// Un negativo por debajo del menor float64 redondea a cero. IEEE 754 lo
+	// deja en -0, pero el camino de Value da +0 y la clave tiene que ser la
+	// misma por los dos caminos.
+	_, v, err = c.CanonicalKey(fhir.Quantity{Exact: mustRat(t, "-1e-400"), Code: "m"})
+	if err != nil || v != 0 || math.Signbit(v) {
+		t.Errorf("CanonicalKey(-1e-400 m) = (%v, %v), want (+0, nil)", v, err)
+	}
 	if _, _, err := c.CanonicalKey(fhir.Quantity{Exact: big.NewRat(1, 1), Code: "notaunit"}); err == nil {
 		t.Error("CanonicalKey(notaunit) succeeded, want an error")
 	}

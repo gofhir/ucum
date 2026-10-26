@@ -287,7 +287,7 @@ func checkSystems(qs ...Quantity) error {
 // The value is computed exactly and rounded to float64 once, so Exact is used
 // as given: 0.07 mg/dL gives 0.7 g.m-3, not 0.7000000000000001. Units on a scale
 // with no exact rational form — pH, bel, prism diopter — go through float64, as
-// in Compare.
+// in Compare, so there Exact is rounded to float64 first.
 func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err error) {
 	if err := checkSystems(q); err != nil {
 		return "", 0, err
@@ -302,6 +302,11 @@ func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err e
 		}
 		if ok {
 			f, _ := p.Value.Float64()
+			if f == 0 {
+				// Un negativo que no cabe en float64 da -0; el camino de
+				// Value da +0, y la clave no debe depender del camino.
+				f = 0
+			}
 			return p.Code, f, nil
 		}
 	}
