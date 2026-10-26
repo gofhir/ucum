@@ -1,0 +1,14 @@
+# 2026-10-26 11:19 go version go1.27.2 darwin/arm64
+go vet ./...
+golangci-lint run ./...
+0 issues.
+go test ./...
+ok  	github.com/gofhir/ucum/v4	(cached)
+ok  	github.com/gofhir/ucum/v4/fhir	(cached)
+ok  	github.com/gofhir/ucum/v4/internal/decimal	(cached)
+ok  	github.com/gofhir/ucum/v4/internal/engine	(cached)
+ok  	github.com/gofhir/ucum/v4/internal/essence	(cached)
+ok  	github.com/gofhir/ucum/v4/internal/expr	(cached)
+?   	github.com/gofhir/ucum/v4/internal/model	[no test files]
+ok  	github.com/gofhir/ucum/v4/internal/special	(cached)
+?   	github.com/gofhir/ucum/v4/internal/ucumerr	[no test files]

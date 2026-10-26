@@ -1,0 +1,27 @@
+# 2026-10-26 11:19
+scripts/fetch-packages.sh
+hl7.fhir.r4.examples-4.0.1.tgz: OK
+hl7.fhir.r4b.examples-4.3.0.tgz: OK
+hl7.fhir.r5.examples-5.0.0.tgz: OK
+python3 -I scripts/mutations.py ./.cache/packages
+baseline     ok         every test passes unmutated
+M1           ok         want kill    got kill        back to Canonical(q.float())
+M1/hand      ok         want kill    got kill        M1 against the hand cases alone
+M1/scale     ok         want kill    got kill        M1 against the scale oracle alone
+M1/compare   ok         want kill    got kill        M1 against the Compare oracle alone
+M1/examples  ok         want kill    got kill        M1 against the official examples alone
+M2           ok         want kill    got kill        ignore Exact, use Value
+M3           ok         want kill    got kill        return ErrNotRational instead of falling back
+M4           ok         want kill    got kill        round toward zero
+M9           ok         want kill    got kill        break ties away from zero
+M10          ok         want kill    got kill        round through a 64-bit big.Float
+M11          ok         want kill    got kill        round through a 56-bit big.Float
+M12          ok         want kill    got kill        round through a 200-bit big.Float
+M13          ok         want kill    got kill        honour Exact only when Value is zero
+M14          ok         want kill    got kill        round through a big.Float as wide as the rational
+M15          ok         want kill    got kill        drop the sign of the exact value
+M16          ok         want kill    got kill        keep -0 when the exact value underflows
+M5           ok         want kill    got kill        fall back to float64 on any error
+M6           ok         want survive got survive     scale oracle compares keys only: M1 must survive it
+M7           ok         want kill    got kill        fallback uses Value instead of float()
+M8           ok         want survive got survive     Compare oracle with same-unit pairs: M1 must survive it
