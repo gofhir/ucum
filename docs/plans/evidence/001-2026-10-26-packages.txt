@@ -1,0 +1,22 @@
+# 2026-10-26 10:13
+scripts/fetch-packages.sh
+hl7.fhir.r4.examples-4.0.1.tgz: OK
+hl7.fhir.r4b.examples-4.3.0.tgz: OK
+hl7.fhir.r5.examples-5.0.0.tgz: OK
+UCUM_PACKAGES=./.cache/packages go test -count=1 -run TestOfficialExamples -v ./fhir/
+=== RUN   TestOfficialExamples
+=== RUN   TestOfficialExamples/R4
+    examples_test.go:123: hl7.fhir.r4.examples-4.0.1.tgz: 0 JSON files that do not decode skipped
+    examples_test.go:179: 231 distinct quantities: 215 scaled, 642 cross-unit pairs, 1 special codes skipped [Cel], 8 invalid codes skipped [TAB drop ea mEq mcg ml/hr month tbl]
+=== RUN   TestOfficialExamples/R4B
+    examples_test.go:123: hl7.fhir.r4b.examples-4.3.0.tgz: 0 JSON files that do not decode skipped
+    examples_test.go:179: 241 distinct quantities: 235 scaled, 702 cross-unit pairs, 1 special codes skipped [Cel], 0 invalid codes skipped []
+=== RUN   TestOfficialExamples/R5
+    examples_test.go:123: hl7.fhir.r5.examples-5.0.0.tgz: 0 JSON files that do not decode skipped
+    examples_test.go:179: 273 distinct quantities: 267 scaled, 798 cross-unit pairs, 1 special codes skipped [Cel], 0 invalid codes skipped []
+--- PASS: TestOfficialExamples (3.52s)
+    --- PASS: TestOfficialExamples/R4 (1.45s)
+    --- PASS: TestOfficialExamples/R4B (0.90s)
+    --- PASS: TestOfficialExamples/R5 (1.15s)
+PASS
+ok  	github.com/gofhir/ucum/v4/fhir	3.908s

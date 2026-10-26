@@ -28,6 +28,29 @@ lint:
 fmt:
 	gofmt -l -w .
 
+# Lo que hay que correr antes de dar algo por terminado. A diferencia de
+# `all`, no reescribe nada: falla si hay archivos sin formatear.
+.PHONY: check
+check:
+	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	$(GO) vet ./...
+	golangci-lint run ./...
+	$(GO) test ./...
+
+# Las cantidades UCUM de los ejemplos oficiales de R4, R4B y R5. Descarga los
+# packages (unos 54 MB, con SHA-256 fijado en scripts/packages.sha256) a
+# .cache/packages/; por eso va aparte de `check`.
+.PHONY: check-packages
+check-packages:
+	scripts/fetch-packages.sh
+	UCUM_PACKAGES=$(CURDIR)/.cache/packages $(GO) test -count=1 -run TestOfficialExamples -v ./fhir/
+
+# Prueba los oráculos: cada defecto inyectado en una copia del repo tiene que
+# hacer fallar su test (docs/plans/001-canonicalkey-exact.md, §7).
+.PHONY: mutations
+mutations:
+	python3 -I scripts/mutations.py $(CURDIR)/.cache/packages
+
 # The official HL7 suite on its own, which is the conformance question.
 .PHONY: conformance
 conformance:

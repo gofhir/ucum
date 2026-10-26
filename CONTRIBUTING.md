@@ -38,6 +38,13 @@ golangci-lint run ./...   # the config is strict on purpose; zero issues
 gofmt -l .                # empty
 ```
 
+`make check` runs the formatting check, `go vet`, the linter and the tests in
+one go. Two more targets cover what is too slow or too large for every run:
+`make check-packages` downloads HL7's official R4, R4B and R5 example packages
+(about 54 MB, SHA-256 pinned in `scripts/packages.sha256`) and checks every UCUM
+quantity in them; `make mutations` injects known defects into a copy of the
+repository and confirms that each one makes its test fail.
+
 New behaviour needs a test that would have failed before it. A bug fix needs a
 test that reproduces the bug, and the commit message should say what the wrong
 answer was — that is what makes a regression recognisable a year later.

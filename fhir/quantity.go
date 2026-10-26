@@ -274,9 +274,26 @@ func checkSystems(qs ...Quantity) error {
 //
 // Two quantities with the same key are comparable; the value to store alongside
 // it is the second return, the quantity restated in that unit.
+//
+// The value is computed exactly and rounded to float64 once, so Exact is used
+// as given: 0.07 mg/dL gives 0.7 g.m-3, not 0.7000000000000001. Units on a scale
+// with no exact rational form — pH, bel, prism diopter — go through float64, as
+// in Compare.
 func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err error) {
 	if err := checkSystems(q); err != nil {
 		return "", 0, err
+	}
+	// rat es nil solo para un Value no finito, que sigue por float64 como
+	// antes.
+	if v := q.rat(); v != nil {
+		p, err := c.svc.CanonicalRat(v, q.Code)
+		if err == nil {
+			f, _ := p.Value.Float64()
+			return p.Code, f, nil
+		}
+		if !errors.Is(err, ucum.ErrNotRational) {
+			return "", 0, err
+		}
 	}
 	p, err := c.svc.Canonical(q.float(), q.Code)
 	if err != nil {
