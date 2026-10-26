@@ -6,9 +6,9 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md): en
   pausa en el paso 1.
 
-**Próximo paso:** publicar los issues aparte de 001 (§9) cuando el usuario
-apruebe los borradores; después, retomar 002 con permiso para ejecutar
-`ucum-1.0.10.jar`.
-**Decisiones pendientes del usuario:** aprobar los borradores de los issues;
-permiso para ejecutar el JAR de Ucum-java (002).
+**Próximo paso:** retomar 002 con permiso para ejecutar `ucum-1.0.10.jar`.
+Issues abiertos desde 001: #55 (NaN/Inf en `CanonicalKey`) y #56 (aliasing
+de `Exact` sin test).
+**Decisiones pendientes del usuario:** permiso para ejecutar el JAR de
+Ucum-java (002); push y PR de la rama `fix/canonicalkey-exact`.
 **Evidencia:** 001 en [`evidence/`](evidence/) (2026-10-26).

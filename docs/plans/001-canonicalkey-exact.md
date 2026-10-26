@@ -301,9 +301,10 @@ desempates, `==` en vez de `errors.Is`, `float32`, `q.Code`, sin
   repo no tiene `DESIGN.md`, `CLAUDE.md` ni ADR; el incremento no los
   necesita (no hay excepción a la regla 5).
 - Pendientes, fuera de este incremento:
-  - Issue aparte: ningún test ve el aliasing de `Exact` en `rat()` (ronda 2,
-    #6).
-  - Issue aparte: `CanonicalKey(NaN)` devuelve `NaN, nil` y `Compare`, error
-    (plan, fuera de alcance).
-  - Posible observación a UCUM: `%[slope]` en `ucum-essence.xml` dice `rad` en
-    `value` y `deg` en `function` (ronda 3, #4).
+  - Ningún test ve el aliasing de `Exact` en `rat()` (ronda 2, #6):
+    gofhir/ucum#56.
+  - `CanonicalKey(NaN)` devuelve `NaN, nil` y `Compare`, error (plan, fuera
+    de alcance): gofhir/ucum#55.
+  - `%[slope]` en `ucum-essence.xml` dice `rad` en `value` y `deg` en
+    `function` (ronda 3, #4): ya está reportado upstream como
+    ucum-org/ucum#261 (2022-12-15, abierto). No se abre otro.
