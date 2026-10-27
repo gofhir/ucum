@@ -1,0 +1,959 @@
+# Units and expected canonical units from UcumCommonUnitsTest.java of
+# FHIR/Ucum-java at commit db9d22ade3f0f4a667b45817b85a9ac4534e4224 (tag 1.0.10),
+# in file order; the second column is empty where the test gives none.
+# Extracted by TestWriteJavaCases (make java-dump).
+#
+# Copyright (c) 2006+, Health Intersections Pty Ltd. All rights reserved.
+# BSD 3-Clause License; see NOTICE.
+%{0to3Hours}	
+%	
+/100	
+/100{cells}	
+/100{neutrophils}	
+/100{Spermatozoa}	
+%/100{WBC}	
+/100{WBC}	
+/100{WBCs}	
+/10*10	
+/10*12	
+10*12/L	m-3
+/10*12{rbc}	
+/10*12{RBCs}	
+10*3	
+10*3{Copies}/mL	m-3
+10*3{copies}/mL	
+10*3/L	m-3
+10*3/mL	m-3
+/10*3	
+10*3.{RBC}	
+/10*3{RBCs}	
+10*3{RBCs}	
+10*3/uL	m-3
+/10*4{RBCs}	
+10*4/uL	
+10*5	
+/10*6	
+10*6	
+10*6/(24.h)	
+10*6.[CFU]/L	
+10*6.eq/mL	m-3
+10*6.[iU]	
+10*6.[IU]	
+10*6/kg	
+10*6/L	m-3
+10*6/mL	m-3
+10*6/{Specimen}	
+10*6/uL	m-3
+10*8	
+/10*9	
+10*9/L	m-3
+10*9/mL	m-3
+10*9/uL	m-3
+10.L/(min.m2)	
+10.L/min	
+10.uN.s/(cm5.m2)	
+/(12.h)	
+24.h	
+%{Abnormal}	
+%{abnormal}	
+{absorbance}	
+%{Activity}	
+%{activity}	
+{activity}	
+ag/{cell}	
+%{aggregation}	
+{AHF'U}	
+A/m	
+/a	
+{#}/a	
+A	
+[APL'U]/mL	
+[APL'U]	
+{APS'U}	
+/[arb'U]	
+[arb'U]/mL	
+{ARU}	
+a	s
+%{at_60_min}	
+atm	
+[AU]	
+%{bacteria}	
+bar	
+%{BasalActivity}	
+%{basal_activity}	
+%{baseline}	
+[bdsk'U]	
+{beats}/min	
+[beth'U]	
+%{Binding}	
+{binding_index}	
+%{binding}	
+%{Blockade}	
+%{blockade}	
+%{blocked}	
+%{Bound}	
+%{bound}	
+Bq	
+%{breakdown}	
+{breaths}/min	
+{CAE'U}	
+{CAG_repeats}	
+cal	
+%{Carboxyhemoglobin}	
+{cells}/[HPF]	
+%{cells}	
+{cells}	
+{Cells}/uL	m-3
+{cells}/uL	
+[CFU]/L	
+{cfu}/mL	m-3
+[CFU]/mL	
+[CFU]	
+cg	g
+{CH100'U}	
+[Ch]	m
+[cin_i]	m3
+cL	m3
+{clock_time}	
+cm2	m2
+cm2/s	
+cm3	
+cm[H2O]/L/s	
+/cm[H2O]	
+cm[H2O]	
+cm[H2O]/s/m	
+cm[Hg]	
+cm	m
+cm/s	
+{Copies}/mL	m-3
+{copies}/mL	
+{copies}	
+{copies}/ug	
+{count}	
+{CPM}/10*3{cell}	
+{CPM}	
+cP	
+cSt	
+{Ct_value}	
+[cup_us]	m3
+d/(7.d)	
+daL/min/m2	
+daL/min	
+dB	
+%{deficient}	
+deg	rad
+deg/s	
+{delta_OD}	
+dg	g
+{dilution}	
+[diop]	
+/dL	m-3
+dL	m3
+dm2/s2	
+dm	m
+/d	
+{#}/d	
+%{dose}	
+[dr_av]	g
+[drp]	
+d	s
+d/wk	
+dyn.s/(cm.m2)	
+dyn.s/cm	
+{Ehrlich_U}/100.g	
+{Ehrlich'U}/100.g	
+{Ehrlich'U}/(2.h)	
+{Ehrlich_U}/dL	m-3
+{Ehrlich'U}/dL	
+{Ehrlich'U}/d	
+{Ehrlich'U}	
+{EIA_index}	
+{EIA_titer}	
+{EIA'U}	
+{EIA'U}/U	
+{Elisa_U}/mL	m-3
+{ELISA'U}	
+/{Entity}	
+/{entity}	
+%{EosSeen}	
+eq{AHG}/mL	m-3
+eq{BoneCollagen}/mmol{Cre}	
+eq{BoneCollagen}/umol{Cre}	
+eq/L	m-3
+eq/mL	m-3
+eq/mmol	
+eq	
+eq/umol	
+erg	
+eV	
+{EV}	
+%{Excretion}	
+%{excretion}	
+[fdr_us]	m3
+%{FetalErythrocytes}	
+fg	g
+{FIU}	
+fL	m3
+fm	m
+fmol/g	g-1
+fmol/L	
+fmol/mg{cyt_prot}	
+fmol/mg	
+fmol/mg{prot}	
+fmol/mL	m-3
+fmol	
+F	
+[foz_us]	m3
+{fraction}	
+[fth_i]	m
+[ft_i]	m
+[ft_us]/[ft_us]	
+g/(100.g)	
+g/(12.h)	
+g/(24.h)	
+g/(3.d)	
+g/(48.h)	
+g/(4.h)	
+g/(5.h)	
+g/(6.h)	
+g/(72.h)	
+g/(8.h){shift}	
+{GAA_repeats}	
+[gal_us]	m3
+g/cm2	
+g/cm3	
+/g{creat}	g-1
+g{creat}	
+g/dL	g.m-3
+g/d	
+{genomes}/mL	
+g/g	
+g/g{Cre}	
+g/g{creat}	
+g/g{globulin}	
+g/g{tissue}	
+/g{Hb}	
+g{Hb}	
+/g{HGB}	g-1
+g/h/m2	
+g/h	
+g/kg	
+g/kg/(8.h)	
+g/kg/(8.h){shift}	
+g/kg/d	
+g/kg/h	
+g/kg/min	
+g/L	g.m-3
+{Globules}/[HPF]	
+/g	g-1
+g/m2	g.m-2
+g.m/{beat}	
+g	g
+g/mg	
+g.m/{hb}	g.m
+g.m/({hb}.m2)	
+g/min	
+g/mL	g.m-3
+g.m	g.m
+g/mmol	
+g/mol{creat}	
+{#}/g	
+[GPL'U]/mL	
+[GPL'U]	
+{GPS'U}	
+[gr]	g
+g/{specimen}	
+g{total_nit}	
+g/{total_output}	
+g{total_prot}	
+g/{TotalWeight}	g
+g/{total_weight}	
+/g{tot`nit}	g-1
+/g{tot_nit}	
+/g{tot`prot}	g-1
+/g{tot_prot}	
+/g{wet`tis}	g-1
+/g{wet_tis}	
+g{wet_tissue}	
+Gy	
+{HA_titer}	
+%{Hb}	
+h/d	
+%{Hemoglobin}	
+%{HemoglobinA1C}	
+%{HemoglobinSaturation}	
+%{Hemolysis}	
+%{hemolysis}	
+hL	m3
+/h	
+H	
+/[HPF]	
+[HPF]	
+{#}/[HPF]	
+h	s
+h/wk	
+Hz	
+{IFA_index}	
+{IFA_titer}	
+{ImmuneComplex'U}	
+%{index}	
+{index}	
+{index_val}	
+%{Inhibition}	
+%{inhibition}	
+[in_i'H2O]	
+[in_i]	m
+{INR}	
+[in_us]	
+{ISR}	
+[IU]/10*9{RBCs}	
+[IU]/(24.h)	
+[IU]/(2.h)	
+[iU]	
+[iU]/dL	m-3
+[IU]/dL	
+[IU]/d	
+[IU]/g{Hb}	
+[iU]/g{Hgb}	
+[iU]/g	
+[IU]/g	
+[IU]/h	
+[IU]/kg/d	
+[iU]/kg	
+[IU]/kg	
+[IU]/L{37Cel}	
+[iU]/L	m-3
+[IU]/mg{creat}	
+[IU]/min	
+[iU]/mL	m-3
+[IU]/mL	
+/[IU]	
+[IU]	
+{JDF'U}/L	
+{JDF'U}	
+J/L	
+J	
+kat/kg	
+kat/L	
+kat	
+[ka'U]	
+kcal/(24.h)	
+kcal/d	
+kcal/h	
+kcal/kg/(24.h)	
+kcal	
+kcal/[oz_av]	
+{KCT'U}	
+/kg{body`wt}	g-1
+/kg{body_wt}	
+kg/h	
+kg/L	g.m-3
+/kg	g-1
+kg/m2	g.m-2
+kg/m3	g.m-3
+kg	g
+kg/min	
+kg/mol	g
+kg.m/s	
+kg/(s.m2)	
+kg/s	
+k[IU]/L	
+k[iU]/mL	m-3
+k[IU]/mL	
+kL	m3
+km	m
+[knk'U]	
+kPa	
+K	K
+{KRONU'U}/mL	
+ks	s
+kU/g	
+kU/L{class}	
+kU/L	
+kU/mL	
+kU	
+K/W	
+L/(24.h)	
+L/(8.h)	
+[lb_av]	g
+L/d	
+L/h	
+L/kg	g-1.m3
+/L	m-3
+L	m3
+L/L	
+L/(min.m2)	
+L/min/m2	
+L/min	
+lm.m2	
+lm	
+{#}/L	
+{Log_copies}/mL	
+{Log_IU}/mL	
+{Log_IU}	
+{Log}	
+%{loss_AChR}	
+%{loss}	
+/[LPF]	
+[LPF]	
+{#}/[LPF]	
+L.s2/s	m3.s
+L/s	m3.s-1
+L/s/s2	
+{Lyme_index_value}	
+%{lysis}	
+/m2	m-2
+m2	m2
+m2/s	m2.s-1
+/m3	m-3
+m3/s	m3.s-1
+mA	
+mbar/L/s	
+mbar	
+mbar.s/L	
+[mclg'U]	
+meq/(24.h)	
+meq/(2.h)	
+meq/(8.h)	
+meq/dL	m-3
+meq/d	
+meq/g{creat}	
+meq/g{Cre}	
+meq/g	
+meq/h	
+meq/kg/h	
+meq/kg	
+meq/L	m-3
+meq/m2	m-2
+meq/min	
+meq/mL	m-3
+meq	
+meq/{Specimen}	
+meq/{specimen}	
+meq/{total_volume}	
+[MET].min/wk	
+mg/(10.h)	
+mg/(12.h)	
+mg/(24.h)	
+mg/(2.h)	
+mg/(6.h)	
+mg/(72.h)	
+mg/(8.h)	
+mg/{collection}	
+mg/d/{1.73_m2}	
+mg/dL	g.m-3
+mg/dL{RBCs}	
+mg/d	
+mg{FEU}/L	
+mg/g	
+mg/g{Cre}	
+mg/g{creat}	
+mg/g{dry_tissue}	
+mg/g{feces}	
+mg/g{tissue}	
+mg/g{wet_tissue}	
+mg/h	
+mg/kg	
+mg/kg/(8.h)	
+mg/kg/d	
+mg/kg/h	
+mg/kg/min	
+mg/L	g.m-3
+mg/L{RBCs}	
+/mg	g-1
+mg/m2	g.m-2
+mg/m3	g.m-3
+mg	g
+mg/mg	
+mg/mg{Cre}	
+mg/mg{creat}	
+mg/min	
+mg/mL	g.m-3
+mg/mmol{creat}	
+mg/mmol	
+mg{Phenylketones}/dL	g.m-3
+mg/{specimen}	
+mg/{total_output}	
+mg/{TotalVolume}	g
+mg/{total_volume}	
+mg/{Volume}	g
+mg/wk	
+[mi_i]	m
+min/d	
+{minidrop}/min	
+{minidrop}/s	
+/min	
+{#}/min	
+min	s
+min/wk	
+m[iU]/L	m-3
+m[IU]/L	
+m[iU]/mL	m-3
+m[IU]/mL	
+mL/(10.h)	
+mL/(12.h)	
+mL/(24.h)	
+mL/(2.h)	
+mL/(4.h)	
+mL/(5.h)	
+mL/(6.h)	
+mL/(72.h)	
+mL/(8.h)/kg	
+mL/(8.h)	
+mL/{beat}/m2	
+mL/{beat}	
+mL/cm[H2O]	
+mL/dL	
+mL/d	
+mL{fetal_RBCs}	
+mL/{h`b}	m3
+mL/h	
+mL/kg/(8.h)	
+mL/kg/d	
+mL/kg/h	
+mL/kg	g-1.m3
+mL/kg/min	
+mL	m3
+/mL	m-3
+m	m
+mL/m2	
+mL/mbar	
+mL/min/{1.73_m2}	
+mL/min/m2	
+mL/min	
+mL/mm	
+{#}/mL	
+mL/[sin_i]	
+mL/s	
+mm2	m2
+{mm/dd/yyyy}	
+mm[H2O]	
+mm[Hg]	
+mm/h	
+mm	m
+mm/min	
+/mm	
+mmol/(12.h)	
+mmol/(24.h)	
+mmol/(2.h)	
+mmol/(5.h)	
+mmol/(6.h)	
+mmol/(8.h)	
+/mmol{creat}	
+mmol/dL	m-3
+mmol/d	
+mmol/{ejaculate}	
+mmol/g{creat}	
+mmol/g	
+mmol/h/mg{Hb}	
+mmol/h/mg{prot}	
+mmol/h	
+mmol/kg/(8.h)	
+mmol/kg/d	
+mmol/kg/h	
+mmol/kg	
+mmol/kg/min	
+mmol/L	m-3
+mmol/L{RBCs}	
+mmol/m2	
+mmol/min	
+mmol/mmol{creat}	
+mmol/mmol	
+mmol/mmol{urea}	
+mmol/mol	
+mmol/mol{Cre}	
+mmol/mol{creat}	
+mmol	
+mmol/s/L	
+mmol/{specimen}	
+mmol/{total_vol}	
+mmol/{TotalVolume}	
+mol/kg	
+mol/kg/s	
+mol/L	m-3
+mol/m3	m-3
+mol/mL	m-3
+mol/mol	
+mol	
+mol/s	
+{M.o.M}	
+/mo	
+mosm/kg	
+mosm/L	m-3
+mosm	
+mo	s
+mPa	
+mPa.s	
+[MPL'U]/mL	
+[MPL'U]	
+{MPS'U}/mL	
+{MPS'U}	
+m/s2	
+m/s	
+ms	s
+Ms	s
+mU/g{Hb}	
+mU/g{Hgb}	
+mU/g	
+mU/g{prot}	
+mU/L	
+mU/mg{creat}	
+mU/mg{Cre}	
+mU/mg	
+mU/mL/min	
+mU/mL	
+mU/mmol{creat}	
+mU/mmol{RBCs}	
+{mutation}	
+mV	
+mV/s	
+N.cm	
+ng/10*6	
+ng/10*6{RBCs}	
+ng/(24.h)	
+ng/(8.h)	
+ng/dL	g.m-3
+ng/d	
+ng{FEU}/mL	
+ng/g	
+ng/g{Cre}	
+ng/g{creat}	
+ng/h	
+ng/kg	
+ng/kg/(8.h)	
+ng/kg/h	
+ng/kg/min	
+ng/L	g.m-3
+ng/m2	g.m-2
+ng	g
+ng/mg	
+ng/mg{creat}	
+ng/mg/h	
+ng/mg{Protein}	
+ng/mg{prot}	
+ng/min	
+ng/mL/h	
+ng/mL	g.m-3
+ng/mL{rbc}	g.m-3
+ng/mL{RBCs}	
+ng/s	
+ng/U	
+nkat	
+nL	m3
+[nmi_i]	m
+nm	m
+nmol/(24.h)	
+nmol{ATP}	
+nmol{BCE}/L	
+nmol{BCE}	
+nmol/dL{GF}	
+nmol/dL	m-3
+nmol/d	
+nmol/g{creat}	
+nmol/g{Cre}	
+nmol/g{dry_wt}	
+nmol/g	
+nmol/h/L	
+nmol/h/mg{prot}	
+nmol/h/mL	
+nmol/L	m-3
+nmol/L/mmol{creat}	
+nmol/L{RBCs}	
+nmol/mg{creat}	
+nmol/mg/h	
+nmol/mg	
+nmol/mg{prot}/h	
+nmol/mg{prot}	
+nmol/min/10*6{cells}	
+nmol/min/mg{Hb}	
+nmol/min/mg{protein}	
+nmol/min/mg{prot}	
+nmol/min/mL	
+nmol/min	
+nmol/mL/h	
+nmol/mL	m-3
+nmol/mL/min	
+nmol/m/mg{prot}	
+nmol/mmol	
+nmol/mmol{Cre}	
+nmol/mmol{creat}	
+nmol/mol	
+nmol/mol{creat}	
+nmol	
+nmol/nmol	
+nmol/s/L	
+nmol/s	
+nmol/umol{creat}	
+nm/s/L	
+N	
+%{Normal}	
+%{normal}	
+%{NormalPooledPlasma}	
+N.s	
+ns	s
+{#}	
+nU/mL	
+nU/{RBC}	
+{OD_unit}	
+%{ofBacteria}	
+%{OfLymphocytes}	
+%{OfWBCs}	
+Ohm.m	
+Ohm	
+/{OIF}	
+osm/kg	
+osm/L	m-3
+osm	
+%{Oxygen}	
+[oz_av]	g
+[oz_tr]	g
+{Pan_Bio'U}	
+pA	
+Pa	
+%{penetration}	
+{percentile}	
+pg/{cell}	
+pg/dL	g.m-3
+pg/L	g.m-3
+pg	g
+pg/mg{creat}	
+pg/mg	
+pg/mL	g.m-3
+pg/mL{sLT}	
+pg/mm	
+pg/{RBC}	
+{phenotype}	
+[pH]	
+pkat	
+{#}/{platelet}	
+pL	m3
+pm	m
+pmol/(24.h)	
+pmol/dL	m-3
+pmol/d	
+pmol/g	
+pmol/H/mg{protein}	
+pmol/h/mg{prot}	
+pmol/h/mL	
+pmol/L	m-3
+pmol/mg{prot}	
+pmol/min/mg{prot}	
+pmol/min	
+pmol/mL	m-3
+pmol/mmol{creat}	
+pmol	
+pmol/{RBC}	
+pmol/umol	
+pmol/umol{creat}	
+%{pooled_plasma}	
+%{Positive}	
+%{positive}	
+[ppb]	
+[ppm]	
+[ppm]{v/v}	
+[ppth]	
+[pptr]	
+[psi]	
+ps	s
+pT	
+[pt_us]	m3
+[qt_us]	m3
+{ratio}	
+%{RBCs}	
+{rbc}/uL	m-3
+{RBC}/uL	
+%{reactive}	
+%{recovery}	
+%{reference}	
+%{Relative}	
+%{relative}	
+{rel_saturation}	
+%{residual}	
+%{response}	
+{risk}	
+{Rubella_virus}	
+%{saturation}	
+{saturation}	
+s/{control}	
+{s_co_ratio}	
+{score}	
+[sft_i]	m2
+{shift}	
+[sin_i]	m2
+/s	
+S	
+{Spermatozoa}/mL	m-3
+{spermatozoa}/mL	
+%{SpermMotility}	
+s	s
+{STDV}	
+[ston_av]	g
+Sv	
+[syd_i]	m2
+[tbs_us]	
+[tb'U]	
+{titer}	
+t	g
+{TmStp}	
+T	
+[todd'U]	
+/{tot}	
+%{Total}	
+%{total}	
+%{TotalProtein}	
+{Tscore}	
+{TSI_index}	
+[tsp_us]	
+U/10*10{cells}	
+U/10*10	
+U/10*12	
+U/10*12{RBCs}	
+U/10*6	
+U/10*9	
+U/(10.g){feces}	
+U/10	
+U/(12.h)	
+U/(24.h)	
+U{25Cel}/L	
+U/(2.h)	
+U{37Cel}/L	
+U{ComplementCh50}/mL	m-3.s-1
+U/dL	
+U/d	
+ueq/L	m-3
+ueq/mL	m-3
+ueq	
+ug/(100.g)	
+ug/(24.h)	
+ug/(8.h)	
+U/g{creat}	
+U/g{Cre}	
+ug/dL	g.m-3
+ug/dL{rbc}	g.m-3
+ug/dL{RBCs}	
+ug/d	
+ug{FEU}/mL	
+ug/g	
+ug/g{Cre}	
+ug/g{creat}	
+ug/g{dry_tissue}	
+ug/g{DryWeight}	
+ug/g{dry_wt}	
+ug/g{feces}	
+ug/g{hair}	
+ug/g{Hb}	
+ug/g{Hgb}	
+ug/g{tissue}	
+U/g{Hb}	
+U/g{Hgb}	
+ug/h	
+ug/kg	
+ug/kg/(8.h)	
+ug/kg/d	
+ug/kg/h	
+ug/kg/min	
+ug/L/(24.h)	
+ug/L	g.m-3
+ug/L{RBCs}	
+U/g	
+ug/m2	g.m-2
+ug/m3	
+ug	g
+ug/mg	
+ug/mg{Cre}	
+ug/mg{creat}	
+ug/min	
+ug/mL{class}	
+ug/mL{eqv}	
+ug/mL	g.m-3
+ug/mmol{creat}	
+ug/mmol	
+ug/ng	
+U/g{protein}	
+ug/[sft_i]	
+ug/{Specimen}	g
+ug/{specimen}	
+ug/{TotalVolume}	g
+U/h	
+U{IgAPhospholipid}/mL	m-3.s-1
+U{IgGPhospholipid}/mL	m-3.s-1
+U{IgMPhospholipid}/mL	m-3.s-1
+u[iU]	
+u[IU]/L	
+u[iU]/mL	m-3
+u[IU]/mL	
+ukat	
+U/kg{Hb}	
+uL/(2.h)	
+uL/h	
+U/L	m-3.s-1
+/uL	m-3
+uL	m3
+{#}/uL	
+U/min	
+um	m
+U/mL	
+U/mL{RBCs}	
+U/mmol{creat}	
+umol/10*6{RBC}	
+umol/(24.h)	
+umol/(2.h)	
+umol/(8.h)	
+umol{BCE}/mol	
+umol/dL{GF}	
+umol/dL	m-3
+umol/d	
+umol/g{creat}	
+umol/g{Cre}	
+umol/g{Hb}	
+umol/g{Hgb}	
+umol/g	
+umol/h	
+umol/kg{feces}	
+umol/kg	
+umol/L/h	
+umol/L	m-3
+umol/L{RBCs}	
+umol/mg{creat}	
+umol/mg{Cre}	
+umol/mg	
+umol/min/g	
+umol/min/g{mucosa}	
+umol/min/g{prot}	
+umol/min/L	
+umol/min	
+umol/mL	m-3
+umol/mL/min	
+umol/mmol{creat}	
+umol/mmol	
+umol/mol	
+umol/mol{Cre}	
+umol/mol{creat}	
+umol/mol{Hb}	
+umol	
+umol/umol{creat}	
+umol/umol	
+um/s	
+/U	
+U	
+uOhm	
+%{Uptake}	
+%{uptake}	
+U/s	
+us	s
+uU/g	
+uU/L	
+uU/mL	
+uV	
+%{viable}	
+V	
+%{vol}	
+%{WBCs}	
+{WBCs}	
+Wb	
+/wk	
+{#}/wk	
+wk	s
+[yd_i]	m
+{yyyy}	
+{Zscore}	

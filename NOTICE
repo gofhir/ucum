@@ -22,9 +22,14 @@ Everything else here — the canonicalizer, the exact arithmetic, the special-un
 handlers, the FHIR subpackage — is original work, though the overall shape of
 the service follows the Java one.
 
+internal/engine/testdata/java/common-units.tsv is data extracted from
+UcumCommonUnitsTest.java of the same project (the units it tests and the
+canonical units it expects), used only by the comparison test of
+docs/plans/002-compare-java.md; its header names its origin and commit.
+
 BSD 3-Clause requires that redistributions of source code retain the copyright
 notice, the list of conditions and the disclaimer. LICENSE carries all three,
-and both ported files name their origin.
+and both ported files and the extracted data name their origin.
 
 
 2. ucum-essence.xml — UCUM 1.0 License
