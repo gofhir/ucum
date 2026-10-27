@@ -1,0 +1,10 @@
+{
+  "reference": "org.fhir:ucum:1.0.10",
+  "commit": "db9d22ade3f0f4a667b45817b85a9ac4534e4224",
+  "jar_sha256": "784fb5ba7d74726962fb67624d0f98231e513124a83507a09c2862bbc2b4f3bd",
+  "common_units_test_sha256": "e4c6d5d3c914a199ef72858a3fb30a2e747491aebb7d823f3ea6dab0e5cc0a7b",
+  "dumper_sha256": "e6ea18ed8f75c2711e2f4121b5ca06a1959b29493a3cc7b0d76f5ef2aff4c935",
+  "cases_sha256": "f668e3a38d1f10f38f9a3d6602e729ad35460b92d50e46fde194178720f42444",
+  "common_units_sha256": "40316a766475f0a315189a691df5e15dd48bbb52e0e16c190bd35d5a2ec5ca19",
+  "result_sha256": "8ca9f8c12427d69f990628fa3dbe18ecf231e63132750ca4fe142c9fbcf40004"
+}

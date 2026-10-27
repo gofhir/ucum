@@ -376,24 +376,25 @@ Every rule in the subpackage cites the document it comes from, and where FHIR an
 
 ## Differences from the Java reference
 
-The lexer and parser are ports of [FHIR/Ucum-java](https://github.com/FHIR/Ucum-java), and the shape of the service follows it, but the behaviour has diverged. Verified by reading its source, not from memory:
+The lexer and parser are ports of [FHIR/Ucum-java](https://github.com/FHIR/Ucum-java), and the shape of the service follows it, but the behaviour has diverged. The table is backed by an executable comparison against Ucum-java 1.0.10: 11,235 cases drawn from `ucum-essence.xml`, the official suite, the `ucum-common` value set, Java's own `UcumCommonUnitsTest` and the UCUM quantities of the R4, R4B and R5 examples. Java's answers are committed, so `go test` replays them without Java; every difference falls in exactly one class, each class names the evidence for both sides, and one of them is a defect here: a special-unit value outside the range of `float64` comes back as `+Inf` or 0 with no error, as in `canonical 1000 B` (10^1000) and `canonical 1000 [pH]` (about 6×10^-974 m-3) (class `ours-float-overflow`, 9 cases, tracked in [#59](https://github.com/gofhir/ucum/issues/59)). The [latest report](docs/plans/evidence/002-2026-10-26-compare-java.md) has the counts and examples; `make compare-java` regenerates it, and `make java-dump` re-runs Java (plan: [docs/plans/002-compare-java.md](docs/plans/002-compare-java.md)).
 
-| | Ucum-java | here |
-|---|---|---|
-| Special-unit conversion | `HoldingHandler` holds the code and units without converting, so `[pH]`, `B`, `Np`, `bit_s`, `[p'diop]` and the homeopathic potencies reduce to base units with a factor of 1 | all 21 convert, each pinned to the specification's normative tables |
-| Temperature | `Converter` raises `Not handled yet (special unit with offset from 0 at intersect)`; its comment notes that fixing it *"requires a total rework of the architecture"* | works, including `[degRe]` |
-| Reading the definitions | `XmlDefinitionsParser` does not read the `<function>` element, so for `Cel` it keeps `Unit="cel(1 K)"` — a string its own expression parser cannot parse | the `<function>` is parsed, giving the reference quantity of every special unit |
-| Registered handlers | a hardcoded list — the consequence of the row above, since without `<function>` there are no parameters to read. Missing `[degRe]`, `B[10.nV]`, `[m/s2/Hz^(1/2)]`, `[hp'_M]` and `[hp'_Q]`, and registering `[hp_X]`/`[hp_C]` (arbitrary-unit codes) for the special units | built from the function each definition declares; an unknown function name is a construction error |
-| Arbitrary units | `isArbitrary` is not in its model, so they cannot be told apart | each is its own dimension, per UCUM §24 |
-| `ValidateInProperty` | requires the canonical form to be a single base unit, plus a hardcoded case for `concentration` | declared property for atoms, dimensional for compounds |
-| Decimal precision | propagated through every operation, in a bespoke numeric type | exact `big.Rat` core, precision in `fhir.Decimal` — better for conversion, weaker for arithmetic |
+| | Ucum-java | here | class (cases) |
+|---|---|---|---|
+| Special-unit conversion | `HoldingHandler` holds the code and units without converting, so `[pH]`, `B`, `Np`, `bit_s`, `[p'diop]` and the homeopathic potencies reduce to base units with a factor of 1: 1 `[pH]` is 1 mol/l, where the specification gives 0.1 mol/l | all 21 convert, each checked against the function the specification defines | `java-special-as-linear` (172) |
+| Temperature | `Converter` raises `Not handled yet (special unit with offset from 0 at intersect)`; its comment notes that fixing it *"requires a total rework of the architecture"* | works, including `[degRe]` | `java-offset-unsupported` (59) |
+| Reading the definitions, registered handlers | `XmlDefinitionsParser` does not read the `<function>` element, so the handlers are a hardcoded list. Missing `[degRe]`, `B[10.nV]`, `[hp'_M]` and `[hp'_Q]`, which raise `Not handled yet (special unit)`, and registering `[hp_X]`/`[hp_C]` (arbitrary-unit codes) for the special units | built from the function each definition declares; an unknown function name is a construction error | `java-special-unregistered` (99) |
+| Arbitrary units | `isArbitrary` is not in its model: they drop out of canonical forms, so `[hp_X]` converts to `[hp_C]` and `/[IU]` canonicalizes to the empty unit | each is its own dimension, per UCUM §24 | `java-arbitrary-dimensionless` (726) |
+| `ValidateInProperty` | requires the canonical form to be a single base unit, plus a hardcoded case for `concentration`, so `J` is not an energy and `l` not a volume | declared property for atoms, dimensional for compounds | `java-inproperty-base-only` (212) |
+| Decimal precision | propagated through every operation, in a bespoke numeric type: 1 `[qt_us]` is 0.000946 m3 (exactly 0.000946352946), and 2.5 m / 4 s is 0.63 m/s | exact `big.Rat` core, precision in `fhir.Decimal` — better for conversion, weaker for arithmetic | `java-decimal-precision` (435) |
+| Case-insensitive codes | kept as data (`CODE`, so `M` for metre), but the parser does not accept them | resolved through `NewCaseInsensitive` — see [The two vocabularies](#the-two-vocabularies) | `java-no-case-insensitive` (251) |
+| Square-bracket atoms with a solidus | the lexer ends `[m/s2/Hz^(1/2)]` at the first `/` and reports the unknown unit `[m` | read as the atom `ucum-essence.xml` defines | `java-lexer-bracket` (15) |
+| Syntax | accepts `""`, `m//s`, `m)` and `{a}{b}`, which the grammar of UCUM (§7, §10) and the official suite (case 1-103) reject | rejected | `java-accepts-invalid-syntax` (4) |
+| Division | `convert(2.5, [bu_us], [pk_us])` returns 1.00; Java's own values for the two units give 9.9997 | 10, exactly | `java-decimal-shift` (1) |
 
 Where Java is ahead:
 
 - It has always enforced UCUM §11 (prefixes only on metric atoms), which this package only started doing in v3.0.0.
 - Precision propagates through its arithmetic; here it is a layer in `fhir.Decimal` (see Known limitations).
-
-Java keeps UCUM's case-insensitive codes (`CODE`, so `M` for metre) as data but its expression parser does not accept them. This package resolves them, through `NewCaseInsensitive` — see [The two vocabularies](#the-two-vocabularies).
 
 `TestFunctionalSpecialUnitsJavaFails` documents the conversions that raise in Java and work here.
 

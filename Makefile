@@ -39,11 +39,13 @@ check:
 
 # Las cantidades UCUM de los ejemplos oficiales de R4, R4B y R5. Descarga los
 # packages (unos 54 MB, con SHA-256 fijado en scripts/packages.sha256) a
-# .cache/packages/; por eso va aparte de `check`.
+# .cache/packages/; por eso va aparte de `check`. También comprueba que la
+# parte FHIR de los casos de Java siga al día, que `check` no puede ver.
 .PHONY: check-packages
 check-packages:
 	scripts/fetch-packages.sh
 	UCUM_PACKAGES=$(CURDIR)/.cache/packages $(GO) test -count=1 -run TestOfficialExamples -v ./fhir/
+	UCUM_PACKAGES=$(CURDIR)/.cache/packages $(GO) test -count=1 -run '^TestJavaCasesFresh$$' -v ./internal/engine/
 
 # Prueba los oráculos: cada defecto inyectado en una copia del repo tiene que
 # hacer fallar su test (docs/plans/001-canonicalkey-exact.md, §7). Necesita
@@ -52,6 +54,20 @@ check-packages:
 mutations:
 	scripts/fetch-packages.sh
 	python3 -I scripts/mutations.py $(CURDIR)/.cache/packages
+
+# Regenera la salida versionada de Ucum-java en internal/engine/testdata/java/
+# (plan docs/plans/002-compare-java.md). Necesita un JDK 17+ y red; no corre en
+# CI, que compara contra lo versionado.
+.PHONY: java-dump
+java-dump:
+	scripts/java-dump.sh
+
+# La comparación contra Ucum-java con su reporte, que queda con fecha en
+# docs/plans/evidence/. No necesita Java.
+.PHONY: compare-java
+compare-java:
+	UCUM_JAVA_REPORT=$(CURDIR)/docs/plans/evidence/002-$$(date +%Y-%m-%d)-compare-java.md \
+		$(GO) test -count=1 -run '^TestCompareJava$$' -v ./internal/engine/
 
 # The official HL7 suite on its own, which is the conformance question.
 .PHONY: conformance
