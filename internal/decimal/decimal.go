@@ -8,6 +8,7 @@ package decimal
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 )
@@ -132,6 +133,21 @@ func MulExact(value float64, factor *big.Rat) float64 {
 	}
 	out, _ := new(big.Rat).Mul(rv, factor).Float64()
 	return out
+}
+
+// Log10Rat devuelve log10 |r| sin pasar r por float64, para que el factor de
+// Ym13 (10^312) tenga log10 aunque no quepa en float64: es log10 de la mantisa
+// binaria más el exponente por log10(2). Con r = 0 da -Inf. Una potencia de 10
+// da su exponente exacto (medido de 10^-1000 a 10^1000).
+func Log10Rat(r *big.Rat) float64 {
+	if r.Sign() == 0 {
+		return math.Inf(-1)
+	}
+	f := new(big.Float).SetPrec(64).SetRat(new(big.Rat).Abs(r))
+	mant := new(big.Float)
+	exp := f.MantExp(mant)
+	m, _ := mant.Float64()
+	return math.Log10(m) + float64(exp)*math.Log10(2)
 }
 
 // Equal reports whether two values are exactly equal.

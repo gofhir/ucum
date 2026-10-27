@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gofhir/ucum/v4/internal/expr"
 	"github.com/gofhir/ucum/v4/internal/model"
+	"github.com/gofhir/ucum/v4/internal/ucumerr"
 )
 
 // Plan 002: las clases de diferencia con Ucum-java. Cada una es un predicado
@@ -89,6 +91,7 @@ type essenceXML struct {
 		Code      string `xml:"Code,attr"`
 		Special   string `xml:"isSpecial,attr"`
 		Arbitrary string `xml:"isArbitrary,attr"`
+		Metric    string `xml:"isMetric,attr"`
 		Property  string `xml:"property"`
 		Value     struct {
 			Unit     string          `xml:"Unit,attr"`
@@ -612,7 +615,7 @@ func (x *javaContext) operandCanonical(v, u string) (*big.Rat, float64, bool) {
 	if code, alpha, ok := x.loneSpecial(u); ok {
 		// §22■4: m = f⁻¹(α r) × u.
 		if x.specialExceeds(v, u) {
-			// Fuera de float64: lo explica ours-float-overflow, no otra clase.
+			// Fuera de float64: lo explica ours-out-of-range, no otra clase.
 			return nil, 0, false
 		}
 		fv, _ := new(big.Rat).Mul(r, alpha).Float64()
@@ -985,16 +988,14 @@ var javaClasses = []javaClass{
 		},
 	},
 	{
-		Name: "ours-float-overflow",
-		Kind: "bug-ours",
+		Name: "ours-out-of-range",
+		Kind: "deliberate",
 		Reason: "The value in the canonical unit is outside the range of float64 (10^1000 for 1000 B, about " +
-			"6×10^-974 m-3 for 1000 [pH]), and this package returns +Inf or 0 with no error; Java, which treats " +
-			"the unit as linear, gives a finite and wrong value.",
-		Spec:  "§22■4, §46■3",
-		Issue: "#59",
+			"6×10^-974 m-3 for 1000 [pH]), and this package's float64 API reports ErrOutOfRange; Java, which " +
+			"treats the unit as linear, gives a finite and wrong value.",
+		Spec: "§22■4, §46■3; #59",
 		match: func(x *javaContext, d javaDiff) bool {
-			if d.What != "value" || d.Case.Op != "canonical" || d.Ours.Exact != nil ||
-				!(math.IsInf(d.Ours.Float, 0) || d.Ours.Float == 0) {
+			if d.What != "status" || d.Case.Op != "canonical" || !errors.Is(d.Ours.Err, ucumerr.ErrOutOfRange) {
 				return false
 			}
 			return x.specialExceeds(d.Case.Args[0], d.Case.Args[1])
@@ -1281,7 +1282,7 @@ func (x *javaContext) specialCanonical(code string, v float64) (float64, bool) {
 		switch {
 		case e > log10Max:
 			return math.Copysign(math.Inf(1), sign), true
-		case e < log10Min:
+		case e <= log10Min:
 			return math.Copysign(0, sign), true
 		case e < math.Log10(0x1p-1022):
 			return 0, false // subnormal: float64 no lo dice con precisión
@@ -1297,7 +1298,9 @@ func (x *javaContext) specialCanonical(code string, v float64) (float64, bool) {
 
 var (
 	log10Max = math.Log10(math.MaxFloat64)
-	log10Min = math.Log10(math.SmallestNonzeroFloat64)
+	// Log10 de 2^-1075, la mitad del menor subnormal: un valor de magnitud
+	// menor o igual redondea a cero.
+	log10Min = -1075 * math.Log10(2)
 )
 
 // specialLog10 es log10 |f⁻¹(v) × referencia| para las funciones
@@ -1313,7 +1316,7 @@ func (x *javaContext) specialLog10(code string, v float64) (float64, bool) {
 }
 
 // specialExceeds: v en la unidad especial u vale, en las unidades base, más
-// que el mayor float64 o menos que el menor distinto de cero (#59).
+// que el mayor float64 o tan poco que redondea a cero (#59).
 func (x *javaContext) specialExceeds(v, u string) bool {
 	code, alpha, ok := x.loneSpecial(u)
 	r, ok2 := ratOf(v)
@@ -1322,7 +1325,28 @@ func (x *javaContext) specialExceeds(v, u string) bool {
 	}
 	fv, _ := new(big.Rat).Mul(r, alpha).Float64()
 	e, ok := x.specialLog10(code, fv)
-	return ok && (e > log10Max || e < log10Min)
+	return ok && (e > log10Max || e <= log10Min)
+}
+
+// outOfRange dice si el resultado de un caso con una unidad especial de
+// origen no cabe en float64 según specialLog10: canonical, o convert a una
+// unidad lineal (dividido por su factor).
+func (or *javaOracle) outOfRange(c javaCase, code string, fv float64) bool {
+	e, ok := or.x.specialLog10(code, fv)
+	if !ok {
+		return false
+	}
+	if c.Op == "convert" {
+		if _, _, toSpecial := or.x.loneSpecial(c.Args[2]); toSpecial {
+			return false
+		}
+		f, ok := or.x.xmlFactor(c.Args[2], or.x.parse)
+		if !ok || f.Sign() <= 0 {
+			return false
+		}
+		e -= ratLog10(f)
+	}
+	return e > log10Max || e <= log10Min
 }
 
 // floatClose compara un resultado float64 con un esperado, en error
@@ -1491,6 +1515,14 @@ func (or *javaOracle) check(c javaCase, o ourOut) string {
 		}
 	}
 	or.specialChecked++
+	if or.outOfRange(c, code, fv) {
+		// El valor verdadero no cabe en float64: la respuesta es
+		// ErrOutOfRange (#59).
+		if errors.Is(o.Err, ucumerr.ErrOutOfRange) {
+			return ""
+		}
+		return fmt.Sprintf("specification is outside float64, ours is %s %v %s", o.Status, o.Float, o.Msg)
+	}
 	if o.Status != "ok" {
 		return fmt.Sprintf("specification gives %v, ours fails: %s", want, o.Msg)
 	}
@@ -1499,12 +1531,7 @@ func (or *javaOracle) check(c javaCase, o ourOut) string {
 		got, _ = o.Exact.Float64()
 	}
 	if math.IsInf(want, 0) {
-		// El valor verdadero no cabe en float64; lo registra la clase
-		// ours-float-overflow, no el oráculo.
-		if math.IsInf(got, int(math.Copysign(1, want))) {
-			return ""
-		}
-		return fmt.Sprintf("specification overflows float64, ours is %v", got)
+		return fmt.Sprintf("specification overflows float64 but outOfRange missed it, ours is %v", got)
 	}
 	if !floatClose(got, want) {
 		return fmt.Sprintf("specification gives %v %s, ours is %v", want, to, got)

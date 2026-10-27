@@ -80,6 +80,7 @@ fuzz:
 	$(GO) test -run XXX -fuzz FuzzValidate -fuzztime $(FUZZTIME) ./internal/engine/
 	$(GO) test -run XXX -fuzz FuzzComposeRoundTrip -fuzztime $(FUZZTIME) ./internal/engine/
 	$(GO) test -run XXX -fuzz FuzzProductUnits -fuzztime $(FUZZTIME) ./internal/engine/
+	$(GO) test -run XXX -fuzz FuzzFiniteResults -fuzztime $(FUZZTIME) ./internal/engine/
 
 .PHONY: bench
 bench:

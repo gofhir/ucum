@@ -1,6 +1,10 @@
 package decimal
 
-import "testing"
+import (
+	"math"
+	"math/big"
+	"testing"
+)
 
 func TestDecimalFromString(t *testing.T) {
 	tests := []struct {
@@ -84,5 +88,25 @@ func TestDecimalArithmetic(t *testing.T) {
 	}
 	if !FromInt(0).IsZero() {
 		t.Error("0 should be zero")
+	}
+}
+
+// TestLog10RatPowersOfTen: UCUM define sus unidades con decimales, y el log10 de un
+// prefijo redondeado movería el último dígito de una conversión logarítmica
+// (1000 W en B[kW] es 0).
+func TestLog10RatPowersOfTen(t *testing.T) {
+	ten := big.NewInt(10)
+	for k := int64(-1000); k <= 1000; k++ {
+		p := new(big.Int).Exp(ten, big.NewInt(max(k, -k)), nil)
+		r := new(big.Rat).SetInt(p)
+		if k < 0 {
+			r.Inv(r)
+		}
+		if got := Log10Rat(r); got != float64(k) {
+			t.Errorf("Log10Rat(10^%d) = %v, want %d", k, got, k)
+		}
+	}
+	if got := Log10Rat(new(big.Rat)); !math.IsInf(got, -1) {
+		t.Errorf("Log10Rat(0) = %v, want -Inf", got)
 	}
 }

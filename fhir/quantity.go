@@ -3,6 +3,7 @@ package fhir
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/gofhir/ucum/v4"
@@ -301,11 +302,17 @@ func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err e
 			return "", 0, err
 		}
 		if ok {
+			// La misma regla que Canonical por el camino de Value (#59): un
+			// valor que no cabe en float64, o que no es cero y redondea a
+			// cero, es ucum.ErrOutOfRange.
 			f, _ := p.Value.Float64()
-			if f == 0 {
-				// Un negativo que no cabe en float64 da -0; el camino de
-				// Value da +0, y la clave no debe depender del camino.
-				f = 0
+			if math.IsInf(f, 0) || f == 0 && p.Value.Sign() != 0 {
+				return "", 0, &ucum.ValidationError{
+					Code:    q.Code,
+					Message: fmt.Sprintf("%s %s: %v", new(big.Float).SetRat(q.Exact).Text('g', 6), q.Code, ucum.ErrOutOfRange),
+					Offset:  -1,
+					Err:     ucum.ErrOutOfRange,
+				}
 			}
 			return p.Code, f, nil
 		}

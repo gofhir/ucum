@@ -7,6 +7,7 @@
 package ucum
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -97,6 +98,13 @@ type PropertyLister interface {
 // interface, including a test double.
 func ValidateCanonicalUnits(svc Service, code, canonical string) error {
 	pair, err := svc.Canonical(1, code)
+	if errors.Is(err, ErrOutOfRange) {
+		// La pregunta es de dimensión, y 1 Ym13 (10^312 m13) no cabe en
+		// float64 aunque su unidad canónica exista. canonical tiene que estar
+		// escrito en forma canónica (vuelve igual, con valor 1) y medir lo
+		// mismo que code.
+		return validateCanonicalByComparison(svc, code, canonical)
+	}
 	if err != nil {
 		return err
 	}
@@ -108,6 +116,36 @@ func ValidateCanonicalUnits(svc Service, code, canonical string) error {
 		}
 	}
 	return nil
+}
+
+// validateCanonicalByComparison es ValidateCanonicalUnits sin el valor de
+// code, para cuando 1 en esa unidad no cabe en float64.
+func validateCanonicalByComparison(svc Service, code, canonical string) error {
+	own, err := svc.Canonical(1, canonical)
+	if errors.Is(err, ErrOutOfRange) {
+		// Una forma canónica no lleva prefijo, así que 1 en ella siempre
+		// cabe: si no cabe, canonical no es una forma canónica.
+		return notReducing(code, canonical)
+	}
+	if err != nil {
+		return err
+	}
+	same, err := svc.IsComparable(code, canonical)
+	if err != nil {
+		return err
+	}
+	if own.Code != canonical || own.Value != 1 || !same {
+		return notReducing(code, canonical)
+	}
+	return nil
+}
+
+func notReducing(code, canonical string) error {
+	return &ValidationError{
+		Code:    code,
+		Message: fmt.Sprintf("unit %q does not reduce to %q", code, canonical),
+		Offset:  -1,
+	}
 }
 
 // ExactService extends Service with exact rational arithmetic, for callers that

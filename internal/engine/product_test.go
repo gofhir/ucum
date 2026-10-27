@@ -9,6 +9,7 @@ import (
 	"github.com/gofhir/ucum/v4/internal/decimal"
 	"github.com/gofhir/ucum/v4/internal/expr"
 	"github.com/gofhir/ucum/v4/internal/model"
+	"github.com/gofhir/ucum/v4/internal/ucumerr"
 )
 
 // TestProductUnits pins the result unit of Multiply and Divide: the operands'
@@ -188,6 +189,12 @@ func FuzzProductUnits(f *testing.F) {
 			got, err := op(Pair{v1, code1}, Pair{v2, code2})
 			if err != nil {
 				if errors.Is(err, ErrNotRational) {
+					continue
+				}
+				// Fuera de float64 solo si el resultado exacto en la unidad
+				// canónica no cabe (#59).
+				if f, _ := want.Float64(); errors.Is(err, ucumerr.ErrOutOfRange) &&
+					(math.IsInf(f, 0) || f == 0 && want.Sign() != 0) {
 					continue
 				}
 				t.Fatalf("%v %q op %v %q (div=%v): %v", v1, code1, v2, code2, div, err)
