@@ -1,6 +1,6 @@
 # 002 — Comparación ejecutable contra Ucum-java
 
-**Estado:** paso 9, cerrado en el árbol de trabajo; falta el commit (plan aprobado el 2026-10-26). **Fecha:** 2026-10-26.
+**Estado:** cerrado e integrado el 2026-10-27 (#60, squash `30048dc`; plan aprobado el 2026-10-26). **Fecha:** 2026-10-26.
 
 ## Motivo
 La carta (§10, reglas de evidencia) pide que toda comparación contra la
