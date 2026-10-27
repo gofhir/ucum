@@ -48,6 +48,8 @@ func TestValidateCanonicalUnitsOutOfRange(t *testing.T) {
 		{"Ym13", "km13"}, // misma dimensión, pero no es una forma canónica
 		{"Ym13", "s"},
 		{"Ym13", "Ym13"}, // tampoco cabe, pero el error es que no es canónica
+		{"Ym13", "m13x"}, // no se analiza: igual que en la vía normal
+		{"Ym13", "]"},
 	} {
 		var ve *ucum.ValidationError
 		err := ucum.ValidateCanonicalUnits(svc, tt.code, tt.canonical)

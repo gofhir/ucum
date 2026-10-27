@@ -121,20 +121,15 @@ func ValidateCanonicalUnits(svc Service, code, canonical string) error {
 // validateCanonicalByComparison es ValidateCanonicalUnits sin el valor de
 // code, para cuando 1 en esa unidad no cabe en float64.
 func validateCanonicalByComparison(svc Service, code, canonical string) error {
+	// Como en la vía normal, una forma que no es canónica (no se analiza, no
+	// cabe o no vuelve igual) es «does not reduce», no el error de esa forma.
+	// Una forma que vuelve con el mismo código vale 1: no lleva prefijos.
 	own, err := svc.Canonical(1, canonical)
-	if errors.Is(err, ErrOutOfRange) {
-		// Una forma canónica no lleva prefijo, así que 1 en ella siempre
-		// cabe: si no cabe, canonical no es una forma canónica.
+	if err != nil || own.Code != canonical {
 		return notReducing(code, canonical)
 	}
-	if err != nil {
-		return err
-	}
 	same, err := svc.IsComparable(code, canonical)
-	if err != nil {
-		return err
-	}
-	if own.Code != canonical || own.Value != 1 || !same {
+	if err != nil || !same {
 		return notReducing(code, canonical)
 	}
 	return nil

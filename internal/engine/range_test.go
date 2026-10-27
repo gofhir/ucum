@@ -148,6 +148,24 @@ func TestRangeHandWritten(t *testing.T) {
 		{"3 dB to B", "§22■4: α = 1/10", convertCall(3, "dB", "B"), rangeFits, 0.3, 0},
 		{"30 dB to Np", "§46■3: ln(10^3)", convertCall(30, "dB", "Np"), rangeFits, 3 * ln10, tol13},
 
+		// Lineal a logarítmica, redondeo único (§46■3): lg 10^3 y -lg 10^-3.
+		{"1000 W to dB[W]", "§46■3", convertCall(1000, "W", "dB[W]"), rangeFits, 30, 0},
+		{"0.001 mol/l to [pH]", "§46■3, f = -lg", convertCall(0.001, "mol/l", "[pH]"), rangeFits, 3, 0},
+		// lgTimes2 en las dos: v B[uV] = 10^(v/2) uV, y en dB[mV] es
+		// 10·(v + 2 lg 10^-3) = 10v - 60, redondeado una vez.
+		{"5.780447444613257 B[uV] to dB[mV]", "§46■3, lgTimes2", convertCall(5.780447444613257, "B[uV]", "dB[mV]"), rangeFits, -2.19552555386743, 0},
+		// Entre la misma referencia, r = v·α_s/α_d: 10^-324 redondea a cero.
+		{"1e-300 yB to B", "§46■3, 10^-324", convertCall(1e-300, "yB", "B"), rangeOut, 0, 0},
+		{"1e-280 yB to YB", "§46■3, 10^-328", convertCall(1e-280, "yB", "YB"), rangeOut, 0, 0},
+		{"1e-320 B to YB", "§46■3, 10^-344", convertCall(1e-320, "B", "YB"), rangeOut, 0, 0},
+		{"5e-324 dB to B", "§46■3, α = 1/10", convertCall(5e-324, "dB", "B"), rangeOut, 0, 0},
+		{"-5e-324 dB to B", "§46■3", convertCall(-5e-324, "dB", "B"), rangeOut, 0, 0},
+		{"5e-324 Np to B", "§46■3: 5e-324·2/ln 10", convertCall(5e-324, "Np", "B"), rangeOut, 0, 0},
+		{"1e-320 B[W] to YB[W]", "§46■3", convertCall(1e-320, "B[W]", "YB[W]"), rangeOut, 0, 0},
+		// Con referencias distintas el término de referencia domina, y el
+		// redondeo es legítimo: lg(1 W / 1 kW) = -3, en B[kW] -3 y en YB 10^-24.
+		{"1e-320 B[W] to YB[kW]", "§46■3", convertCall(1e-320, "B[W]", "YB[kW]"), rangeFits, -3e-24, 0},
+
 		// 10^-500 / 10^-312: el valor va por log10 y el factor 10^312 no cabe en
 		// float64.
 		{"-500 B to ym13/m13", "§46■3, §25■1", convertCall(-500, "B", "ym13/m13"), rangeFits, 1e-188, tol13},

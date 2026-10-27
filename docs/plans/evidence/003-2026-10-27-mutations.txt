@@ -66,4 +66,7 @@ K27          ok         want kill    got kill        a subnormal argument taken 
 K28          ok         want kill    got kill        no zero-divisor check on the log10 path
 K29          ok         want kill    got kill        Log10Rat with a rounded log10(2)
 K30          ok         want kill    got kill        LogToLog multiplies by the prefix ratio in float64
-K31          ok         want kill    got kill        ValidateCanonicalUnits reports an out-of-range canonical as out of range
+K31          ok         want kill    got kill        the fallback returns the error of a canonical form that is not one
+K32          ok         want kill    got kill        LogToLog checks only overflow
+K35          ok         want kill    got kill        LogToLog rounds each term before the sum
+K34          ok         want kill    got kill        a logarithmic destination takes ln/ln 10

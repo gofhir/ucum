@@ -66,15 +66,14 @@ type NativeUnitHandler interface {
 	nativeUnit() string
 }
 
-// Log10Handler lo implementan los handlers cuya inversa es una potencia: los
-// logarítmicos, cuya inversa es b^x, y la raíz cuadrada, cuya
-// inversa es el cuadrado (§44-48). Con él, el valor en la escala de
-// referencia se lleva como su log10 en vez de materializarlo.
+// Log10Handler is implemented by the handlers whose inverse is a power: the
+// logarithmic ones, whose inverse is b^x, and the square root, whose inverse is
+// the square (§44-48). Through it a value on the reference scale is carried as
+// its log10 instead of being materialized.
 //
-// Es lo que mantiene correcta una conversión entre escalas logarítmicas donde
-// float64 no alcanza: 1000 B es 10^1000 en la escala de referencia, que no cabe
-// en ningún float64, mientras que la misma cantidad en dB es 10000; y 1e-17 B
-// es 1 + 2.3e-17, que float64 redondea a 1 y pierde el valor entero de vuelta.
+// That is what keeps a conversion through a logarithmic scale right where
+// float64 falls short: 1000 B is 10^1000 on the reference scale, which no
+// float64 holds, while the same quantity in dB is 10000.
 type Log10Handler interface {
 	// toCanonicalLog10 da log10 |f⁻¹(v)|.
 	toCanonicalLog10(v float64) float64
@@ -145,13 +144,12 @@ func (s Use) FromCanonicalRat(v *big.Rat) (*big.Rat, bool) {
 	return new(big.Rat).Quo(rh.fromCanonicalRat(v), s.Alpha.Rat()), true
 }
 
-// InDomain dice si f_s está definida en un valor de la escala de referencia:
-// un logaritmo solo en un positivo; la raíz cuadrada, en uno que no sea
-// negativo.
+// InDomain reports whether f_s is defined at a value on the reference scale: a
+// logarithm only at a positive value, the square root at a non-negative one.
 func (s Use) InDomain(v float64) bool { return s.Handler.inDomain(v) }
 
-// ToCanonicalLog10 es ToCanonical en log10: log10 |f_s-1(α x')|. Da false si
-// el handler no tiene esa forma.
+// ToCanonicalLog10 is ToCanonical in log10: log10 |f_s⁻¹(α x')|. It returns
+// false if the handler has no such form.
 func (s Use) ToCanonicalLog10(v float64) (float64, bool) {
 	lh, ok := s.Handler.(Log10Handler)
 	if !ok {
@@ -160,8 +158,8 @@ func (s Use) ToCanonicalLog10(v float64) (float64, bool) {
 	return lh.toCanonicalLog10(v * s.Alpha.Float64()), true
 }
 
-// FromCanonicalLog10 es FromCanonical para un valor dado por su log10 l:
-// f_s(10^l) / α. Da false si el handler no tiene esa forma.
+// FromCanonicalLog10 is FromCanonical for a value given by its log10 l:
+// f_s(10^l) / α. It returns false if the handler has no such form.
 func (s Use) FromCanonicalLog10(l float64) (float64, bool) {
 	lh, ok := s.Handler.(Log10Handler)
 	if !ok {
@@ -170,38 +168,48 @@ func (s Use) FromCanonicalLog10(l float64) (float64, bool) {
 	return lh.fromCanonicalLog10(l) / s.Alpha.Float64(), true
 }
 
-// IsLogarithmic dice si f_s es un logaritmo, cuyo valor FromCanonicalLog10 da
-// sin formar nunca 10^l.
+// HasLog10 reports whether the handler of s can carry a value as its log10.
+func (s Use) HasLog10() bool {
+	_, ok := s.Handler.(Log10Handler)
+	return ok
+}
+
+// IsLogarithmic reports whether f_s is a logarithm, whose value
+// FromCanonicalLog10 gives without ever forming 10^l.
 func (s Use) IsLogarithmic() bool {
 	lh, ok := s.Handler.(Log10Handler)
 	return ok && lh.logarithmic()
 }
 
-// LogToLog convierte v de una unidad logarítmica a otra sin pasar por la
-// escala de referencia. Las dos son lineales en log10 del valor de referencia,
-// así que la conversión es afín en v:
+// LogToLog converts v from one logarithmic unit to another without going
+// through the reference scale. Both are linear in log10 of the reference value,
+// so the conversion is affine in v:
 //
 //	r = v · (α_s/α_d) · (k_s/k_d) + l / (k_d · α_d)
 //
-// donde k es la pendiente de cada función (log10 de f⁻¹ por unidad) y l es
-// log10 del cociente de las referencias. El cociente α_s/α_d va en
-// racionales, así que 1e300 YB a YB no forma 10^324, y 1e-300 pB a pB no pasa
-// por un subnormal. Da false si alguna de las dos no es logarítmica.
-func LogToLog(src, dst Use, v, l float64) (float64, bool) {
+// where k is the slope of each function (log10 of f⁻¹ per unit) and l is log10
+// of the ratio of the references. It returns r as an exact rational, for the
+// caller to round once, so 1e300 YB to YB does not form 10^324 and a result
+// that cancels keeps its digits. It returns false if either unit is not
+// logarithmic. Both v and l must be finite.
+func LogToLog(src, dst Use, v, l float64) (*big.Rat, bool) {
 	hs, ok := src.Handler.(logHandler)
 	if !ok {
-		return 0, false
+		return nil, false
 	}
 	hd, ok := dst.Handler.(logHandler)
 	if !ok {
-		return 0, false
+		return nil, false
 	}
-	// v·(α_s/α_d) se redondea una vez: 60 dB[mV] a B[V] es 6 exacto.
-	scaled := decimal.MulExact(v, new(big.Rat).Quo(src.Alpha.Rat(), dst.Alpha.Rat()))
-	if hs.slope() != hd.slope() {
-		scaled *= hs.slope() / hd.slope()
-	}
-	return scaled + l/(hd.slope()*dst.Alpha.Float64()), true
+	// La suma va en racionales: los dos términos casi se cancelan en 5.78 B[uV]
+	// a dB[mV] (57.8 - 60), y redondear cada uno antes movía 8 ulps. Con base
+	// 10, k_s/k_d y l/k_d son exactos en float64.
+	r := new(big.Rat).SetFloat64(v)
+	r.Mul(r, new(big.Rat).Quo(src.Alpha.Rat(), dst.Alpha.Rat()))
+	r.Mul(r, new(big.Rat).SetFloat64(hs.slope()/hd.slope()))
+	offset := new(big.Rat).SetFloat64(l / hd.slope())
+	offset.Mul(offset, new(big.Rat).Inv(dst.Alpha.Rat()))
+	return r.Add(r, offset), true
 }
 
 // IsLinear reports whether the underlying scale is linear, which is what lets a

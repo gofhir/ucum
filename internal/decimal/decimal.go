@@ -135,10 +135,10 @@ func MulExact(value float64, factor *big.Rat) float64 {
 	return out
 }
 
-// Log10Rat devuelve log10 |r| sin pasar r por float64, para que el factor de
-// Ym13 (10^312) tenga log10 aunque no quepa en float64: es log10 de la mantisa
-// binaria más el exponente por log10(2). Con r = 0 da -Inf. Una potencia de 10
-// da su exponente exacto (medido de 10^-1000 a 10^1000).
+// Log10Rat returns log10 |r| without rounding r to float64, so the factor of
+// Ym13 (10^312) has a log10 although no float64 holds it: it is log10 of the
+// binary mantissa plus the exponent times log10(2). It returns -Inf for 0. A
+// power of ten gives its exponent exactly (TestLog10RatPowersOfTen).
 func Log10Rat(r *big.Rat) float64 {
 	if r.Sign() == 0 {
 		return math.Inf(-1)

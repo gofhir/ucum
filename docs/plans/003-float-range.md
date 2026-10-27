@@ -523,3 +523,21 @@ Mutaciones de la corrida completa antes de la ronda 2:
 Resultado: [`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt),
 la línea base y todas las mutaciones dan ok (`python3 -I scripts/mutations.py`,
 salida 0). `make check` en verde.
+
+### Ronda 2 (2026-10-27: Opus y Fable, en paralelo)
+
+Recibieron solo los hallazgos de la ronda 1, los cambios y el diff. Los dos
+verificaron con llamadas que las resoluciones de la ronda 1 se sostienen.
+
+| # | Hallazgo | Resolución |
+|---|---|---|
+| R2-1 (medio, los dos) | `LogToLog` dejaba que un resultado distinto de cero redondeara a 0 sin error: `1e-300 yB → B`, `5e-324 dB → B`, `5e-324 Np → B` | Aceptado. `LogToLog` devuelve la suma afín exacta (`*big.Rat`) y `convertFloat` la redondea una vez con `roundRat`, que da `ErrOutOfRange` para Inf y para un 0 que no sale de 0. Siete casos a mano (incluye `1e-320 B[W] → YB[kW]` = -3e-24, donde el redondeo es legítimo); K20 y K32 |
+| R2-2 (bajo, Opus) | El término de referencia de `LogToLog` perdía hasta 8 ulps por cancelación: `5.780447444613257 B[uV] → dB[mV]` daba -2.1955255538674265 | Aceptado. La misma suma exacta lo resuelve: el esperado es 10v - 60 (lgTimes2 en las dos), redondeado una vez = -2.19552555386743; K35 redondea cada término y muere. K33 (dividir el término por α_d en float64) es equivalente con los datos de UCUM: toda referencia es potencia de 10, l es entero, y l/(k·0.1) = (l/k)·10 en float64 para todo l de -700 a 700 y k en ±1 y ±1/2 (sonda en el scratchpad); se quitó |
+| R2-3 (bajo, los dos) | `ValidateCanonicalUnits("Ym13", "m13x")` daba el error de análisis de `m13x`, mientras la vía normal dice «does not reduce» | Aceptado. Todo error de `Canonical(1, canonical)` o de `IsComparable` es «does not reduce». Casos `m13x` y `]`; K19 y K31 |
+| R2-4 (bajo, Opus) | Guardas que ninguna mutación mata: `own.Value != 1`, `if hs.slope() != hd.slope()`, y `log` en lugar de `log10` en la vía directa sin un caso exacto | Aceptado. Las dos primeras se quitaron (una forma que vuelve con el mismo código no lleva prefijo; x·1 = x). Casos exactos `1000 W → dB[W]` = 30 y `0.001 mol/l → [pH]` = 3; K34 usa ln/ln 10 y muere. `r == 0 && !dst.IsLogarithmic()` en la vía log queda: es la regla del dominio, aunque hoy ningún logaritmo llega ahí con l = 0 |
+| R2-5 (bajo, los dos) | Godoc en español en símbolos exportados de `internal/`, junto a godoc en inglés en el mismo archivo | Aceptado. En `main` todo símbolo exportado, también en `internal/`, se documenta en inglés; se tradujeron `Log10Handler`, `InDomain`, `ToCanonicalLog10`, `FromCanonicalLog10`, `IsLogarithmic`, `LogToLog` y `Log10Rat`, y se corrigió f_s⁻¹ |
+| R2-6 (bajo, Fable) | `dst.FromCanonicalLog10(0)` como sonda de capacidad | Aceptado. `Use.HasLog10()` |
+
+Resultado: [`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt),
+la línea base y todas las mutaciones dan ok (salida 0). `make check` en verde.
+Como R2-1 es de severidad media, la ronda no converge: va la ronda 3.

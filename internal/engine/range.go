@@ -124,8 +124,7 @@ func toDestination(x scalar, factor *big.Rat, dst *special.Use) (float64, error)
 	if dst == nil {
 		return x.linearTimes(factor)
 	}
-	_, hasLog := dst.FromCanonicalLog10(0)
-	if !hasLog {
+	if !dst.HasLog10() {
 		// tan y las escalas de temperatura: f es finita en todo valor
 		// finito.
 		m, err := x.linearTimes(factor)
@@ -195,9 +194,11 @@ func (s *Service) convertFloat(value float64, p convertParts) (float64, error) {
 		return 0, ucumerr.Conversion(p.from, p.to, valueError(err, value, p.from, false))
 	}
 	if srcUse != nil && dstUse != nil {
-		if r, ok := special.LogToLog(*srcUse, *dstUse, value, decimal.Log10Rat(factor)); ok {
-			if math.IsInf(r, 0) {
-				return fail(ucumerr.ErrOutOfRange)
+		if exact, ok := special.LogToLog(*srcUse, *dstUse, value, decimal.Log10Rat(factor)); ok {
+			// 1e-300 yB es 10^-324 B, que redondea a cero.
+			r, err := roundRat(exact)
+			if err != nil {
+				return fail(err)
 			}
 			return r, nil
 		}
