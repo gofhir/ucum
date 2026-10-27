@@ -201,14 +201,19 @@ func LogToLog(src, dst Use, v, l float64) (*big.Rat, bool) {
 	if !ok {
 		return nil, false
 	}
-	// La suma va en racionales: los dos términos casi se cancelan en 5.78 B[uV]
-	// a dB[mV] (57.8 - 60), y redondear cada uno antes movía 8 ulps. Con base
-	// 10, k_s/k_d y l/k_d son exactos en float64.
+	// Todo va en racionales y se redondea una vez: los dos términos casi se
+	// cancelan en 5.78 B[uV] a dB[mV] (57.8 - 60); k_s/k_d es -1/3 entre B y
+	// [hp'_M]; y l/(k_d·α_d) con α_d = 10^-24 no es exacto en float64. Las
+	// pendientes de base 10, 100 y 1000 (±1, ±1/2, ±2, ±3) sí lo son, y l
+	// también, porque toda referencia de UCUM es una potencia de 10.
+	ks, kd := new(big.Rat).SetFloat64(hs.slope()), new(big.Rat).SetFloat64(hd.slope())
 	r := new(big.Rat).SetFloat64(v)
 	r.Mul(r, new(big.Rat).Quo(src.Alpha.Rat(), dst.Alpha.Rat()))
-	r.Mul(r, new(big.Rat).SetFloat64(hs.slope()/hd.slope()))
-	offset := new(big.Rat).SetFloat64(l / hd.slope())
-	offset.Mul(offset, new(big.Rat).Inv(dst.Alpha.Rat()))
+	r.Mul(r, ks)
+	r.Quo(r, kd)
+	offset := new(big.Rat).SetFloat64(l)
+	offset.Quo(offset, kd)
+	offset.Quo(offset, dst.Alpha.Rat())
 	return r.Add(r, offset), true
 }
 

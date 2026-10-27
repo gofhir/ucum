@@ -154,6 +154,16 @@ func TestRangeHandWritten(t *testing.T) {
 		// lgTimes2 en las dos: v B[uV] = 10^(v/2) uV, y en dB[mV] es
 		// 10·(v + 2 lg 10^-3) = 10v - 60, redondeado una vez.
 		{"5.780447444613257 B[uV] to dB[mV]", "§46■3, lgTimes2", convertCall(5.780447444613257, "B[uV]", "dB[mV]"), rangeFits, -2.19552555386743, 0},
+		// α_d = 10^-24: 0 B[kW] es 1000 W, lg 1000 = 3 B[W], 3·10^24 yB[W].
+		{"0 B[kW] to yB[W]", "§46■3, §22■4", convertCall(0, "B[kW]", "yB[W]"), rangeFits, 3e24, 0},
+		{"0 B[W] to zB[kW]", "§46■3", convertCall(0, "B[W]", "zB[kW]"), rangeFits, -3e21, 0},
+		// 10 nV en B[uV] es 2 lg(10^-8 / 10^-6) = -4, y en aB[uV], -4·10^18.
+		{"0 B[10.nV] to aB[uV]", "§46■3, lgTimes2", convertCall(0, "B[10.nV]", "aB[uV]"), rangeFits, -4e18, 0},
+		// [hp'_M] es -log1000 (§47): de B la razón de pendientes es -1/3.
+		{"82.3 B to [hp'_M]", "§47, hpM", convertCall(82.3, "B", "[hp'_M]"), rangeFits, -27.433333333333334, 0},
+		{"0.0876 kB to [hp'_M]", "§47, hpM", convertCall(0.0876, "kB", "[hp'_M]"), rangeFits, -29.2, 0},
+		{"60 YB to [hp'_M]", "§47, hpM", convertCall(60, "YB", "[hp'_M]"), rangeFits, -2e25, 0},
+
 		// Entre la misma referencia, r = v·α_s/α_d: 10^-324 redondea a cero.
 		{"1e-300 yB to B", "§46■3, 10^-324", convertCall(1e-300, "yB", "B"), rangeOut, 0, 0},
 		{"1e-280 yB to YB", "§46■3, 10^-328", convertCall(1e-280, "yB", "YB"), rangeOut, 0, 0},

@@ -532,7 +532,7 @@ verificaron con llamadas que las resoluciones de la ronda 1 se sostienen.
 | # | Hallazgo | Resolución |
 |---|---|---|
 | R2-1 (medio, los dos) | `LogToLog` dejaba que un resultado distinto de cero redondeara a 0 sin error: `1e-300 yB → B`, `5e-324 dB → B`, `5e-324 Np → B` | Aceptado. `LogToLog` devuelve la suma afín exacta (`*big.Rat`) y `convertFloat` la redondea una vez con `roundRat`, que da `ErrOutOfRange` para Inf y para un 0 que no sale de 0. Siete casos a mano (incluye `1e-320 B[W] → YB[kW]` = -3e-24, donde el redondeo es legítimo); K20 y K32 |
-| R2-2 (bajo, Opus) | El término de referencia de `LogToLog` perdía hasta 8 ulps por cancelación: `5.780447444613257 B[uV] → dB[mV]` daba -2.1955255538674265 | Aceptado. La misma suma exacta lo resuelve: el esperado es 10v - 60 (lgTimes2 en las dos), redondeado una vez = -2.19552555386743; K35 redondea cada término y muere. K33 (dividir el término por α_d en float64) es equivalente con los datos de UCUM: toda referencia es potencia de 10, l es entero, y l/(k·0.1) = (l/k)·10 en float64 para todo l de -700 a 700 y k en ±1 y ±1/2 (sonda en el scratchpad); se quitó |
+| R2-2 (bajo, Opus) | El término de referencia de `LogToLog` perdía hasta 8 ulps por cancelación: `5.780447444613257 B[uV] → dB[mV]` daba -2.1955255538674265 | Aceptado. La misma suma exacta lo resuelve: el esperado es 10v - 60 (lgTimes2 en las dos), redondeado una vez = -2.19552555386743; K35 redondea cada término y muere. K33 (dividir el término por α_d en float64) se declaró equivalente y se quitó; la ronda 3 mostró que no lo es (ver R3-1) |
 | R2-3 (bajo, los dos) | `ValidateCanonicalUnits("Ym13", "m13x")` daba el error de análisis de `m13x`, mientras la vía normal dice «does not reduce» | Aceptado. Todo error de `Canonical(1, canonical)` o de `IsComparable` es «does not reduce». Casos `m13x` y `]`; K19 y K31 |
 | R2-4 (bajo, Opus) | Guardas que ninguna mutación mata: `own.Value != 1`, `if hs.slope() != hd.slope()`, y `log` en lugar de `log10` en la vía directa sin un caso exacto | Aceptado. Las dos primeras se quitaron (una forma que vuelve con el mismo código no lleva prefijo; x·1 = x). Casos exactos `1000 W → dB[W]` = 30 y `0.001 mol/l → [pH]` = 3; K34 usa ln/ln 10 y muere. `r == 0 && !dst.IsLogarithmic()` en la vía log queda: es la regla del dominio, aunque hoy ningún logaritmo llega ahí con l = 0 |
 | R2-5 (bajo, los dos) | Godoc en español en símbolos exportados de `internal/`, junto a godoc en inglés en el mismo archivo | Aceptado. En `main` todo símbolo exportado, también en `internal/`, se documenta en inglés; se tradujeron `Log10Handler`, `InDomain`, `ToCanonicalLog10`, `FromCanonicalLog10`, `IsLogarithmic`, `LogToLog` y `Log10Rat`, y se corrigió f_s⁻¹ |
@@ -541,3 +541,23 @@ verificaron con llamadas que las resoluciones de la ronda 1 se sostienen.
 Resultado: [`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt),
 la línea base y todas las mutaciones dan ok (salida 0). `make check` en verde.
 Como R2-1 es de severidad media, la ronda no converge: va la ronda 3.
+
+### Ronda 3 (2026-10-27: Opus y Fable, en paralelo)
+
+Los dos verificaron con llamadas que las seis resoluciones de la ronda 2 se
+sostienen. Opus corrió 389 000 conversiones log→log contra un oráculo exacto en
+Python (`Fraction`, y `Decimal` a 400 dígitos para las bases irracionales):
+todo par de base 10 queda redondeado correctamente, subnormales incluidos, con
+la clase de error correcta.
+
+| # | Hallazgo | Resolución |
+|---|---|---|
+| R3-1 (medio Opus, bajo Fable) | K33 no es equivalente: la sonda de la ronda 2 solo probó α_d = 1/10. Con α_d = 10^-24, l/(k_d·α_d) en float64 da 3.0000000000000005e24 en `0 B[kW] → yB[W]` | Aceptado. K33 restaurada; casos exactos `0 B[kW] → yB[W]` = 3e24, `0 B[W] → zB[kW]` = -3e21 y `0 B[10.nV] → aB[uV]` = -4e18 |
+| R3-2 (bajo, Opus) | k_s/k_d redondeado en float64: entre B y [hp'_M] es -1/3, y `82.3 B → [hp'_M]` daba -27.43333333333333 | Aceptado. Las pendientes (±1, ±1/2, ±2, ±3, exactas en float64) se dividen en racionales, igual que el término de referencia. Tres casos con esperados de `Fraction`; K36. Entre bases irracionales (Np, bit_s, [hp'_Q]) queda 1 ulp, propio de las constantes en float64 y anterior a este cambio |
+| R3-3 (informativo, Fable) | Costo: `LogToLog` pasa de 554 ns y 23 allocs a 1312 ns y 38 allocs (benchstat, n = 10); `Convert(3, "dB", "B")` sube un 15-20 %, y las vías lineales no cambian | Aceptado como está: solo afecta a la conversión log→log, que ya pasaba por `big.Rat` |
+
+Resultado: [`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt),
+la línea base y todas las mutaciones dan ok (salida 0). `make check` en verde.
+
+R3-1 tuvo severidad media para un revisor, así que la ronda 3 no cumple el
+criterio de convergencia, y es el tope. Según §10 se consulta al usuario.

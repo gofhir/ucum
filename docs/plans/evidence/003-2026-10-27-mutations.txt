@@ -68,5 +68,7 @@ K29          ok         want kill    got kill        Log10Rat with a rounded log
 K30          ok         want kill    got kill        LogToLog multiplies by the prefix ratio in float64
 K31          ok         want kill    got kill        the fallback returns the error of a canonical form that is not one
 K32          ok         want kill    got kill        LogToLog checks only overflow
+K33          ok         want kill    got kill        LogToLog divides the offset by a rounded prefix
+K36          ok         want kill    got kill        LogToLog takes the slope ratio in float64
 K35          ok         want kill    got kill        LogToLog rounds each term before the sum
 K34          ok         want kill    got kill        a logarithmic destination takes ln/ln 10
