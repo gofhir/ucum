@@ -1,6 +1,7 @@
 # 005 — Llaves anidadas en una anotación (#65)
 
-**Estado:** cerrado (paso 9); PR #67. Plan aprobado el 2026-10-28, con `fix:`.
+**Estado:** cerrado e integrado: PR #67, squash `cd0d2bd` (2026-10-28);
+publicado en v4.3.3. Plan aprobado el 2026-10-28, con `fix:`.
 
 ## 1. Revisión previa
 
