@@ -129,7 +129,7 @@ func TestRangeHandWritten(t *testing.T) {
 		{"-1 1 to B", "§46■3", convertCall(-1, "1", "B"), rangeOutside, 0, 0},
 		{"-1 1 to Np", "§46■3", convertCall(-1, "1", "Np"), rangeOutside, 0, 0},
 		{"0 mol/l to [pH]", "§45■3", convertCall(0, "mol/l", "[pH]"), rangeOutside, 0, 0},
-		{"-1 to sqrt", "§47■4", convertCall(-1, "m2/s3", "[m/s2/Hz^(1/2)]"), rangeOutside, 0, 0},
+		{"-1 to sqrt", "§48", convertCall(-1, "m2/s3", "[m/s2/Hz^(1/2)]"), rangeOutside, 0, 0},
 		{"1e-300 1 to B", "§46■3", convertCall(1e-300, "1", "B"), rangeFits, -300, tol13},
 		{"1e300 Ym/m to B", "§46■3: lg(10^324)", convertCall(1e300, "Ym/m", "B"), rangeFits, 324, tol13},
 		{"1e-300 Ym13/m13 to B", "§46■3: lg(10^12), factor 10^312", convertCall(1e-300, "Ym13/m13", "B"), rangeFits, 12, tol13},
@@ -159,10 +159,10 @@ func TestRangeHandWritten(t *testing.T) {
 		{"0 B[W] to zB[kW]", "§46■3", convertCall(0, "B[W]", "zB[kW]"), rangeFits, -3e21, 0},
 		// 10 nV en B[uV] es 2 lg(10^-8 / 10^-6) = -4, y en aB[uV], -4·10^18.
 		{"0 B[10.nV] to aB[uV]", "§46■3, lgTimes2", convertCall(0, "B[10.nV]", "aB[uV]"), rangeFits, -4e18, 0},
-		// [hp'_M] es -log1000 (§47): de B la razón de pendientes es -1/3.
-		{"82.3 B to [hp'_M]", "§47, hpM", convertCall(82.3, "B", "[hp'_M]"), rangeFits, -27.433333333333334, 0},
-		{"0.0876 kB to [hp'_M]", "§47, hpM", convertCall(0.0876, "kB", "[hp'_M]"), rangeFits, -29.2, 0},
-		{"60 YB to [hp'_M]", "§47, hpM", convertCall(60, "YB", "[hp'_M]"), rangeFits, -2e25, 0},
+		// [hp'_M] es -log1000 (§44): de B la razón de pendientes es -1/3.
+		{"82.3 B to [hp'_M]", "§44, hpM", convertCall(82.3, "B", "[hp'_M]"), rangeFits, -27.433333333333334, 0},
+		{"0.0876 kB to [hp'_M]", "§44, hpM", convertCall(0.0876, "kB", "[hp'_M]"), rangeFits, -29.2, 0},
+		{"60 YB to [hp'_M]", "§44, hpM", convertCall(60, "YB", "[hp'_M]"), rangeFits, -2e25, 0},
 
 		// Entre la misma referencia, r = v·α_s/α_d: 10^-324 redondea a cero.
 		{"1e-300 yB to B", "§46■3, 10^-324", convertCall(1e-300, "yB", "B"), rangeOut, 0, 0},
@@ -184,13 +184,13 @@ func TestRangeHandWritten(t *testing.T) {
 		// y ahí también carece de logaritmo o de raíz.
 		{"-1e-300 fW to B[W]", "§46■3: lg(-10^-315)", convertCall(-1e-300, "fW", "B[W]"), rangeOutside, 0, 0},
 		{"-1e300 YW to B[W]", "§46■3: lg(-10^324)", convertCall(-1e300, "YW", "B[W]"), rangeOutside, 0, 0},
-		{"-1e-300 um2/s3 to sqrt", "§47■4: √(-10^-312)", convertCall(-1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeOutside, 0, 0},
+		{"-1e-300 um2/s3 to sqrt", "§48: √(-10^-312)", convertCall(-1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeOutside, 0, 0},
 
-		// Raíz cuadrada (§47■4: f(x) = √x).
-		{"1e-300 um2/s3 to sqrt", "§47■4: √(10^-312)", convertCall(1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 1e-156, tol13},
-		{"4 m2/s3 to sqrt", "§47■4", convertCall(4, "m2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 2, 0},
-		{"1e-300 to sqrt, 10^-330", "§47■4", convertCall(1e-300, "ym10/m8/Ys4/YHz", "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
-		{"1e300 to sqrt, 10^330", "§47■4", convertCall(1e300, "Ym10/m8/ys4/yHz", "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
+		// Raíz cuadrada (§48: f(x) = √x).
+		{"1e-300 um2/s3 to sqrt", "§48: √(10^-312)", convertCall(1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 1e-156, tol13},
+		{"4 m2/s3 to sqrt", "§48", convertCall(4, "m2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 2, 0},
+		{"1e-300 to sqrt, 10^-330", "§48", convertCall(1e-300, "ym10/m8/Ys4/YHz", "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
+		{"1e300 to sqrt, 10^330", "§48", convertCall(1e300, "Ym10/m8/ys4/yHz", "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
 
 		// α·v desborda aunque v sea finito: 1e306 kB es 10^(10^309).
 		{"1e306 kB x -1e306 kB", "§22■4", multiplyCall(Pair{1e306, "kB"}, Pair{-1e306, "kB"}), rangeOut, 0, 0},
@@ -199,8 +199,8 @@ func TestRangeHandWritten(t *testing.T) {
 
 		// Funciones inyectivas que no son potencias: 0 solo en 0.
 		{"5e-324 [p'diop]", "§44■4: arctan(x/100) > 0", canonicalCall(5e-324, "[p'diop]"), rangeOut, 0, 0},
-		{"1e-200 sqrt", "§47■4: 10^-400", canonicalCall(1e-200, "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
-		{"1e-160 sqrt", "§47■4: 10^-320", canonicalCall(1e-160, "[m/s2/Hz^(1/2)]"), rangeFits, 1e-320, tol13},
+		{"1e-200 sqrt", "§48: 10^-400", canonicalCall(1e-200, "[m/s2/Hz^(1/2)]"), rangeOut, 0, 0},
+		{"1e-160 sqrt", "§48: 10^-320", canonicalCall(1e-160, "[m/s2/Hz^(1/2)]"), rangeFits, 1e-320, tol13},
 
 		// Lineales, por la vía racional.
 		{"1e300 Ym", "10^324 m", canonicalCall(1e300, "Ym"), rangeOut, 0, 0},

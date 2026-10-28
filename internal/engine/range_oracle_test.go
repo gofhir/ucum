@@ -301,7 +301,7 @@ func (o *rangeOracle) toSpecial(v *big.Rat, from, to string) (rangeWant, bool) {
 		case src.fn.Name == "sqrt" && av.Sign() == 0:
 			sign = 0
 		case src.fn.Name == "sqrt":
-			// §47■4: log10 (αv)² = 2·log10 |αv|.
+			// §48: log10 (αv)² = 2·log10 |αv|.
 			inv := bigF(2 * ratLog10(new(big.Rat).Abs(av)))
 			lm.Add(inv, rl)
 			scale.Add(new(big.Float).Abs(inv), new(big.Float).Abs(rl))
@@ -330,7 +330,7 @@ func (o *rangeOracle) toSpecial(v *big.Rat, from, to string) (rangeWant, bool) {
 		}
 	}
 	if dst.fn.Name == "sqrt" {
-		// §47■4: f(x) = √x; un negativo no tiene imagen y √0 = 0.
+		// §48: f(x) = √x; un negativo no tiene imagen y √0 = 0.
 		switch {
 		case sign < 0:
 			return rangeWant{kind: rangeOutside}, true

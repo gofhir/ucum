@@ -561,3 +561,24 @@ la línea base y todas las mutaciones dan ok (salida 0). `make check` en verde.
 
 R3-1 tuvo severidad media para un revisor, así que la ronda 3 no cumple el
 criterio de convergencia, y es el tope. Según §10 se consulta al usuario.
+El usuario pidió una ronda 4 acotada al diff de la ronda 3.
+
+### Ronda 4 (2026-10-27: Opus y Fable, en paralelo): converge
+
+Ninguno deja hallazgos de severidad media o mayor.
+
+- Fable rehízo K33 y K36 a mano: cada una rompe exactamente los casos nuevos.
+  Derivó los esperados del XML y de §44 con `Fraction`, sin correr el código.
+  Además corrió 212 544 conversiones log→log contra un modelo `big.Rat`
+  independiente: 0 diferencias de valor, signo o clase de error.
+- Opus corrió 326 700 conversiones (130 unidades logarítmicas, todos los
+  prefijos, valores cerca del cero de cada par) contra su oráculo exacto. Los
+  102 348 pares de base 10, 100 y 1000 quedan redondeados correctamente, con la
+  clase de error correcta. Entre bases irracionales, 1557 de 17 952 quedan a
+  1 ulp, el límite ya registrado en R3-2. De 13 mutaciones propias de
+  `LogToLog` mueren 12. La que sobrevive (l/k_d en float64) es equivalente con
+  los datos de UCUM: toda unidad con pendiente no entera tiene referencia 1,
+  así que l = 0, y su barrido sale idéntico byte a byte.
+- Bajo (Fable): los casos de [hp'_M] citaban §47, y los de la raíz cuadrada
+  §47■4. Según la revisión previa (§1), hpX, hpC y hpM están en §44, `ld` en
+  §47 y `sqrt` en §48. Se corrigieron las citas.
