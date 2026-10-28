@@ -596,3 +596,40 @@ Ninguno deja hallazgos de severidad media o mayor.
 - No hay `DESIGN.md` ni ADR que tocar: ninguna excepción a la regla 5.
 - Los borradores del cuerpo del PR y del comentario en #55 se muestran al
   usuario antes de publicarse.
+
+### CI en amd64 (2026-10-27, PR #62)
+
+La CI (linux/amd64) falló en dos tests que pasaban en darwin/arm64. Rosetta
+(`GOARCH=amd64 go test ./...`) reproduce lo mismo en local.
+
+1. `TestLog10RatPowersOfTen`. Error propio: la exactitud de log10 por mantisa y
+   exponente para 10^k se midió solo en arm64, y `math.Log` no promete redondeo
+   correcto. En amd64, `Log10Rat(10^-920)` daba -920.0000000000001. Se
+   restituyó el conteo exacto de potencias de 10 (`stripTens`).
+2. `TestRangeSweep`. Defecto de Go, [golang/go#56600](https://github.com/golang/go/issues/56600)
+   (abierto): en amd64, el `Frexp` en línea de `math/log_amd64.s` no normaliza
+   un subnormal, y `math.Log10(5e-324)` da -307.95, no -323.31. Ya ocurría en
+   `main`: `Convert(1e-310, "W", "dB[W]")` daba -3079.5 en vez de -3100, sin
+   error (medido en `main` con Rosetta).
+
+Decisión del usuario: excepción al principio 10 (no rodear defectos de otra
+librería). El defecto ya está reportado, lleva años abierto y da valores
+incorrectos en silencio en la plataforma de los servidores. `decimal.Log10Abs`
+escala un subnormal por 2^54 (exacto) antes de `math.Log10` y resta
+54·log10 2. Lo usan las dos llamadas que pueden recibir un subnormal: el log10
+de un valor lineal en `range.go` y el de la raíz cuadrada en `special.go`.
+Cuando #56600 se corrija, el escalado puede salir.
+
+Tests: `TestLog10AbsSubnormals` (todo 2^-k subnormal contra -k·log10 2, y
+subnormales decimales contra log10 de su valor exacto, m·2^-1074), y los casos
+`1e-310 W → dB[W]` = -3100, `5e-324 W → B[W]` = -1074·lg 2 y
+`1e-310 mol/l → [pH]` = 310, que fallan en amd64 sin el escalado. K37 quita el
+escalado: muere en amd64 y sobrevive en arm64, donde `math.Log` no tiene el
+defecto. El script lo espera así según `GOARCH`.
+
+Mutaciones en las dos arquitecturas, todas ok (salida 0):
+[`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt)
+(darwin/arm64) y [`evidence/003-2026-10-27-mutations-amd64.txt`](evidence/003-2026-10-27-mutations-amd64.txt)
+(`GOARCH=amd64 python3 -I scripts/mutations.py`, con Rosetta). K29 pasa a
+`TestLog10RatPowersOfTwo`, porque las potencias de 10 ya no pasan por log10(2),
+y K16 se ancló antes del conteo de potencias de 10. `make check` en verde.

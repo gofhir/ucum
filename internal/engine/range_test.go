@@ -186,6 +186,12 @@ func TestRangeHandWritten(t *testing.T) {
 		{"-1e300 YW to B[W]", "§46■3: lg(-10^324)", convertCall(-1e300, "YW", "B[W]"), rangeOutside, 0, 0},
 		{"-1e-300 um2/s3 to sqrt", "§48: √(-10^-312)", convertCall(-1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeOutside, 0, 0},
 
+		// Un intermedio subnormal en una escala logarítmica: en amd64,
+		// math.Log10 lo leía como normal (golang/go#56600) y daba -3079.5.
+		{"1e-310 W to dB[W]", "§46■3", convertCall(1e-310, "W", "dB[W]"), rangeFits, -3100, tol13},
+		{"5e-324 W to B[W]", "§46■3: lg 2^-1074", convertCall(5e-324, "W", "B[W]"), rangeFits, -1074 * math.Log10(2), tol13},
+		{"1e-310 mol/l to [pH]", "§45■3", convertCall(1e-310, "mol/l", "[pH]"), rangeFits, 310, tol13},
+
 		// Raíz cuadrada (§48: f(x) = √x).
 		{"1e-300 um2/s3 to sqrt", "§48: √(10^-312)", convertCall(1e-300, "um2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 1e-156, tol13},
 		{"4 m2/s3 to sqrt", "§48", convertCall(4, "m2/s3", "[m/s2/Hz^(1/2)]"), rangeFits, 2, 0},

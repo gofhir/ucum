@@ -85,7 +85,7 @@ func (x scalar) log10Times(factor *big.Rat) (sign, l float64) {
 	case x.v == 0:
 		return 0, math.Inf(-1)
 	}
-	return math.Copysign(1, x.v), math.Log10(math.Abs(x.v)) + decimal.Log10Rat(factor)
+	return math.Copysign(1, x.v), decimal.Log10Abs(x.v) + decimal.Log10Rat(factor)
 }
 
 // linearTimes da x·factor como float64, redondeado una vez.

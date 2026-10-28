@@ -110,3 +110,46 @@ func TestLog10RatPowersOfTen(t *testing.T) {
 		t.Errorf("Log10Rat(0) = %v, want -Inf", got)
 	}
 }
+
+// TestLog10AbsSubnormals: log10(2^-k) = -k·log10(2), y log10(10^-k) = -k, en
+// toda plataforma; en amd64 math.Log10 no los da (golang/go#56600).
+func TestLog10AbsSubnormals(t *testing.T) {
+	for k := 1; k <= 1074; k++ {
+		v := math.Ldexp(1, -k)
+		want := -float64(k) * math.Log10(2)
+		for _, s := range []float64{1, -1} {
+			if got := Log10Abs(s * v); math.Abs(got-want) > 1e-15*math.Abs(want) {
+				t.Errorf("Log10Abs(%g·2^-%d) = %v, want %v", s, k, got, want)
+			}
+		}
+	}
+	for _, k := range []int{308, 310, 315, 320, 323} {
+		v, _ := new(big.Rat).SetFrac(big.NewInt(1), new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(k)), nil)).Float64()
+		// Un subnormal tiene menos cifras, así que v no es 10^-k: el esperado
+		// es log10 del valor exacto de v, m·2^-1074 con m entero.
+		m := math.Ldexp(v, 1074)
+		want := math.Log10(m) - 1074*math.Log10(2)
+		if got := Log10Abs(v); math.Abs(got-want) > 1e-15*math.Abs(want) {
+			t.Errorf("Log10Abs(1e-%d) = %v, want %v", k, got, want)
+		}
+	}
+	if got := Log10Abs(0); !math.IsInf(got, -1) {
+		t.Errorf("Log10Abs(0) = %v, want -Inf", got)
+	}
+}
+
+// TestLog10RatPowersOfTwo: log10(2^k) = k·log10(2); sin potencias de 10 que
+// contar, Log10Rat pasa por la mantisa y el exponente binarios.
+func TestLog10RatPowersOfTwo(t *testing.T) {
+	two := big.NewInt(2)
+	for k := int64(-1000); k <= 1000; k++ {
+		r := new(big.Rat).SetInt(new(big.Int).Exp(two, big.NewInt(max(k, -k)), nil))
+		if k < 0 {
+			r.Inv(r)
+		}
+		want := float64(k) * math.Log10(2)
+		if got := Log10Rat(r); math.Abs(got-want) > 1e-15*max(1, math.Abs(want)) {
+			t.Errorf("Log10Rat(2^%d) = %v, want %v", k, got, want)
+		}
+	}
+}

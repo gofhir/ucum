@@ -72,3 +72,4 @@ K33          ok         want kill    got kill        LogToLog divides the offset
 K36          ok         want kill    got kill        LogToLog takes the slope ratio in float64
 K35          ok         want kill    got kill        LogToLog rounds each term before the sum
 K34          ok         want kill    got kill        a logarithmic destination takes ln/ln 10
+K37          ok         want survive got survive     Log10Abs without scaling a subnormal (kills on amd64 only)

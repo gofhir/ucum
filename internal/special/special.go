@@ -425,5 +425,5 @@ func (h sqrtHandler) logarithmic() bool       { return false }
 
 // toCanonicalLog10 de 0 es -Inf: quien llama trata el 0 antes, porque 0² = 0
 // es un valor y no un desborde.
-func (h sqrtHandler) toCanonicalLog10(v float64) float64   { return 2 * math.Log10(math.Abs(v)) }
+func (h sqrtHandler) toCanonicalLog10(v float64) float64   { return 2 * decimal.Log10Abs(v) }
 func (h sqrtHandler) fromCanonicalLog10(l float64) float64 { return math.Pow(10, l/2) }

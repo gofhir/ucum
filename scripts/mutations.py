@@ -35,6 +35,11 @@ R = E + "/range.go"
 CV = E + "/convert.go"
 SP = "internal/special/special.go"
 RANGE_TESTS = "TestRangeHandWritten$|TestRangeSweep$"
+# math.Log solo falla con subnormales en amd64 (golang/go#56600): fuera de
+# amd64, quitar el escalado de Log10Abs no cambia ningún resultado.
+GOARCH = os.environ.get("GOARCH") or subprocess.run(
+    ["go", "env", "GOARCH"], capture_output=True, text=True, check=True).stdout.strip()
+ON_AMD64 = "kill" if GOARCH == "amd64" else "survive"
 
 M1 = (Q, "if q.Exact != nil {\n\t\tp, ok, err", "if false && q.Exact != nil {\n\t\tp, ok, err")
 
@@ -219,8 +224,8 @@ MUTATIONS = [
        "\t\tif !normal(m) && m != 0 {\n\t\t\treturn scalar{sign: 1, l10: l, log: true}, nil")],
      "TestRangeHandWritten$", "kill", "./internal/engine/", False),
     ("K16", "Log10Rat through float64",
-     [("internal/decimal/decimal.go", "\tf := new(big.Float).SetPrec(64).SetRat(new(big.Rat).Abs(r))\n",
-       "\tif fr, _ := r.Float64(); true {\n\t\treturn math.Log10(math.Abs(fr))\n\t}\n\tf := new(big.Float).SetPrec(64).SetRat(new(big.Rat).Abs(r))\n")],
+     [("internal/decimal/decimal.go", "\tnum, nk := stripTens(",
+       "\tif fr, _ := r.Float64(); true {\n\t\treturn math.Log10(math.Abs(fr))\n\t}\n\tnum, nk := stripTens(")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
     ("K17", "CanonicalKey through Exact without the range rule",
      [(Q, "if math.IsInf(f, 0) || f == 0 && p.Value.Sign() != 0 {", "if math.IsInf(f, 0) && false {")],
@@ -260,7 +265,7 @@ MUTATIONS = [
      "TestRangeErrors$", "kill", "./internal/engine/", False),
     ("K29", "Log10Rat with a rounded log10(2)",
      [("internal/decimal/decimal.go", "float64(exp)*math.Log10(2)", "float64(exp)*0.30103")],
-     "TestLog10RatPowersOfTen$", "kill", "./internal/decimal/", False),
+     "TestLog10RatPowersOfT(en|wo)$", "kill", "./internal/decimal/", False),
     ("K30", "LogToLog multiplies by the prefix ratio in float64",
      [(SP, "r.Mul(r, new(big.Rat).Quo(src.Alpha.Rat(), dst.Alpha.Rat()))",
        "r.SetFloat64(v * (src.Alpha.Float64() / dst.Alpha.Float64()))")],
@@ -286,6 +291,9 @@ MUTATIONS = [
     ("K34", "a logarithmic destination takes ln/ln 10",
      [(R, "r, _ := dst.FromCanonicalLog10(math.Log10(m))", "r, _ := dst.FromCanonicalLog10(math.Log(m) / math.Ln10)")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
+    ("K37", "Log10Abs without scaling a subnormal (kills on amd64 only)",
+     [("internal/decimal/decimal.go", "\tif a != 0 && a < smallestNormal {", "\tif false && a < smallestNormal {")],
+     RANGE_TESTS, ON_AMD64, "./internal/engine/", False),
 ]
 
 
