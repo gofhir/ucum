@@ -24,6 +24,24 @@ import (
 //	if errors.Is(err, ucum.ErrDivisionByZero) { ... }
 var ErrDivisionByZero = errors.New("division by zero in unit expression")
 
+// Errors for a finite value whose result float64 cannot carry. Match them with
+// errors.Is; they survive the wrapping in ValidationError and ConversionError.
+//
+// They are two questions, not one. With ErrOutOfRange the result exists but
+// does not fit: 1000 B is 10^1000, and 1e-300 ym rounds to zero. With
+// ErrOutOfDomain the result does not exist: the logarithm of 0 or of a negative
+// number, or the square root of a negative number, on a special scale. A value
+// that is not finite to begin with is passed through, not reported.
+var (
+	// ErrOutOfRange is returned when the result is beyond the largest float64,
+	// or is not zero and rounds to zero.
+	ErrOutOfRange = errors.New("value is out of the range of float64")
+
+	// ErrOutOfDomain is returned when the value has no image on the special
+	// scale it is converted to.
+	ErrOutOfDomain = errors.New("value is outside the domain of the special unit")
+)
+
 // Bounds on the size of a code this package will parse, and the errors they
 // produce. Match them with errors.Is.
 //

@@ -48,6 +48,17 @@ var (
 	// MaxExponent.
 	ErrExponentTooLarge = ucumerr.ErrExponentTooLarge
 
+	// ErrOutOfRange is returned by Canonical, Convert, Multiply and Divide when
+	// a finite value gives a result beyond the largest float64, or one that is
+	// not zero and rounds to zero: 1000 B is 10^1000 and 1e-300 ym is 10^-324 m.
+	// For linear units the exact API (NewExact) gives the result as a *big.Rat.
+	ErrOutOfRange = ucumerr.ErrOutOfRange
+
+	// ErrOutOfDomain is returned when a value has no image on the special scale
+	// it is converted to: 0 or a negative number into a logarithmic unit such as
+	// B or [pH], or a negative number into a square-root unit.
+	ErrOutOfDomain = ucumerr.ErrOutOfDomain
+
 	// ErrNotLinear is returned by ConversionFactor when one of the units sits on
 	// a non-ratio scale. Between Cel and [degF] the relation is affine
 	// (Cel = ([degF] - 32) * 5/9), so no single multiplicative factor describes

@@ -39,14 +39,28 @@ func (s *Service) canonicalScalar(value float64, code string) (float64, *model.C
 		mapped, err := s.toCanonicalRat(t, code, rv)
 		switch {
 		case err == nil:
-			out, _ := mapped.Mul(mapped, can.Value.Rat()).Float64()
+			out, err := roundRat(mapped.Mul(mapped, can.Value.Rat()))
+			if err != nil {
+				return 0, nil, valueError(err, value, code, true)
+			}
 			return out, can, nil
 		case !errors.Is(err, ErrNotRational):
 			return 0, nil, err
 		}
+
+		// Escala no racional: por float64, con el rango verificado.
+		x, err := mapScalar(s.specialUseForTerm(t), value)
+		if err != nil {
+			return 0, nil, valueError(err, value, code, false)
+		}
+		out, err := x.linearTimes(can.Value.Rat())
+		if err != nil {
+			return 0, nil, valueError(err, value, code, false)
+		}
+		return out, can, nil
 	}
 
-	// Non-rational scale or non-finite value: use the float64 handler.
+	// Una entrada no finita pasa sin verificar (#55).
 	return decimal.MulExact(s.mapFloat(t, value), can.Value.Rat()), can, nil
 }
 
@@ -134,15 +148,22 @@ func (s *Service) Convert(value float64, from, to string) (float64, error) {
 	if rv := decimal.RatFromFloat(value); rv != nil {
 		exact, err := s.convertRatCore(rv, parts)
 		if err == nil {
-			out, _ := exact.Float64()
+			out, err := roundRat(exact)
+			if err != nil {
+				return 0, ucumerr.Conversion(from, to, valueError(err, value, from, true))
+			}
 			return out, nil
 		}
 		if !errors.Is(err, ErrNotRational) {
 			return 0, ucumerr.Conversion(from, to, err)
 		}
-		// Non-rational scale: fall through to the float64 handlers below.
+
+		// Escala no racional: por float64, con el rango y el dominio
+		// verificados.
+		return s.convertFloat(value, parts)
 	}
 
+	// Una entrada no finita pasa sin verificar (#55).
 	result := value
 
 	// Step 1: If source is special, convert value to canonical first.
@@ -240,13 +261,24 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 		if p, ok := s.productResult(t1, t2, div, m1, code); ok {
 			return p, nil
 		}
-		out, _ := m1.Float64()
+		out, err := roundRat(m1)
+		if err != nil {
+			return Pair{}, ucumerr.Validation(v1.Code, combineError(err, v1, v2, div, true))
+		}
 		return Pair{Value: out, Code: code}, nil
 	case err != nil && !errors.Is(err, ErrNotRational):
 		return Pair{}, ucumerr.Validation(v1.Code, err)
+	case err != nil:
+		// Escala no racional, operandos finitos: por float64, con el rango
+		// verificado.
+		out, err := s.combineFloat(t1, t2, v1, v2, div, factor)
+		if err != nil {
+			return Pair{}, err
+		}
+		return Pair{Value: out, Code: code}, nil
 	}
 
-	// Non-rational scale or non-finite value: use the float64 handlers.
+	// Un operando no finito pasa sin verificar (#55).
 	val1, val2 := s.mapFloat(t1, v1.Value), s.mapFloat(t2, v2.Value)
 	combined := val1 * val2
 	if div {
@@ -256,6 +288,15 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 		combined = val1 / val2
 	}
 	return Pair{Value: decimal.MulExact(combined, factor), Code: code}, nil
+}
+
+// combineError agrega al error de rango la operación que lo produjo.
+func combineError(err error, v1, v2 Pair, div, exact bool) error {
+	op := "times"
+	if div {
+		op = "divided by"
+	}
+	return valueError(err, v1.Value, fmt.Sprintf("%s %s %v %s", v1.Code, op, v2.Value, v2.Code), exact)
 }
 
 // zeroDivisorValue reports a divisor whose *value* is zero, as opposed to a unit

@@ -28,6 +28,10 @@ type Handler interface {
 	code() string
 	toCanonical(value float64) float64
 	fromCanonical(value float64) float64
+
+	// inDomain dice si f está definida en un valor de la escala de
+	// referencia. Solo importa el signo, así que se le puede pasar el signo.
+	inDomain(value float64) bool
 }
 
 // RatHandler is implemented by the handlers whose mapping is a rational
@@ -60,6 +64,26 @@ type LinearHandler interface {
 // definitions, which is why it belongs here.
 type NativeUnitHandler interface {
 	nativeUnit() string
+}
+
+// Log10Handler is implemented by the handlers whose inverse is a power: the
+// logarithmic ones, whose inverse is b^x, and the square root, whose inverse is
+// the square (§44-48). Through it a value on the reference scale is carried as
+// its log10 instead of being materialized.
+//
+// That is what keeps a conversion through a logarithmic scale right where
+// float64 falls short: 1000 B is 10^1000 on the reference scale, which no
+// float64 holds, while the same quantity in dB is 10000.
+type Log10Handler interface {
+	// toCanonicalLog10 da log10 |f⁻¹(v)|.
+	toCanonicalLog10(v float64) float64
+
+	// fromCanonicalLog10 da f(x) para x = 10^l.
+	fromCanonicalLog10(l float64) float64
+
+	// logarithmic dice si f es un logaritmo: entonces f(10^l) es lineal en l
+	// y nunca necesita formar 10^l.
+	logarithmic() bool
 }
 
 // Use is a special unit as it appears in a code: its handler together
@@ -118,6 +142,79 @@ func (s Use) FromCanonicalRat(v *big.Rat) (*big.Rat, bool) {
 		return nil, false
 	}
 	return new(big.Rat).Quo(rh.fromCanonicalRat(v), s.Alpha.Rat()), true
+}
+
+// InDomain reports whether f_s is defined at a value on the reference scale: a
+// logarithm only at a positive value, the square root at a non-negative one.
+func (s Use) InDomain(v float64) bool { return s.Handler.inDomain(v) }
+
+// ToCanonicalLog10 is ToCanonical in log10: log10 |f_s⁻¹(α x')|. It returns
+// false if the handler has no such form.
+func (s Use) ToCanonicalLog10(v float64) (float64, bool) {
+	lh, ok := s.Handler.(Log10Handler)
+	if !ok {
+		return 0, false
+	}
+	return lh.toCanonicalLog10(v * s.Alpha.Float64()), true
+}
+
+// FromCanonicalLog10 is FromCanonical for a value given by its log10 l:
+// f_s(10^l) / α. It returns false if the handler has no such form.
+func (s Use) FromCanonicalLog10(l float64) (float64, bool) {
+	lh, ok := s.Handler.(Log10Handler)
+	if !ok {
+		return 0, false
+	}
+	return lh.fromCanonicalLog10(l) / s.Alpha.Float64(), true
+}
+
+// HasLog10 reports whether the handler of s can carry a value as its log10.
+func (s Use) HasLog10() bool {
+	_, ok := s.Handler.(Log10Handler)
+	return ok
+}
+
+// IsLogarithmic reports whether f_s is a logarithm, whose value
+// FromCanonicalLog10 gives without ever forming 10^l.
+func (s Use) IsLogarithmic() bool {
+	lh, ok := s.Handler.(Log10Handler)
+	return ok && lh.logarithmic()
+}
+
+// LogToLog converts v from one logarithmic unit to another without going
+// through the reference scale. Both are linear in log10 of the reference value,
+// so the conversion is affine in v:
+//
+//	r = v · (α_s/α_d) · (k_s/k_d) + l / (k_d · α_d)
+//
+// where k is the slope of each function (log10 of f⁻¹ per unit) and l is log10
+// of the ratio of the references. It returns r as an exact rational, for the
+// caller to round once, so 1e300 YB to YB does not form 10^324 and a result
+// that cancels keeps its digits. It returns false if either unit is not
+// logarithmic. Both v and l must be finite.
+func LogToLog(src, dst Use, v, l float64) (*big.Rat, bool) {
+	hs, ok := src.Handler.(logHandler)
+	if !ok {
+		return nil, false
+	}
+	hd, ok := dst.Handler.(logHandler)
+	if !ok {
+		return nil, false
+	}
+	// Todo va en racionales y se redondea una vez: los dos términos casi se
+	// cancelan en 5.78 B[uV] a dB[mV] (57.8 - 60); k_s/k_d es -1/3 entre B y
+	// [hp'_M]; y l/(k_d·α_d) con α_d = 10^-24 no es exacto en float64. Las
+	// pendientes de base 10, 100 y 1000 (±1, ±1/2, ±2, ±3) sí lo son, y l
+	// también, porque toda referencia de UCUM es una potencia de 10.
+	ks, kd := new(big.Rat).SetFloat64(hs.slope()), new(big.Rat).SetFloat64(hd.slope())
+	r := new(big.Rat).SetFloat64(v)
+	r.Mul(r, new(big.Rat).Quo(src.Alpha.Rat(), dst.Alpha.Rat()))
+	r.Mul(r, ks)
+	r.Quo(r, kd)
+	offset := new(big.Rat).SetFloat64(l)
+	offset.Quo(offset, kd)
+	offset.Quo(offset, dst.Alpha.Rat())
+	return r.Add(r, offset), true
 }
 
 // IsLinear reports whether the underlying scale is linear, which is what lets a
@@ -246,6 +343,7 @@ func (h offsetHandler) code() string                    { return h.unitCode }
 func (h offsetHandler) isLinear()                       {}
 func (h offsetHandler) toCanonical(v float64) float64   { return v + h.offset }
 func (h offsetHandler) fromCanonical(v float64) float64 { return v - h.offset }
+func (h offsetHandler) inDomain(float64) bool           { return true }
 
 func (h offsetHandler) toCanonicalRat(v *big.Rat) *big.Rat {
 	return new(big.Rat).Add(v, h.offsetRat)
@@ -281,6 +379,24 @@ func (h logHandler) fromCanonical(v float64) float64 {
 	return math.Log(v) * h.expDivisor / math.Log(h.base)
 }
 
+// Un logaritmo solo existe para un argumento positivo (§45-47).
+func (h logHandler) inDomain(v float64) bool { return v > 0 }
+func (h logHandler) logarithmic() bool       { return true }
+
+// slope es log10 de f⁻¹ por unidad de la escala: ±log10(base)/expDivisor.
+// Con base 10 es ±1 o ±1/2, exactos.
+func (h logHandler) slope() float64 {
+	k := math.Log10(h.base) / h.expDivisor
+	if h.negate {
+		return -k
+	}
+	return k
+}
+
+// log10 de base^e es e·log10(base).
+func (h logHandler) toCanonicalLog10(v float64) float64   { return v * h.slope() }
+func (h logHandler) fromCanonicalLog10(l float64) float64 { return l / h.slope() }
+
 // tanHandler converts via canonical = arctan(value/factor), expressed in the
 // angle unit the definitions name (prism diopter, percent slope).
 type tanHandler struct {
@@ -292,6 +408,7 @@ func (h tanHandler) code() string                    { return h.unitCode }
 func (h tanHandler) nativeUnit() string              { return "rad" }
 func (h tanHandler) toCanonical(v float64) float64   { return math.Atan(v / h.factor) }
 func (h tanHandler) fromCanonical(v float64) float64 { return math.Tan(v) * h.factor }
+func (h tanHandler) inDomain(float64) bool           { return true }
 
 // sqrtHandler converts via canonical = value^2.
 type sqrtHandler struct {
@@ -301,3 +418,12 @@ type sqrtHandler struct {
 func (h sqrtHandler) code() string                    { return h.unitCode }
 func (h sqrtHandler) toCanonical(v float64) float64   { return v * v }
 func (h sqrtHandler) fromCanonical(v float64) float64 { return math.Sqrt(v) }
+
+// La raíz cuadrada real no existe para un negativo (§48).
+func (h sqrtHandler) inDomain(v float64) bool { return v >= 0 }
+func (h sqrtHandler) logarithmic() bool       { return false }
+
+// toCanonicalLog10 de 0 es -Inf: quien llama trata el 0 antes, porque 0² = 0
+// es un valor y no un desborde.
+func (h sqrtHandler) toCanonicalLog10(v float64) float64   { return 2 * decimal.Log10Abs(v) }
+func (h sqrtHandler) fromCanonicalLog10(l float64) float64 { return math.Pow(10, l/2) }

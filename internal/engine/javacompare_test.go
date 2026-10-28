@@ -67,6 +67,7 @@ type ourOut struct {
 	Code   string
 	Bool   bool
 	Msg    string
+	Err    error // la causa, si Status es err (para errors.Is)
 }
 
 // javaTally cuenta, por operación, los casos que coinciden (y cuántos de ellos
@@ -198,7 +199,7 @@ func ourAnswer(s, ci *Service, c javaCase) ourOut {
 		}
 		return ourOut{Status: "ok"}
 	}
-	fail := func(err error) ourOut { return ourOut{Status: "err", Msg: err.Error()} }
+	fail := func(err error) ourOut { return ourOut{Status: "err", Msg: err.Error(), Err: err} }
 	switch c.Op {
 	case "validate":
 		if c.Source == "xml-ci" {
@@ -276,12 +277,12 @@ func ourCanonical(s *Service, value, code string) ourOut {
 		f, _ := v.Float64()
 		fp, err := s.Canonical(f, code)
 		if err != nil {
-			return ourOut{Status: "err", Msg: err.Error()}
+			return ourOut{Status: "err", Msg: err.Error(), Err: err}
 		}
 		return ourOut{Status: "ok", Float: fp.Value, Code: fp.Code}
 	}
 	if err != nil {
-		return ourOut{Status: "err", Msg: err.Error()}
+		return ourOut{Status: "err", Msg: err.Error(), Err: err}
 	}
 	return ourOut{Status: "ok", Exact: p.Value, Code: p.Code}
 }

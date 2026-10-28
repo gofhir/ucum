@@ -8,6 +8,7 @@ package decimal
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 )
@@ -133,6 +134,63 @@ func MulExact(value float64, factor *big.Rat) float64 {
 	out, _ := new(big.Rat).Mul(rv, factor).Float64()
 	return out
 }
+
+// Log10Rat returns log10 |r| without rounding r to float64, so the factor of
+// Ym13 (10^312) has a log10 although no float64 holds it: it is log10 of the
+// binary mantissa plus the exponent times log10(2). It returns -Inf for 0.
+//
+// The powers of ten in the numerator and the denominator are counted apart, so
+// a power of ten gives its exponent exactly on every platform: math.Log is not
+// correctly rounded, and on amd64 log10 of the mantissa of 10^-920 plus its
+// exponent comes out as -920.0000000000001.
+func Log10Rat(r *big.Rat) float64 {
+	if r.Sign() == 0 {
+		return math.Inf(-1)
+	}
+	num, nk := stripTens(new(big.Int).Abs(r.Num()))
+	den, dk := stripTens(new(big.Int).Set(r.Denom()))
+	tens := float64(nk - dk)
+	if num.Cmp(den) == 0 {
+		return tens
+	}
+	f := new(big.Float).SetPrec(64).SetRat(new(big.Rat).SetFrac(num, den))
+	mant := new(big.Float)
+	exp := f.MantExp(mant)
+	m, _ := mant.Float64()
+	return tens + (math.Log10(m) + float64(exp)*math.Log10(2))
+}
+
+// stripTens divide n por 10 mientras se pueda y dice cuántas veces lo hizo.
+func stripTens(n *big.Int) (rest *big.Int, tens int) {
+	ten := big.NewInt(10)
+	q, m := new(big.Int), new(big.Int)
+	for n.Sign() != 0 {
+		q.QuoRem(n, ten, m)
+		if m.Sign() != 0 {
+			break
+		}
+		n, q = q, n
+		tens++
+	}
+	return n, tens
+}
+
+// Log10Abs returns log10 |v|, also for a subnormal v.
+//
+// On amd64, math.Log reads the exponent of a subnormal as if it were normal
+// (golang/go#56600): math.Log10(5e-324) is -307.95 there, not -323.31. A
+// subnormal is therefore scaled by 2^54, which is exact and makes it normal,
+// before taking the logarithm.
+func Log10Abs(v float64) float64 {
+	a := math.Abs(v)
+	if a != 0 && a < smallestNormal {
+		return math.Log10(a*0x1p54) - 54*math.Log10(2)
+	}
+	return math.Log10(a)
+}
+
+// smallestNormal es 2^-1022, el menor float64 con todas sus cifras.
+const smallestNormal = 0x1p-1022
 
 // Equal reports whether two values are exactly equal.
 func (d Decimal) Equal(o Decimal) bool { return d.val.Cmp(o.val) == 0 }
