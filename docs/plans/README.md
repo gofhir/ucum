@@ -7,9 +7,8 @@ paso 9 (cierre); el code review convergió en la ronda 4; plan aprobado el 2026-
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** el usuario aprueba el PR de `fix/float-range` y el
-comentario en #55 (borradores en la conversación); después se integra y 003
-queda cerrado. Después de 003: los issues para
+**Próximo paso:** revisar CI e integrar el PR #62 (lo decide el usuario),
+que cierra #59; el comentario que acota #55 ya está publicado. Después de 003: los issues para
 Ucum-java (§6 del plan 002), que se muestran antes de publicarse.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`), #56 (aliasing de `Exact`
 sin test) y #59.
