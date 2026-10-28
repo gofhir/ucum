@@ -1,6 +1,6 @@
 # 005 — Llaves anidadas en una anotación (#65)
 
-**Estado:** cerrado (paso 9), sin commit. Plan aprobado el 2026-10-28, con `fix:`.
+**Estado:** cerrado (paso 9); PR #67. Plan aprobado el 2026-10-28, con `fix:`.
 
 ## 1. Revisión previa
 
@@ -244,4 +244,4 @@ inesperados (evidencia actualizada en el mismo archivo).
 - `make check` y la suite con `UCUM_PACKAGES` en verde, incluida la
   comparación con Java (`TestCompareJava`, sin diferencias sin clasificar).
 - Mutaciones: [evidence/005-2026-10-28-mutations.txt](evidence/005-2026-10-28-mutations.txt).
-- Pendiente del usuario: el commit y el PR, que cierra #65.
+- PR #67, commit `bbd5112`, que cierra #65.
