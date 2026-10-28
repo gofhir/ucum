@@ -129,7 +129,8 @@ func (l *lexer) consume() error {
 }
 
 // readAnnotation reads a {annotation} token. The braces are included in the
-// token value. UCUM §6 permits characters 33–126 inside the annotation.
+// token value. UCUM §6 permits characters 33–126 inside the annotation, and
+// forbids nesting curly braces.
 func (l *lexer) readAnnotation() error {
 	start := l.index
 	l.index++ // skip opening {
@@ -141,6 +142,11 @@ func (l *lexer) readAnnotation() error {
 			l.token = l.source[start:l.index]
 			l.typ = tokenAnnotation
 			return nil
+		}
+		// §6■5: la primera } cierra, así que una { antes de ella abre una
+		// llave dentro de otra.
+		if ch == '{' {
+			return ucumerr.At(l.index, "nested curly braces in annotation")
 		}
 		if ch > 0x7E || ch < 0x21 {
 			return ucumerr.At(l.index, "invalid character in annotation")

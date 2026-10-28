@@ -1111,43 +1111,76 @@ var javaClasses = []javaClass{
 			"Unicode, and Java itself stops at '~' (126). Java checks for printable ASCII, which starts at the space (32).",
 		Spec:    "§6■1",
 		JavaRef: "Lexer.java:142-148 (checkAnnotation) calls Utilities.isAsciiChar, Utilities.java:87-88: ch >= ' ' && ch <= '~'",
-		match: func(_ *javaContext, d javaDiff) bool {
-			if d.What != "status" || d.Java.Status != "ok" {
-				return false
-			}
-			// Nuestro rechazo tiene que ser el de validación: otro error del mismo
-			// caso no lo explica esta clase.
-			var ve *ucumerr.ValidationError
-			if d.Ours.Status != "invalid" && (d.Ours.Status != "err" || !errors.As(d.Ours.Err, &ve)) {
-				return false
-			}
-			for _, u := range unitArgs(d.Case) {
-				if spaceInAnnotation(u) {
-					return true
-				}
-			}
-			return false
-		},
+		match:   func(_ *javaContext, d javaDiff) bool { return javaAcceptsAnnotation(d, ' ') },
+	},
+	{
+		Name: "java-accepts-nested-annotation",
+		Kind: "bug-java",
+		Reason: "Java accepts a curly brace inside an annotation, as in m{a{b}. The first } closes an annotation, " +
+			"so a { before it opens a second brace inside the first, which UCUM forbids. Java reads up to the first } " +
+			"and checks only for ASCII; it rejects m{a{b}} for the } left over, not for the nesting.",
+		Spec:    "§6■5",
+		JavaRef: "Lexer.java:142-148 (checkAnnotation reads to the first } and asks only Utilities.isAsciiChar)",
+		match:   func(_ *javaContext, d javaDiff) bool { return javaAcceptsAnnotation(d, '{') },
 	},
 }
 
-// spaceInAnnotation informa si code tiene un espacio entre { y }: el único
-// byte que Java admite en una anotación y UCUM §6■1 no.
-func spaceInAnnotation(code string) bool {
-	inside := false
+// javaAcceptsAnnotation informa si d es Java aceptando un código que
+// rechazamos por la regla de anotación rule: ' ' es el espacio (§6■1) y '{'
+// una llave dentro de otra (§6■5). Mira cada unidad del caso por separado:
+// toma el caso si en alguna la primera regla rota, la que informa nuestro
+// error, es rule. Un caso con una regla en cada unidad caería en las dos
+// clases, y el arnés lo informa.
+func javaAcceptsAnnotation(d javaDiff, rule byte) bool {
+	if d.What != "status" || d.Java.Status != "ok" {
+		return false
+	}
+	// Nuestro rechazo tiene que ser el de validación: otro error del mismo
+	// caso no lo explica esta clase.
+	var ve *ucumerr.ValidationError
+	if d.Ours.Status != "invalid" && (d.Ours.Status != "err" || !errors.As(d.Ours.Err, &ve)) {
+		return false
+	}
+	for _, u := range unitArgs(d.Case) {
+		if annotationViolation(u) == rule {
+			return true
+		}
+	}
+	return false
+}
+
+// annotationViolation devuelve, leyendo de izquierda a derecha, el primer
+// byte con que una anotación de code rompe una regla que Java no ve: ' ' para
+// el espacio (§6■1) y '{' para una llave dentro de otra (§6■5). Devuelve 0 si
+// no hay ninguno. Como el lexer, lee un átomo entre corchetes sin buscar
+// llaves en él (§5).
+func annotationViolation(code string) byte {
+	inside, bracket := false, false
 	for i := 0; i < len(code); i++ {
 		switch code[i] {
+		case '[':
+			bracket = bracket || !inside
+		case ']':
+			bracket = false
+		}
+		if bracket {
+			continue
+		}
+		switch code[i] {
 		case '{':
+			if inside {
+				return '{'
+			}
 			inside = true
 		case '}':
 			inside = false
 		case ' ':
 			if inside {
-				return true
+				return ' '
 			}
 		}
 	}
-	return false
+	return 0
 }
 
 // javaOracle tiene los esperados independientes de los dos motores que no

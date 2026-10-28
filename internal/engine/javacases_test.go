@@ -238,6 +238,12 @@ func addSpecCases(b *caseBuilder) {
 	} {
 		b.add("spec", "divide", c...)
 	}
+	// Plan 005: llaves anidadas (§6■5). Van al final para no renumerar los
+	// casos spec anteriores.
+	for _, u := range []string{"m{a{b}", "{{}", "m{a{b}}", "{a{}", "/{a{b}", "(m{a{b})"} {
+		b.add("spec", "validate", u)
+	}
+	b.add("spec", "canonical", "1", "m{a{b}")
 }
 
 // addSuiteCases toma UcumFunctionalTests.xml tal cual. Un <case> dentro de

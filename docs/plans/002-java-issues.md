@@ -103,3 +103,23 @@ UCUM v2.2 §6■1: "The full range of characters 33–126 can be used within a p
 **Cause:** `Lexer.checkAnnotation` (Lexer.java:142-148) checks each character with `Utilities.isAsciiChar` (Utilities.java:87-88), `ch >= ' ' && ch <= '~'`, which is printable ASCII and starts at the space.
 
 **Suggested fix:** check `ch > ' ' && ch <= '~'` in `checkAnnotation`, or a dedicated predicate for §6■1.
+
+---
+
+## Issue 6 — The lexer accepts a curly brace inside an annotation
+
+**Version:** 1.0.10; unchanged on `master` (`checkAnnotation` read there on 2026-10-28, same lines). Found in plan 005.
+
+Recorded run (`internal/engine/testdata/java/ucum-java-1.0.10.tsv`, cases `spec:00074` to `spec:00080`):
+
+| Call | Java | Expected |
+|---|---|---|
+| `validate("m{a{b}")`, `{{}`, `{a{}`, `/{a{b}`, `(m{a{b})` | valid | invalid |
+| `validate("m{a{b}}")` | invalid: "unexpected character '}' at position 6" | invalid, for the nesting at position 3 |
+| canonical form of `1 m{a{b}` | `1 m` | an error |
+
+UCUM v2.2 §6■5: "Curly braces must not be nested." The first `}` closes an annotation, so a `{` before it opens a second brace inside the first. ucum-lhc 8.0.1 reads it the same way, as its source reads (`/^\{[!-z|~]*\}$/`, `source/unitString.js:69`, not run).
+
+**Cause:** `Lexer.checkAnnotation` (Lexer.java:142-148) reads up to the first `}` and asks only `Utilities.isAsciiChar` of each character. `m{a{b}}` fails only because the second `}` is left over.
+
+**Suggested fix:** in `checkAnnotation`, throw on `{` before the closing brace.

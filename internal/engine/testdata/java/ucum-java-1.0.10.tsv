@@ -3377,6 +3377,13 @@ spec:00070	exc	org.fhir.ucum.UcumException	Attempt to divide 1 by zero
 spec:00071	ok	0	m.s-1	1
 spec:00072	ok	2.00	m	31
 spec:00073	ok	1.00		31
+spec:00074	ok			
+spec:00075	ok			
+spec:00076	invalid	Error processing unit 'm{a{b}}': unexpected character '}' at position 6		
+spec:00077	ok			
+spec:00078	ok			
+spec:00079	ok			
+spec:00080	ok	1	m	1
 suite:00000	ok			
 suite:00001	invalid	Error processing unit 'm/': unexpected end of expression looking for a symbol or a number' at position 2		
 suite:00002	ok			

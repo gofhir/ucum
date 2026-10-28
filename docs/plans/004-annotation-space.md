@@ -1,6 +1,6 @@
 # 004 — Espacio dentro de una anotación (PR #52)
 
-**Estado:** cerrado (paso 9), sin commit de lo propio. Plan aprobado por el usuario el
+**Estado:** cerrado e integrado: PR #64, *rebase and merge* (2026-10-28). Plan aprobado por el usuario el
 2026-10-28, con `fix:` (§3). Origen: PR #52 de
 kaptinlin, commit `f1a7ba2`, que cambia el límite inferior de
 `readAnnotation` de `0x20` a `0x21`.

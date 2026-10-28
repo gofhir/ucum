@@ -76,6 +76,10 @@ func FuzzValidate(f *testing.F) {
 		if b, ok := byteOutsideAnnotationRange(code); ok {
 			t.Fatalf("Validate(%q) accepted byte %#x inside braces: §6■1 admits only 33–126", code, b)
 		}
+		// Plan 005, test 8: tampoco una { dentro de otra (§6■5).
+		if nestedBrace(code) {
+			t.Fatalf("Validate(%q) accepted a curly brace inside another: §6■5 forbids nesting", code)
+		}
 
 		// Accepted. Canonicalization may still fail — "m/0" is well-formed and
 		// not canonicalizable — but only with an error, never a panic.
@@ -196,4 +200,21 @@ func byteOutsideAnnotationRange(code string) (byte, bool) {
 		}
 	}
 	return 0, false
+}
+
+// nestedBrace informa si hay una { entre una { y su }.
+func nestedBrace(code string) bool {
+	inside := false
+	for i := 0; i < len(code); i++ {
+		switch code[i] {
+		case '{':
+			if inside {
+				return true
+			}
+			inside = true
+		case '}':
+			inside = false
+		}
+	}
+	return false
 }
