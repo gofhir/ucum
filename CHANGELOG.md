@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.3](https://github.com/gofhir/ucum/compare/v4.3.2...v4.3.3) (2026-10-28)
+
+
+### Bug Fixes
+
+* reject a curly brace nested inside an annotation ([#67](https://github.com/gofhir/ucum/issues/67)) ([cd0d2bd](https://github.com/gofhir/ucum/commit/cd0d2bd8e2aee4966343ccb0ba37029a2c8b8ef5))
+* reject spaces inside unit annotations ([bd014cb](https://github.com/gofhir/ucum/commit/bd014cb9e54553f77d3c48e7affe0bd4049ddaa8))
+
 ## [4.3.2](https://github.com/gofhir/ucum/compare/v4.3.1...v4.3.2) (2026-10-28)
 
 
