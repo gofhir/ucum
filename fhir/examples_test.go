@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 
@@ -111,8 +112,89 @@ func TestOfficialExamples(t *testing.T) {
 			}
 			t.Logf("%d distinct quantities: %d scaled, %d cross-unit pairs, %d special codes skipped %v, %d invalid codes skipped %v",
 				len(qs), scaled, paired, len(special), sortedKeys(special), len(invalid), sortedKeys(invalid))
+			// Plan 004, test 5: los inválidos se fijan, para que una regresión del
+			// lexer no pase como un código más saltado. El de R5 tiene un espacio
+			// dentro de llaves, que UCUM §6■1 no admite.
+			want, ok := wantInvalidExamples[pkg.Version]
+			if !ok {
+				t.Fatalf("no expected invalid codes for %s", pkg.Version)
+			}
+			if got := sortedKeys(invalid); !slices.Equal(got, want) {
+				t.Errorf("invalid codes %q, want %q", got, want)
+			}
 		})
 	}
+}
+
+// wantInvalidExamples son los códigos de los ejemplos que no son UCUM válido,
+// por versión.
+var wantInvalidExamples = map[string][]string{
+	// Ninguno es un átomo de ucum-essence.xml, y Ucum-java 1.0.10 rechaza los
+	// ocho por desconocidos (internal/engine/testdata/java, casos fhir:00038,
+	// 00120, 00122, 00160, 00188, 00241, 00260 y 00266).
+	"R4":  {"TAB", "drop", "ea", "mEq", "mcg", "ml/hr", "month", "tbl"},
+	"R4B": {},
+	"R5":  {"{delivered dose}"}, // Ingredient-example
+}
+
+// Plan 004, test 4: el ValueSet ucum-common de cada versión. El oráculo no es
+// el lexer sino un escaneo de bytes. UCUM §6■1 da una dirección: un byte
+// fuera de 33–126 dentro de llaves hace inválido el código. La otra, que todo
+// concepto sin ese byte es válido, es una propiedad de estos datos, y el test
+// la verifica. Las cuentas son las del recurso publicado.
+func TestCommonUnitsValueSetVersions(t *testing.T) {
+	dir := os.Getenv("UCUM_PACKAGES")
+	if dir == "" {
+		t.Skip("UCUM_PACKAGES not set; run make check-packages")
+	}
+	svc, err := ucum.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct{ concepts, outside int }{
+		"R4":  {1364, 11},
+		"R4B": {1364, 11},
+		"R5":  {848, 0},
+	}
+	for _, pkg := range fhirexamples.Packages {
+		t.Run(pkg.Version, func(t *testing.T) {
+			codes, err := fhirexamples.ValueSetCodes(filepath.Join(dir, pkg.File), "ValueSet-ucum-common.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			outside := 0
+			for _, code := range codes {
+				bad := annotationOutsideRange(code)
+				if bad {
+					outside++
+				}
+				if err := svc.Validate(code); (err != nil) != bad {
+					t.Errorf("Validate(%q) = %v; §6■1 says invalid = %t", code, err, bad)
+				}
+			}
+			if w := want[pkg.Version]; len(codes) != w.concepts || outside != w.outside {
+				t.Errorf("%d concepts, %d with a byte outside 33–126 in braces; want %d, %d",
+					len(codes), outside, w.concepts, w.outside)
+			}
+		})
+	}
+}
+
+// annotationOutsideRange informa si algún byte entre { y } cae fuera de
+// 33–126 (UCUM §6■1). No usa el lexer: es el oráculo del test 4.
+func annotationOutsideRange(code string) bool {
+	inside := false
+	for i := 0; i < len(code); i++ {
+		switch c := code[i]; {
+		case c == '{':
+			inside = true
+		case c == '}':
+			inside = false
+		case inside && (c < 33 || c > 126):
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -122,4 +204,23 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// El oráculo del test 4 también se prueba: un byte fuera de las llaves no
+// cuenta.
+func TestAnnotationOutsideRange(t *testing.T) {
+	for _, tt := range []struct {
+		code string
+		want bool
+	}{
+		{"{a b}", true},
+		{"m{a\x7f}", true},
+		{"m{ab}", false},
+		{"m{a}.s b", false}, // el espacio está después de la anotación
+		{"m b", false},
+	} {
+		if got := annotationOutsideRange(tt.code); got != tt.want {
+			t.Errorf("annotationOutsideRange(%q) = %t, want %t", tt.code, got, tt.want)
+		}
+	}
 }

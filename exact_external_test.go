@@ -70,7 +70,7 @@ func TestExternalExactErrorsAreDistinguishable(t *testing.T) {
 	}
 }
 
-// UCUM §6 permits only characters 33–126 within curly braces:
+// UCUM §6 admite solo los caracteres 33–126 dentro de llaves:
 // https://ucum.org/ucum#section-Syntax-RulesfromTheUnifiedCodeforUnitsofMeasure-CurlyBraces
 func TestExternalAnnotationCharacters(t *testing.T) {
 	svc, err := ucum.NewExact()

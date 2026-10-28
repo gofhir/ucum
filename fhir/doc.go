@@ -48,4 +48,8 @@
 //
 // TestCommonUnitsAreValidUCUM then checks every code in the refreshed file
 // against the parent package, which is how a bad extraction shows up.
+//
+// Use the R5 resource. The R4 and R4B versions list eleven codes with a space
+// inside curly braces, such as {# of fetuses}, which UCUM §6 does not allow,
+// so TestCommonUnitsAreValidUCUM would reject them.
 package fhir

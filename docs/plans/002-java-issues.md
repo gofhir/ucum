@@ -89,3 +89,17 @@ UCUM §24■3: an arbitrary unit "is not commensurable with any other unit", and
 **Cause:** `XmlDefinitionsParser.parseUnit` (XmlDefinitionsParser.java:109-120) never reads `isArbitrary`. The unit is therefore expanded through its definition, 1 of unit 1, and becomes dimensionless.
 
 **Suggested fix:** read `isArbitrary`, and make an arbitrary unit a base dimension of its own in canonicalization, so that it is kept in the canonical form and is comparable only with itself.
+
+---
+
+## Issue 5 — The lexer accepts a space inside an annotation
+
+**Version:** 1.0.10; unchanged on `master`. Found in plan 004.
+
+Recorded run (`internal/engine/testdata/java/ucum-java-1.0.10.tsv`): `validate("{delivered dose}")` is valid (case `fhir:00346`), and its canonical form is 1 with no unit (case `fhir:00347`). `validate` should say invalid, and `canonical` should fail. The code comes from the R5 `Ingredient-example`.
+
+UCUM v2.2 §6■1: "The full range of characters 33–126 can be used within a pair of curly braces." The space is character 32. The range is exhaustive: case 1-115a of UcumFunctionalTests.xml rejects Unicode inside an annotation, and Java itself stops at `~` (126). ucum-lhc 8.0.1 rejects the space, as its source reads (`source/unitString.js:69`, not run).
+
+**Cause:** `Lexer.checkAnnotation` (Lexer.java:142-148) checks each character with `Utilities.isAsciiChar` (Utilities.java:87-88), `ch >= ' ' && ch <= '~'`, which is printable ASCII and starts at the space.
+
+**Suggested fix:** check `ch > ' ' && ch <= '~'` in `checkAnnotation`, or a dedicated predicate for §6■1.

@@ -1103,6 +1103,51 @@ var javaClasses = []javaClass{
 				d.Ours.Status == "invalid" && listed
 		},
 	},
+	{
+		Name: "java-accepts-space-in-annotation",
+		Kind: "bug-java",
+		Reason: "Java accepts a space inside curly braces, as in {delivered dose}. UCUM allows only characters " +
+			"33-126 there, and reads the range as exhaustive: case 1-115a of UcumFunctionalTests.xml rejects " +
+			"Unicode, and Java itself stops at '~' (126). Java checks for printable ASCII, which starts at the space (32).",
+		Spec:    "§6■1",
+		JavaRef: "Lexer.java:142-148 (checkAnnotation) calls Utilities.isAsciiChar, Utilities.java:87-88: ch >= ' ' && ch <= '~'",
+		match: func(_ *javaContext, d javaDiff) bool {
+			if d.What != "status" || d.Java.Status != "ok" {
+				return false
+			}
+			// Nuestro rechazo tiene que ser el de validación: otro error del mismo
+			// caso no lo explica esta clase.
+			var ve *ucumerr.ValidationError
+			if d.Ours.Status != "invalid" && (d.Ours.Status != "err" || !errors.As(d.Ours.Err, &ve)) {
+				return false
+			}
+			for _, u := range unitArgs(d.Case) {
+				if spaceInAnnotation(u) {
+					return true
+				}
+			}
+			return false
+		},
+	},
+}
+
+// spaceInAnnotation informa si code tiene un espacio entre { y }: el único
+// byte que Java admite en una anotación y UCUM §6■1 no.
+func spaceInAnnotation(code string) bool {
+	inside := false
+	for i := 0; i < len(code); i++ {
+		switch code[i] {
+		case '{':
+			inside = true
+		case '}':
+			inside = false
+		case ' ':
+			if inside {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // javaOracle tiene los esperados independientes de los dos motores que no

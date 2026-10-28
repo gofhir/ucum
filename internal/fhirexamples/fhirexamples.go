@@ -1,6 +1,7 @@
-// Package fhirexamples reads the UCUM quantities out of HL7's official FHIR
-// example packages. Only tests use it: fhir/examples_test.go checks them, and
-// the case generator of docs/plans/002-compare-java.md sends them to Ucum-java.
+// Package fhirexamples reads the UCUM quantities, and the codes of a
+// ValueSet, out of HL7's official FHIR example packages. Only tests use it:
+// fhir/examples_test.go checks them, and the case generator of
+// docs/plans/002-compare-java.md sends them to Ucum-java.
 //
 // The packages are downloaded by scripts/fetch-packages.sh, which checks their
 // SHA-256 against scripts/packages.sha256.
@@ -11,6 +12,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -102,5 +104,53 @@ func walk(x any, seen map[Quantity]bool) {
 		for _, e := range v {
 			walk(e, seen)
 		}
+	}
+}
+
+// ValueSetCodes returns the codes the ValueSet resource in file (for instance
+// "ValueSet-ucum-common.json") lists in compose.include.concept, in the order
+// the resource gives them, repetitions included. It reads the package at path
+// and fails if the file is not in it.
+func ValueSetCodes(path, file string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	tr := tar.NewReader(gz)
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("%s: no %s", filepath.Base(path), file)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if filepath.Base(h.Name) != file {
+			continue
+		}
+		var vs struct {
+			Compose struct {
+				Include []struct {
+					Concept []struct {
+						Code string `json:"code"`
+					} `json:"concept"`
+				} `json:"include"`
+			} `json:"compose"`
+		}
+		if err := json.NewDecoder(tr).Decode(&vs); err != nil {
+			return nil, fmt.Errorf("%s: %w", file, err)
+		}
+		var codes []string
+		for _, inc := range vs.Compose.Include {
+			for _, c := range inc.Concept {
+				codes = append(codes, c.Code)
+			}
+		}
+		return codes, nil
 	}
 }
