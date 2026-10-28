@@ -376,7 +376,8 @@ especiales (G4) y un parser que confunda unidades enteras (H3), ambos
 cubiertos por otros tests de la suite. Un `bug-ours`, con issue: #59.
 
 Pendiente fuera de este incremento:
-- issues para Ucum-java con evidencia (desplazamiento decimal en `divide`,
+- defectos de Ucum-java con evidencia (desplazamiento decimal en `divide`,
   lexer de `[m/s2/Hz^(1/2)]`, sintaxis inválida aceptada, arbitrarias sin
-  dimensión), que se redactan y se muestran antes de publicarlos;
+  dimensión): redactados en [002-java-issues.md](002-java-issues.md); el
+  usuario decidió no publicarlos (2026-10-28);
 - corregir #59 en el motor.

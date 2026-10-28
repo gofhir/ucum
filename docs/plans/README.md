@@ -8,7 +8,8 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** los issues para Ucum-java (§6 del plan 002), que se muestran antes de publicarse.
+**Próximo paso:** ninguno definido. Los defectos de Ucum-java quedaron
+redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`, acotado a entradas no
 finitas) y #56 (aliasing de `Exact` sin test).
 **Integrado:** PR #57, squash `9691ced` en `main` (2026-10-26), cierra #54;
