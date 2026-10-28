@@ -7,10 +7,9 @@ paso 9 (cierre); el code review convergió en la ronda 4; plan aprobado el 2026-
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** cierre de 003 (paso 9): documentación, nota de release
-y comentario para #55, que se muestra antes de publicarse. Rama
-`fix/float-range` sin push: la cuenta activa de `gh` (`robertoaranedafalp`)
-no tiene permiso en `gofhir/ucum`. Después de 003: los issues para
+**Próximo paso:** el usuario aprueba el PR de `fix/float-range` y el
+comentario en #55 (borradores en la conversación); después se integra y 003
+queda cerrado. Después de 003: los issues para
 Ucum-java (§6 del plan 002), que se muestran antes de publicarse.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`), #56 (aliasing de `Exact`
 sin test) y #59.

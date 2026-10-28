@@ -582,3 +582,17 @@ Ninguno deja hallazgos de severidad media o mayor.
 - Bajo (Fable): los casos de [hp'_M] citaban §47, y los de la raíz cuadrada
   §47■4. Según la revisión previa (§1), hpX, hpC y hpM están en §44, `ld` en
   §47 y `sqrt` en §48. Se corrigieron las citas.
+
+## 9. Cierre
+
+- `make check` en verde; las mutaciones, en
+  [`evidence/003-2026-10-27-mutations.txt`](evidence/003-2026-10-27-mutations.txt).
+- La comparación con Java se regeneró (`make compare-java`):
+  [`evidence/002-2026-10-27-compare-java.md`](evidence/002-2026-10-27-compare-java.md).
+  La clase de 9 casos pasa de `ours-float-overflow` (bug propio) a
+  `ours-out-of-range` (deliberada). El README enlaza ese informe.
+- README: la limitación conocida se reescribió y documenta la precisión entre
+  escalas logarítmicas (redondeo único; 1 ulp con bases irracionales).
+- No hay `DESIGN.md` ni ADR que tocar: ninguna excepción a la regla 5.
+- Los borradores del cuerpo del PR y del comentario en #55 se muestran al
+  usuario antes de publicarse.
