@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.2](https://github.com/gofhir/ucum/compare/v4.3.1...v4.3.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* report results outside the range of float64 as errors ([#62](https://github.com/gofhir/ucum/issues/62)) ([959d6b1](https://github.com/gofhir/ucum/commit/959d6b1d82ae92ad91751ede23c1912262116454)), closes [#59](https://github.com/gofhir/ucum/issues/59)
+
 ## [4.3.1](https://github.com/gofhir/ucum/compare/v4.3.0...v4.3.1) (2026-10-26)
 
 
