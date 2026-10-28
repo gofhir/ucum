@@ -3377,6 +3377,13 @@ spec:00070	divide	spec	1	m	0	s
 spec:00071	divide	spec	0	m	2	s
 spec:00072	divide	spec	6	m2	3	m
 spec:00073	divide	spec	1	m	1	m
+spec:00074	validate	spec	m{a{b}
+spec:00075	validate	spec	{{}
+spec:00076	validate	spec	m{a{b}}
+spec:00077	validate	spec	{a{}
+spec:00078	validate	spec	/{a{b}
+spec:00079	validate	spec	(m{a{b})
+spec:00080	canonical	spec	1	m{a{b}
 suite:00000	validate	suite	m
 suite:00001	validate	suite	m/
 suite:00002	validate	suite	/m

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Mutaciones de los planes 001 (docs/plans/001-canonicalkey-exact.md, §7),
 002 (docs/plans/002-compare-java.md, §7), 003
-(docs/plans/003-float-range.md, §7) y 004
-(docs/plans/004-annotation-space.md, §6).
+(docs/plans/003-float-range.md, §7), 004
+(docs/plans/004-annotation-space.md, §6) y 005
+(docs/plans/005-nested-braces.md, §6).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -30,6 +31,7 @@ E = "internal/engine"
 JC = E + "/javaclasses_test.go"
 LX = "internal/expr/lexer.go"
 ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
+JAVA_ANNOTATION_TESTS = "^TestJavaClass(SpaceIn|Nested)Annotation$"
 JR = E + "/testdata/java/ucum-java-1.0.10.tsv"
 JCASES = E + "/testdata/java/cases.tsv"
 JAVA_TESTS = "TestCompareJava$|TestJavaCasesFresh$"
@@ -310,11 +312,11 @@ MUTATIONS = [
     ("K41", "an annotation rejects '~' (126)",
      [(LX, "ch > 0x7E", "ch > 0x7D")],
      "^TestAnnotationCharacterRange$", "kill", "./", False),
-    ("K42", "the space-in-annotation class does not look for the space",
-     [(JC, "\t\t\t\tif spaceInAnnotation(u) {", "\t\t\t\tif true || spaceInAnnotation(u) {")],
-     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
-    ("K43", "the space-in-annotation class matches nothing",
-     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif true {")],
+    ("K42", "the annotation classes do not look for their own rule",
+     [(JC, "\t\tif annotationViolation(u) == rule {", "\t\tif annotationViolation(u) != 0 {")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    ("K43", "the annotation classes match nothing",
+     [(JC, "\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\tif true {")],
      "^TestCompareJava$", "kill", "./internal/engine/", False),
     ("K44", "ValueSetCodes reads no concept",
      [("internal/fhirexamples/fhirexamples.go", "\t\t\t\tcodes = append(codes, c.Code)", "\t\t\t\t_ = c")],
@@ -324,18 +326,49 @@ MUTATIONS = [
        'return ucumerr.At(start, "invalid character in annotation")')],
      "^TestAnnotationSpacePosition$", "kill", "./", False),
     # Ronda 1 del code review de 004.
-    ("K46", "the space-in-annotation class ignores which side differs",
-     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif d.What != \"status\" {")],
-     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
-    ("K47", "the space-in-annotation class ignores what differs",
-     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif d.Java.Status != \"ok\" {")],
-     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
-    ("K48", "the space-in-annotation class never leaves the braces",
+    ("K46", "the annotation classes ignore which side differs",
+     [(JC, "\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\tif d.What != \"status\" {")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    ("K47", "the annotation classes ignore what differs",
+     [(JC, "\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\tif d.Java.Status != \"ok\" {")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    ("K48", "the annotation classes never leave the braces",
      [(JC, "\t\tcase '}':\n\t\t\tinside = false\n\t\tcase ' ':", "\t\tcase ' ':")],
-     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
     ("K49", "the ValueSet oracle never leaves the braces",
      [("fhir/examples_test.go", "\t\tcase c == '}':\n\t\t\tinside = false\n", "")],
-     "^TestAnnotationOutsideRange$", "kill", "./fhir/", False),
+     "^TestAnnotationBreaksSection6$", "kill", "./fhir/", False),
+    # Plan 005 (docs/plans/005-nested-braces.md, §6). N7 y N8 son K46 y K47:
+    # las dos clases comparten javaAcceptsAnnotation.
+    ("K50", "an annotation admits a nested brace (N1)",
+     [(LX, "\t\tif ch == '{' {\n\t\t\treturn ucumerr.At(l.index, \"nested curly braces in annotation\")",
+       "\t\tif false {\n\t\t\treturn ucumerr.At(l.index, \"nested curly braces in annotation\")")],
+     "^TestNestedBraces(Everywhere|Sweep)?$", "kill", "./", False),
+    ("K51", "a nested brace is reported at the outer brace (N2)",
+     [(LX, 'ucumerr.At(l.index, "nested curly braces in annotation")',
+       'ucumerr.At(start, "nested curly braces in annotation")')],
+     "^TestNestedBraces$", "kill", "./", False),
+    ("K52", "a nested brace counts only when a } closes the code (N3)",
+     [(LX, "\t\tif ch == '{' {", "\t\tif ch == '{' && l.source[len(l.source)-1] == '}' {")],
+     "^TestNestedBraces$", "kill", "./", False),
+    ("K53", "the ValueSet oracle ignores a nested brace (N4)",
+     [("fhir/examples_test.go", "\t\tcase c == '{' && inside:\n\t\t\treturn true\n", "")],
+     "^TestAnnotationBreaksSection6$", "kill", "./fhir/", False),
+    ("K54", "the nested-annotation class matches nothing (N5)",
+     [(JC, "return javaAcceptsAnnotation(d, '{') }", "return false }")],
+     "^TestCompareJava$", "kill", "./internal/engine/", False),
+    ("K55", "the nested-annotation class takes any brace (N6)",
+     [(JC, "return javaAcceptsAnnotation(d, '{') }",
+       "return javaAcceptsAnnotation(d, '{') || strings.Contains(d.Case.Args[len(d.Case.Args)-1], \"{\") }")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    ("K56", "the space class also takes a nested brace (N9)",
+     [(JC, "return javaAcceptsAnnotation(d, ' ') }",
+       "return javaAcceptsAnnotation(d, ' ') || javaAcceptsAnnotation(d, '{') }")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    # Ronda 1 del code review de 005.
+    ("K57", "the annotation classes look for braces inside brackets",
+     [(JC, "\t\t\tbracket = bracket || !inside", "\t\t\tbracket = false")],
+     JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
 ]
 
 

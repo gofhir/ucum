@@ -138,10 +138,10 @@ var wantInvalidExamples = map[string][]string{
 }
 
 // Plan 004, test 4: el ValueSet ucum-common de cada versión. El oráculo no es
-// el lexer sino un escaneo de bytes. UCUM §6■1 da una dirección: un byte
-// fuera de 33–126 dentro de llaves hace inválido el código. La otra, que todo
-// concepto sin ese byte es válido, es una propiedad de estos datos, y el test
-// la verifica. Las cuentas son las del recurso publicado.
+// el lexer sino un escaneo de bytes. UCUM §6 da una dirección: un byte fuera
+// de 33–126 dentro de llaves (§6■1) o una llave dentro de otra (§6■5) hacen
+// inválido el código. La otra, que todo concepto sin eso es válido, es una
+// propiedad de estos datos, y el test la verifica. Las cuentas son las del recurso publicado.
 func TestCommonUnitsValueSetVersions(t *testing.T) {
 	dir := os.Getenv("UCUM_PACKAGES")
 	if dir == "" {
@@ -164,7 +164,7 @@ func TestCommonUnitsValueSetVersions(t *testing.T) {
 			}
 			outside := 0
 			for _, code := range codes {
-				bad := annotationOutsideRange(code)
+				bad := annotationBreaksSection6(code)
 				if bad {
 					outside++
 				}
@@ -173,19 +173,22 @@ func TestCommonUnitsValueSetVersions(t *testing.T) {
 				}
 			}
 			if w := want[pkg.Version]; len(codes) != w.concepts || outside != w.outside {
-				t.Errorf("%d concepts, %d with a byte outside 33–126 in braces; want %d, %d",
+				t.Errorf("%d concepts, %d breaking UCUM §6 in an annotation; want %d, %d",
 					len(codes), outside, w.concepts, w.outside)
 			}
 		})
 	}
 }
 
-// annotationOutsideRange informa si algún byte entre { y } cae fuera de
-// 33–126 (UCUM §6■1). No usa el lexer: es el oráculo del test 4.
-func annotationOutsideRange(code string) bool {
+// annotationBreaksSection6 informa si una anotación rompe UCUM §6: un byte
+// entre { y } fuera de 33–126 (§6■1), o una { dentro de otra (§6■5, plan
+// 005). No usa el lexer: es el oráculo del test 4.
+func annotationBreaksSection6(code string) bool {
 	inside := false
 	for i := 0; i < len(code); i++ {
 		switch c := code[i]; {
+		case c == '{' && inside:
+			return true
 		case c == '{':
 			inside = true
 		case c == '}':
@@ -208,7 +211,7 @@ func sortedKeys(m map[string]bool) []string {
 
 // El oráculo del test 4 también se prueba: un byte fuera de las llaves no
 // cuenta.
-func TestAnnotationOutsideRange(t *testing.T) {
+func TestAnnotationBreaksSection6(t *testing.T) {
 	for _, tt := range []struct {
 		code string
 		want bool
@@ -218,9 +221,11 @@ func TestAnnotationOutsideRange(t *testing.T) {
 		{"m{ab}", false},
 		{"m{a}.s b", false}, // el espacio está después de la anotación
 		{"m b", false},
+		{"m{a{b}", true},    // §6■5
+		{"m{a}.{b}", false}, // dos anotaciones, ninguna dentro de otra
 	} {
-		if got := annotationOutsideRange(tt.code); got != tt.want {
-			t.Errorf("annotationOutsideRange(%q) = %t, want %t", tt.code, got, tt.want)
+		if got := annotationBreaksSection6(tt.code); got != tt.want {
+			t.Errorf("annotationBreaksSection6(%q) = %t, want %t", tt.code, got, tt.want)
 		}
 	}
 }
