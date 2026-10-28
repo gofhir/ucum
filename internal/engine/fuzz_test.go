@@ -70,6 +70,13 @@ func FuzzValidate(f *testing.F) {
 			return
 		}
 
+		// Plan 004, test 7: aceptado, ningún byte dentro de llaves cae fuera de
+		// 33–126 (UCUM §6■1). Repite la regla del lexer: es una invariante
+		// barata, no evidencia independiente.
+		if b, ok := byteOutsideAnnotationRange(code); ok {
+			t.Fatalf("Validate(%q) accepted byte %#x inside braces: §6■1 admits only 33–126", code, b)
+		}
+
 		// Accepted. Canonicalization may still fail — "m/0" is well-formed and
 		// not canonicalizable — but only with an error, never a panic.
 		pair, err := svc.Canonical(1, code)
@@ -172,4 +179,21 @@ func FuzzComposeRoundTrip(f *testing.F) {
 			t.Fatalf("round trip changed the value: %q -> %q, %s vs %s", code, rendered, c1.Value, c2.Value)
 		}
 	})
+}
+
+// byteOutsideAnnotationRange devuelve el primer byte entre { y } fuera de
+// 33–126, si hay uno.
+func byteOutsideAnnotationRange(code string) (byte, bool) {
+	inside := false
+	for i := 0; i < len(code); i++ {
+		switch c := code[i]; {
+		case c == '{':
+			inside = true
+		case c == '}':
+			inside = false
+		case inside && (c < 33 || c > 126):
+			return c, true
+		}
+	}
+	return 0, false
 }

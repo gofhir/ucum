@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Mutaciones de los planes 001 (docs/plans/001-canonicalkey-exact.md, §7),
-002 (docs/plans/002-compare-java.md, §7) y 003
-(docs/plans/003-float-range.md, §7).
+002 (docs/plans/002-compare-java.md, §7), 003
+(docs/plans/003-float-range.md, §7) y 004
+(docs/plans/004-annotation-space.md, §6).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -27,6 +28,8 @@ T = "fhir/canonicalkey_test.go"
 
 E = "internal/engine"
 JC = E + "/javaclasses_test.go"
+LX = "internal/expr/lexer.go"
+ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
 JR = E + "/testdata/java/ucum-java-1.0.10.tsv"
 JCASES = E + "/testdata/java/cases.tsv"
 JAVA_TESTS = "TestCompareJava$|TestJavaCasesFresh$"
@@ -294,6 +297,45 @@ MUTATIONS = [
     ("K37", "Log10Abs without scaling a subnormal (kills on amd64 only)",
      [("internal/decimal/decimal.go", "\tif a != 0 && a < smallestNormal {", "\tif false && a < smallestNormal {")],
      RANGE_TESTS, ON_AMD64, "./internal/engine/", False),
+    # Plan 004 (docs/plans/004-annotation-space.md, §6).
+    ("K38", "an annotation admits the space again (root tests)",
+     [(LX, "ch < 0x21", "ch < 0x20")],
+     ANNOTATION_TESTS, "kill", "./", False),
+    ("K39", "an annotation admits the space again (FHIR data)",
+     [(LX, "ch < 0x21", "ch < 0x20")],
+     "^(TestCommonUnitsValueSetVersions|TestOfficialExamples)$", "kill", "./fhir/", False),
+    ("K40", "an annotation rejects '!' (33)",
+     [(LX, "ch < 0x21", "ch < 0x22")],
+     "^TestAnnotationCharacterRange$", "kill", "./", False),
+    ("K41", "an annotation rejects '~' (126)",
+     [(LX, "ch > 0x7E", "ch > 0x7D")],
+     "^TestAnnotationCharacterRange$", "kill", "./", False),
+    ("K42", "the space-in-annotation class does not look for the space",
+     [(JC, "\t\t\t\tif spaceInAnnotation(u) {", "\t\t\t\tif true || spaceInAnnotation(u) {")],
+     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
+    ("K43", "the space-in-annotation class matches nothing",
+     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif true {")],
+     "^TestCompareJava$", "kill", "./internal/engine/", False),
+    ("K44", "ValueSetCodes reads no concept",
+     [("internal/fhirexamples/fhirexamples.go", "\t\t\t\tcodes = append(codes, c.Code)", "\t\t\t\t_ = c")],
+     "^TestCommonUnitsValueSetVersions$", "kill", "./fhir/", False),
+    ("K45", "an annotation error points at the brace, not at the byte",
+     [(LX, 'return ucumerr.At(l.index, "invalid character in annotation")',
+       'return ucumerr.At(start, "invalid character in annotation")')],
+     "^TestAnnotationSpacePosition$", "kill", "./", False),
+    # Ronda 1 del code review de 004.
+    ("K46", "the space-in-annotation class ignores which side differs",
+     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif d.What != \"status\" {")],
+     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
+    ("K47", "the space-in-annotation class ignores what differs",
+     [(JC, "\t\t\tif d.What != \"status\" || d.Java.Status != \"ok\" {", "\t\t\tif d.Java.Status != \"ok\" {")],
+     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
+    ("K48", "the space-in-annotation class never leaves the braces",
+     [(JC, "\t\tcase '}':\n\t\t\tinside = false\n\t\tcase ' ':", "\t\tcase ' ':")],
+     "^TestJavaClassSpaceInAnnotation$", "kill", "./internal/engine/", False),
+    ("K49", "the ValueSet oracle never leaves the braces",
+     [("fhir/examples_test.go", "\t\tcase c == '}':\n\t\t\tinside = false\n", "")],
+     "^TestAnnotationOutsideRange$", "kill", "./fhir/", False),
 ]
 
 
