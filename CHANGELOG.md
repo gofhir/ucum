@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.4](https://github.com/gofhir/ucum/compare/v4.3.3...v4.3.4) (2026-10-29)
+
+
+### Bug Fixes
+
+* copy cache keys so a sliced code does not retain the caller's input ([#68](https://github.com/gofhir/ucum/issues/68)) ([672635f](https://github.com/gofhir/ucum/commit/672635f57fa8d9528bac34f077d61591fbb52c3a))
+
 ## [4.3.3](https://github.com/gofhir/ucum/compare/v4.3.2...v4.3.3) (2026-10-28)
 
 
