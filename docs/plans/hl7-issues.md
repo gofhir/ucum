@@ -33,3 +33,28 @@ tests already write `{clock_time}` (`UcumCommonUnitsTest.java:270`).
 
 **Verified by:** `TestCommonUnitsValueSetVersions` and `TestOfficialExamples`
 (`fhir/examples_test.go`), with `UCUM_PACKAGES` set.
+
+---
+
+## Observation 2 — the R5 decimal regex requires a literal `}` after an exponent
+
+**Found in:** plan [008](008-nonfinite-key.md), 2026-10-28.
+**Package:** `hl7.fhir.r5.examples` 5.0.0, `package/StructureDefinition-decimal.json`
+(version 5.0.0), element `decimal.value`, extension
+`http://hl7.org/fhir/StructureDefinition/regex`.
+
+The R5 pattern is:
+
+    -?(0|[1-9][0-9]{0,17})(\.[0-9]{1,17})?([eE][+-]?[0-9]{1,9}})?
+
+The exponent group ends in `{1,9}}`: the second `}` is a literal, so the
+pattern rejects `1e5` and `1.5E-3`, and accepts `1e5}`. R4 4.0.1 and R4B
+4.3.0 have `([eE][+-]?[0-9]+)?`, which accepts both. Measured with Python's
+`re.fullmatch` on each pattern as written in the package.
+
+The R5 decimal datatype allows an exponent, so the pattern contradicts the
+specification it describes. Probable fix: `([eE][+-]?[0-9]{1,9})?`.
+
+Not affected here: this library parses decimals with its own reader
+(`fhir.ParseDecimal`), not with the regex. Found while checking that FHIR's
+decimal excludes NaN and INF, which all three patterns do.
