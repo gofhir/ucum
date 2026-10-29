@@ -1,7 +1,8 @@
 # Punto de reanudación
 
-**Incremento activo:** [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md),
-cerrado, pendiente de commit y PR (`feat:`). Cerrados:
+**Incremento activo:** ninguno. Cerrados:
+- [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md):
+  cerrado e integrado el 2026-10-29 (#72).
 - [007 — aliasing de `*big.Rat` sin test (#56)](007-exact-aliasing.md):
   cerrado e integrado el 2026-10-28 (#70).
 - [006 — la caché retiene la entrada (#61)](006-cache-key-retention.md):
@@ -17,12 +18,13 @@ cerrado, pendiente de commit y PR (`feat:`). Cerrados:
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** commit y PR de 008 cuando el usuario lo pida. Después,
+**Próximo paso:** publicar la versión 4.4.0 (PR de release-please) y
 redactar el issue del redondeo de las escalas logarítmicas (plan 008 §9). Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`, acotado a entradas no
 finitas).
-**Integrado:** PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
+**Integrado:** PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`
+y `docs:`; cierra #55; sale en v4.4.0. PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
 (`fix:`), `94f1415` (`docs:`) y `2368b6f`; cierra #56; sale en v4.3.5 (#71,
 publicada el 2026-10-28). PR #68, squash `672635f` en `main` (2026-10-28), cierra #61;
 sale en v4.3.4 (#69, publicada el 2026-10-28). PR #67, squash `cd0d2bd` en `main` (2026-10-28), cierra #65;
