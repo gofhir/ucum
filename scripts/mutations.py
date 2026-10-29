@@ -3,8 +3,9 @@
 002 (docs/plans/002-compare-java.md, §7), 003
 (docs/plans/003-float-range.md, §7), 004
 (docs/plans/004-annotation-space.md, §6), 005
-(docs/plans/005-nested-braces.md, §6) y 006
-(docs/plans/006-cache-key-retention.md, §5 y §8).
+(docs/plans/005-nested-braces.md, §6), 006
+(docs/plans/006-cache-key-retention.md, §5 y §8) y 007
+(docs/plans/007-exact-aliasing.md, §5).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -26,6 +27,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGES = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO, ".cache", "packages")
 
 Q = "fhir/quantity.go"
+DEC = "fhir/decimal.go"
+COMPARATOR_ALIASING = "^TestComparator(DoesNotMutateOperands|ProtectsOperandsFromService)$"
 T = "fhir/canonicalkey_test.go"
 
 E = "internal/engine"
@@ -63,7 +66,7 @@ MUTATIONS = [
     ("M1/compare", "M1 against the Compare oracle alone", [M1], "CanonicalKeyMatchesCompareCommonUnits$", "kill"),
     ("M1/examples", "M1 against the official examples alone", [M1], "OfficialExamples$", "kill"),
     ("M2", "ignore Exact, use Value",
-     [(Q, "c.canonicalRat(q.Exact, q.Code)", "c.canonicalRat(new(big.Rat).SetFloat64(q.Value), q.Code)")],
+     [(Q, "c.canonicalRat(q.rat(), q.Code)", "c.canonicalRat(new(big.Rat).SetFloat64(q.Value), q.Code)")],
      "CanonicalKeyExactByHand$", "kill"),
     ("M3", "return ErrNotRational instead of falling back",
      [(Q, "if errors.Is(err, ucum.ErrNotRational) {\n\t\treturn ucum.RatPair{}, false, nil", "if false {\n\t\treturn ucum.RatPair{}, false, nil")],
@@ -390,6 +393,49 @@ MUTATIONS = [
     ("K62", "the parse cache stores the caller's string as its key (end-to-end test)",
      [(CACHE, "Store(strings.Clone(code), t)", "Store(strings.TrimSpace(code), t)")],
      "^TestCacheDoesNotRetainInput$", "kill", "./", False),
+    # Plan 007: ninguna operación modifica un *big.Rat de quien llama.
+    ("K63", "Quantity.rat returns the caller's Exact",
+     [(Q, "\t\treturn new(big.Rat).Set(q.Exact)", "\t\treturn q.Exact")],
+     COMPARATOR_ALIASING, "kill", "./fhir/", False),
+    ("K64", "toCanonicalRat returns the caller's value for a linear unit",
+     [(E + "/exact.go", "\t\treturn new(big.Rat).Set(value), nil", "\t\treturn value, nil")],
+     "^TestExactAPIDoesNotAlias$", "kill", "./", False),
+    ("K65", "a special scale multiplies the caller's value by the prefix factor in place",
+     [("internal/special/special.go", "rh.toCanonicalRat(new(big.Rat).Mul(v, s.Alpha.Rat()))",
+       "rh.toCanonicalRat(v.Mul(v, s.Alpha.Rat()))")],
+     "^TestExactAPIDoesNotAlias$", "kill", "./", False),
+    ("K66", "NewDecimal keeps the caller's *big.Rat",
+     [(DEC, "return Decimal{value: new(big.Rat).Set(value), sigFigs: sigFigs}",
+       "return Decimal{value: value, sigFigs: sigFigs}")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K67", "Decimal.Rat returns its own value",
+     [(DEC, "\treturn new(big.Rat).Set(d.value)", "\treturn d.value")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K68", "Decimal.Div writes into the receiver",
+     [(DEC, "value:   new(big.Rat).Quo(d.Rat(), o.Rat()),", "value:   d.value.Quo(d.value, o.Rat()),")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K69", "Decimal.Div writes into the divisor",
+     [(DEC, "value:   new(big.Rat).Quo(d.Rat(), o.Rat()),", "value:   o.value.Quo(d.Rat(), o.value),")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K70", "Decimal.Sub writes into the receiver",
+     [(DEC, "return d.additive(o, new(big.Rat).Sub(d.Rat(), o.Rat()))",
+       "return d.additive(o, d.value.Sub(d.value, o.Rat()))")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K71", "Decimal.Mul writes into the receiver",
+     [(DEC, "value:   new(big.Rat).Mul(d.Rat(), o.Rat()),", "value:   d.value.Mul(d.value, o.Rat()),")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    ("K72", "CanonicalKey hands the caller's Exact to the service",
+     [(Q, "c.canonicalRat(q.rat(), q.Code)", "c.canonicalRat(q.Exact, q.Code)")],
+     "^TestComparatorProtectsOperandsFromService$", "kill", "./fhir/", False),
+    # Ronda 1 del code review de 007.
+    ("K73", "ConvertDecimal keeps the *big.Rat the service returned",
+     [(Q, "return NewDecimal(out, d.SignificantFigures()), nil",
+       "return Decimal{value: out, sigFigs: d.SignificantFigures()}, nil")],
+     "^TestComparatorProtectsOperandsFromService$", "kill", "./fhir/", False),
+    ("K74", "NewDecimal keeps the caller's *big.Rat when the precision is unlimited",
+     [(DEC, "\tif sigFigs < 0 {\n\t\tsigFigs = 0\n\t}\n",
+       "\tif sigFigs == 0 {\n\t\treturn Decimal{value: value}\n\t}\n\tif sigFigs < 0 {\n\t\tsigFigs = 0\n\t}\n")],
+     "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
 ]
 
 

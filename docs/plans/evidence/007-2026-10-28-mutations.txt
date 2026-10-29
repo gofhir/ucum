@@ -1,0 +1,112 @@
+baseline     ok         every test passes unmutated
+M1           ok         want kill    got kill        back to Canonical(q.float())
+M1/hand      ok         want kill    got kill        M1 against the hand cases alone
+M1/scale     ok         want kill    got kill        M1 against the scale oracle alone
+M1/compare   ok         want kill    got kill        M1 against the Compare oracle alone
+M1/examples  ok         want kill    got kill        M1 against the official examples alone
+M2           ok         want kill    got kill        ignore Exact, use Value
+M3           ok         want kill    got kill        return ErrNotRational instead of falling back
+M4           ok         want kill    got kill        round toward zero
+M9           ok         want kill    got kill        break ties away from zero
+M10          ok         want kill    got kill        round through a 64-bit big.Float
+M11          ok         want kill    got kill        round through a 56-bit big.Float
+M12          ok         want kill    got kill        round through a 200-bit big.Float
+M13          ok         want kill    got kill        honour Exact only when Value is zero
+M14          ok         want kill    got kill        round through a big.Float as wide as the rational
+M15          ok         want kill    got kill        drop the sign of the exact value
+M5           ok         want kill    got kill        fall back to float64 on any error
+M6           ok         want survive got survive     scale oracle compares keys only: M1 must survive it
+M7           ok         want kill    got kill        fallback uses Value instead of float()
+M8           ok         want survive got survive     Compare oracle with same-unit pairs: M1 must survive it
+J1           ok         want kill    got kill        ignore the exponent of a prefix on a base unit
+J2           ok         want kill    got kill        accept the empty expression as unity, as Java does
+J3           ok         want kill    got kill        double the factor of [ft_i] and everything defined from it
+J4           ok         want kill    got kill        a class predicate that accepts everything
+J5           ok         want kill    got kill        one digit of Java's result changed (10th significant digit of 1 deg), resealed
+J5/sha       ok         want kill    got kill        the same digit changed without resealing
+J6           ok         want kill    got kill        cases.tsv changed without regenerating the result
+J6/fresh     ok         want kill    got kill        cases.tsv changed and resealed: the generator no longer produces it
+J7           ok         want kill    got kill        a class that explains no case
+J8           ok         want kill    got kill        drop [pH] from Java's HoldingHandler list
+J9           ok         want kill    got kill        wrong pH formula in the specification oracle
+J10          ok         want kill    got kill        a result line deleted, resealed
+J11          ok         want kill    got kill        our pH handler without the minus sign
+J12          ok         want kill    got kill        double the factor of t, an integer in the XML (Java declares one digit for it)
+J13          ok         want kill    got kill        a wrong conversion result with every atom right
+J14          ok         want kill    got kill        conversion into [degRe] off by one, from a linear unit too
+J15          ok         want kill    got kill        the loader doubles the value of [foz_m]
+J16          ok         want kill    got kill        ConvertRat converts between two arbitrary units, like Java
+K1           ok         want kill    got kill        roundRat does not check for an infinity
+K2           ok         want kill    got kill        roundRat does not check for a spurious zero
+K3           ok         want kill    got kill        roundRat rejects subnormals
+K4           ok         want kill    got kill        no log10 fallback for an intermediate outside the normal range
+K5           ok         want kill    got kill        log to log through the reference scale
+K6           ok         want kill    got kill        no domain check
+K7           ok         want kill    got kill        the domain of a logarithm includes zero
+K8           ok         want kill    got kill        a domain error reported as a range error
+K9           ok         want kill    got kill        fromLog10 does not check what it materializes
+K10          ok         want kill    got kill        combine multiplies directly even when the product is not normal
+K11          ok         want kill    got kill        LogToLog inverts the ratio of the prefixes
+K12          ok         want kill    got kill        the oracle calls Canonical on the service
+K13          ok         want kill    got kill        ours-out-of-range without its oracle, and 1 B out of range
+K14          ok         want kill    got kill        tan and the square root may underflow to zero
+K15          ok         want kill    got kill        an underflowed divisor taken for zero
+K16          ok         want kill    got kill        Log10Rat through float64
+K17          ok         want kill    got kill        CanonicalKey through Exact without the range rule
+K18          ok         want kill    got kill        ValidateCanonicalUnits without the comparison fallback
+K19          ok         want kill    got kill        the fallback does not check that the canonical form is canonical
+K20          ok         want kill    got kill        LogToLog does not check its result
+K21          ok         want kill    got kill        a 1e-10 relative error in what fromLog10 materializes
+K22          ok         want kill    got kill        a logarithmic destination always through log10, even for a normal value
+K23          ok         want kill    got kill        the square root may overflow
+K24          ok         want kill    got kill        the square root may underflow
+K25          ok         want kill    got kill        an overflowed log10 carried on (Inf - Inf = NaN)
+K26          ok         want kill    got kill        no domain check on the direct path
+K27          ok         want kill    got kill        a subnormal argument taken directly by the square root
+K28          ok         want kill    got kill        no zero-divisor check on the log10 path
+K29          ok         want kill    got kill        Log10Rat with a rounded log10(2)
+K30          ok         want kill    got kill        LogToLog multiplies by the prefix ratio in float64
+K31          ok         want kill    got kill        the fallback returns the error of a canonical form that is not one
+K32          ok         want kill    got kill        LogToLog checks only overflow
+K33          ok         want kill    got kill        LogToLog divides the offset by a rounded prefix
+K36          ok         want kill    got kill        LogToLog takes the slope ratio in float64
+K35          ok         want kill    got kill        LogToLog rounds each term before the sum
+K34          ok         want kill    got kill        a logarithmic destination takes ln/ln 10
+K37          ok         want survive got survive     Log10Abs without scaling a subnormal (kills on amd64 only)
+K38          ok         want kill    got kill        an annotation admits the space again (root tests)
+K39          ok         want kill    got kill        an annotation admits the space again (FHIR data)
+K40          ok         want kill    got kill        an annotation rejects '!' (33)
+K41          ok         want kill    got kill        an annotation rejects '~' (126)
+K42          ok         want kill    got kill        the annotation classes do not look for their own rule
+K43          ok         want kill    got kill        the annotation classes match nothing
+K44          ok         want kill    got kill        ValueSetCodes reads no concept
+K45          ok         want kill    got kill        an annotation error points at the brace, not at the byte
+K46          ok         want kill    got kill        the annotation classes ignore which side differs
+K47          ok         want kill    got kill        the annotation classes ignore what differs
+K48          ok         want kill    got kill        the annotation classes never leave the braces
+K49          ok         want kill    got kill        the ValueSet oracle never leaves the braces
+K50          ok         want kill    got kill        an annotation admits a nested brace (N1)
+K51          ok         want kill    got kill        a nested brace is reported at the outer brace (N2)
+K52          ok         want kill    got kill        a nested brace counts only when a } closes the code (N3)
+K53          ok         want kill    got kill        the ValueSet oracle ignores a nested brace (N4)
+K54          ok         want kill    got kill        the nested-annotation class matches nothing (N5)
+K55          ok         want kill    got kill        the nested-annotation class takes any brace (N6)
+K56          ok         want kill    got kill        the space class also takes a nested brace (N9)
+K57          ok         want kill    got kill        the annotation classes look for braces inside brackets
+K58          ok         want kill    got kill        the parse cache stores the caller's string as its key
+K59          ok         want kill    got kill        the copy is made in parseCached, so a promotion keeps the caller's string
+K60          ok         want kill    got kill        the key is copied on every lookup
+K61          ok         want kill    got kill        the property cache stores the caller's string as its key
+K62          ok         want kill    got kill        the parse cache stores the caller's string as its key (end-to-end test)
+K63          ok         want kill    got kill        Quantity.rat returns the caller's Exact
+K64          ok         want kill    got kill        toCanonicalRat returns the caller's value for a linear unit
+K65          ok         want kill    got kill        a special scale multiplies the caller's value by the prefix factor in place
+K66          ok         want kill    got kill        NewDecimal keeps the caller's *big.Rat
+K67          ok         want kill    got kill        Decimal.Rat returns its own value
+K68          ok         want kill    got kill        Decimal.Div writes into the receiver
+K69          ok         want kill    got kill        Decimal.Div writes into the divisor
+K70          ok         want kill    got kill        Decimal.Sub writes into the receiver
+K71          ok         want kill    got kill        Decimal.Mul writes into the receiver
+K72          ok         want kill    got kill        CanonicalKey hands the caller's Exact to the service
+K73          ok         want kill    got kill        ConvertDecimal keeps the *big.Rat the service returned
+K74          ok         want kill    got kill        NewDecimal keeps the caller's *big.Rat when the precision is unlimited

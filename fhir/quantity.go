@@ -163,7 +163,7 @@ func (c *Comparator) canonicalPair(a, b Quantity) (ra, rb *big.Rat, err error) {
 // canonicalRat es la regla que comparten Compare y CanonicalKey: la forma
 // canónica exacta de v en code, o ok en false, sin error, cuando la escala no
 // tiene forma racional (ErrNotRational) y quien llama tiene que usar float64.
-// CanonicalRat no modifica v.
+// Quien llama pasa una copia: v puede ir a un servicio ajeno.
 func (c *Comparator) canonicalRat(v *big.Rat, code string) (p ucum.RatPair, ok bool, err error) {
 	p, err = c.svc.CanonicalRat(v, code)
 	if errors.Is(err, ucum.ErrNotRational) {
@@ -295,9 +295,11 @@ func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err e
 	}
 	// Solo Exact necesita la vía exacta: Canonical ya convierte un Value a
 	// racional y redondea una vez, y así una escala no racional no se
-	// canonicaliza dos veces.
+	// canonicaliza dos veces. Se pasa una copia, como en Compare: el servicio
+	// puede ser cualquier ExactService (NewComparatorWith), y el Exact de quien
+	// llama no se toca (#56).
 	if q.Exact != nil {
-		p, ok, err := c.canonicalRat(q.Exact, q.Code)
+		p, ok, err := c.canonicalRat(q.rat(), q.Code)
 		if err != nil {
 			return "", 0, err
 		}
