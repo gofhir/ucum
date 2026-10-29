@@ -33,6 +33,9 @@ type Quantity struct {
 	//
 	// Prefer this wherever the value came from FHIR JSON rather than from a
 	// computation.
+	//
+	// No Comparator method modifies it, whatever service the Comparator was
+	// built over, and a result never shares it.
 	Exact *big.Rat
 }
 

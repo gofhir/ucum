@@ -158,6 +158,10 @@ func notReducing(code, canonical string) error {
 //
 //	svc, err := ucum.NewFromReader(defs)
 //	exact := svc.(ucum.ExactService)
+//
+// An implementation does not modify a *big.Rat it is given, and every *big.Rat
+// it returns belongs to the caller, shared with nothing: changing it changes
+// neither the input nor a later result. The services of this package do both.
 type ExactService interface {
 	Service
 
