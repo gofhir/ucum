@@ -161,23 +161,19 @@ func TestCanonicalKeyPropagatesErrors(t *testing.T) {
 	}
 }
 
-// Test 4: bordes de v4.3.0, fijados solo como regresión (rechazarlos es otro
-// cambio, fuera del plan).
+// Test 4: bordes. Un Value NaN o ±Inf no tiene clave (plan 008, #55: antes
+// pasaba tal cual).
 func TestCanonicalKeyEdges(t *testing.T) {
 	c, _ := newComparator(t)
-	code, v, err := c.CanonicalKey(fhir.Quantity{Value: math.NaN(), Code: "mg"})
-	if err != nil || code != "g" || !math.IsNaN(v) {
-		t.Errorf("CanonicalKey(NaN mg) = (%q, %v, %v), want (\"g\", NaN, nil)", code, v, err)
-	}
-	for _, sign := range []int{1, -1} {
-		code, v, err = c.CanonicalKey(fhir.Quantity{Value: math.Inf(sign), Code: "mg"})
-		if err != nil || code != "g" || !math.IsInf(v, sign) {
-			t.Errorf("CanonicalKey(%v mg) = (%q, %v, %v), want (\"g\", %v, nil)", math.Inf(sign), code, v, err, math.Inf(sign))
+	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		code, got, err := c.CanonicalKey(fhir.Quantity{Value: v, Code: "mg"})
+		if !errors.Is(err, fhir.ErrNotFinite) || code != "" || got != 0 {
+			t.Errorf("CanonicalKey(%v mg) = (%q, %v, %v), want fhir.ErrNotFinite", v, code, got, err)
 		}
 	}
 	// Un valor distinto de cero por debajo del menor float64 redondearía a
 	// cero: es ErrOutOfRange, como por el camino de Value (#59).
-	_, v, err = c.CanonicalKey(fhir.Quantity{Exact: mustRat(t, "-1e-400"), Code: "m"})
+	_, v, err := c.CanonicalKey(fhir.Quantity{Exact: mustRat(t, "-1e-400"), Code: "m"})
 	if !errors.Is(err, ucum.ErrOutOfRange) {
 		t.Errorf("CanonicalKey(-1e-400 m) = (%v, %v), want ucum.ErrOutOfRange", v, err)
 	}
