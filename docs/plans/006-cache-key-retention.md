@@ -1,6 +1,6 @@
 # 006 — La caché retiene la entrada de quien llama (#61)
 
-**Estado:** cerrado (paso 9); PR #68. Plan aprobado el 2026-10-28, con `fix:`.
+**Estado:** cerrado e integrado: PR #68, squash `672635f` (2026-10-28). Plan aprobado el 2026-10-28, con `fix:`.
 
 ## 1. Revisión previa
 
