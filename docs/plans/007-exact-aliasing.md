@@ -1,6 +1,6 @@
 # 007 — Ningún test ve si un `*big.Rat` de quien llama se modifica (#56)
 
-**Estado:** cerrado (paso 9), sin commit. Plan aprobado el 2026-10-28 con la opción A: `CanonicalKey` copia, `fix:`.
+**Estado:** cerrado (paso 9); PR #70. Plan aprobado el 2026-10-28 con la opción A: `CanonicalKey` copia, `fix:`.
 
 ## 1. Revisión previa
 
@@ -242,5 +242,5 @@ inesperados (evidencia actualizada en el mismo archivo).
 
 - `make check` y la suite con `UCUM_PACKAGES` en verde.
 - Mutaciones: [evidence/007-2026-10-28-mutations.txt](evidence/007-2026-10-28-mutations.txt).
-- Pendiente del usuario: los commits (`fix:` con el código y los tests,
-  `docs:` con el godoc) y el PR, que cierra #56.
+- PR #70: `570eb4f` (`fix:`, código y tests) y `0b043a4` (`docs:`, godoc);
+  cierra #56.
