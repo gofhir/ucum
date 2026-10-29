@@ -115,7 +115,13 @@ func (s Use) Code() string { return s.Handler.code() }
 // ToCanonical maps a value on the scaled special scale onto the proper unit:
 // f_s-1(α x').
 func (s Use) ToCanonical(v float64) float64 {
-	return s.Handler.toCanonical(v * s.Alpha.Float64())
+	alpha := s.Alpha.Float64()
+	if h, ok := s.Handler.(logHandler); ok {
+		if r, ok := h.exactPower(v, s.Alpha, alpha); ok {
+			return r
+		}
+	}
+	return s.Handler.toCanonical(v * alpha)
 }
 
 // FromCanonical maps a value on the proper unit onto the scaled special scale:
@@ -370,6 +376,68 @@ func (h logHandler) toCanonical(v float64) float64 {
 		e = -e
 	}
 	return math.Pow(h.base, e)
+}
+
+// maxPowLog10 acota |log10| de una potencia exacta. Más allá de 310 el
+// resultado no es un float64 normal (el mayor es 1.8e308, el menor normal
+// 2.2e-308), y mapScalar lo rehace por log10, así que calcularlo exacto solo
+// costaría. El tope impide además que un exponente como 1e300 haga inviable
+// la potencia.
+const maxPowLog10 = 310
+
+// exactPower da base^n redondeado una vez cuando la base es entera y el
+// exponente es un entero n (#75): math.Pow no está correctamente redondeado
+// (10^-300 sale 9.999999999999994e-301). Con otro exponente queda en
+// math.Pow: el resultado no es racional salvo casos como 100^(1/2), que no se
+// buscan.
+//
+// El exponente es entero en dos casos:
+//   - el de float64, f = v·α/expDivisor, el mismo que usa math.Pow. Basta con
+//     f: dos valores con el mismo f dan el mismo resultado, y Canonical sigue
+//     siendo monótona (2040 dB y el float64 siguiente dan los dos f = 204);
+//   - el exacto, α·v/expDivisor con α racional, cuando la multiplicación en
+//     float64 no lo da (los prefijos n, f, a, z: α = 10^-9 no es un float64).
+func (h logHandler) exactPower(v float64, alpha decimal.Decimal, alphaF float64) (float64, bool) {
+	if h.base != math.Trunc(h.base) {
+		return 0, false
+	}
+	f := v * alphaF / h.expDivisor
+	n := math.Round(f)
+	// Negado, también descarta NaN y ±Inf.
+	if !(math.Abs(n*math.Log10(h.base)) <= maxPowLog10) {
+		return 0, false
+	}
+	if f != n {
+		// Sin prefijo (α = 1, el único prefijo cuyo float64 es 1) y con
+		// expDivisor 1 o 2, f es exacto y no es entero. Lejos de un entero,
+		// tampoco lo es el exacto, y no se paga aritmética racional.
+		if alphaF == 1 || math.Abs(f-n) > 1e-9*math.Abs(f) {
+			return 0, false
+		}
+		e := decimal.RatFromFloat(v)
+		e.Mul(e, alpha.Rat())
+		e.Quo(e, new(big.Rat).SetFloat64(h.expDivisor))
+		if !e.IsInt() || !e.Num().IsInt64() {
+			return 0, false
+		}
+		n = float64(e.Num().Int64())
+		// El exponente exacto está cerca de f, así que el tope de arriba ya lo
+		// acota; se comprueba igual, para que el costo de la potencia no
+		// dependa de ese razonamiento.
+		if math.Abs(n*math.Log10(h.base)) > maxPowLog10 {
+			return 0, false
+		}
+	}
+	if h.negate {
+		n = -n
+	}
+	p := new(big.Int).Exp(big.NewInt(int64(h.base)), big.NewInt(int64(math.Abs(n))), nil)
+	r := new(big.Rat).SetInt(p)
+	if n < 0 {
+		r.Inv(r)
+	}
+	out, _ := r.Float64()
+	return out, true
 }
 
 func (h logHandler) fromCanonical(v float64) float64 {
