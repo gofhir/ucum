@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -15,6 +16,11 @@ import (
 // unbounded cache therefore grows without limit on input the service cannot
 // refuse. The bound is generous — a deployment sees tens of distinct codes, not
 // thousands — and eviction costs a reparse, not an error.
+//
+// Bounding the entries bounds the memory too, at ucumerr.MaxCodeLength bytes
+// per key: a key holds only the bytes of its code, because the cache copies it
+// rather than keep the caller's string, which may be a slice of a much larger
+// input.
 const MaxCacheEntries = 4096
 
 // termCache is a bounded, concurrency-safe cache of parsed codes.
@@ -74,7 +80,10 @@ func (c *termCache) store(code string, t *expr.Term) {
 	if c.count.Add(1) > MaxCacheEntries {
 		c.rotate()
 	}
-	c.young.Load().Store(code, t)
+	// La clave se copia: si code es un trozo de un string más grande, guardarlo
+	// tal cual mantendría vivo el string entero (#61). Cubre también la
+	// promoción, que pasa por aquí con el código de quien consulta.
+	c.young.Load().Store(strings.Clone(code), t)
 }
 
 // rotate retires the young generation and starts a new one. A second goroutine
