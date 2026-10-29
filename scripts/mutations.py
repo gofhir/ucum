@@ -4,8 +4,9 @@
 (docs/plans/003-float-range.md, §7), 004
 (docs/plans/004-annotation-space.md, §6), 005
 (docs/plans/005-nested-braces.md, §6), 006
-(docs/plans/006-cache-key-retention.md, §5 y §8) y 007
-(docs/plans/007-exact-aliasing.md, §5).
+(docs/plans/006-cache-key-retention.md, §5 y §8), 007
+(docs/plans/007-exact-aliasing.md, §5) y 008
+(docs/plans/008-nonfinite-key.md, §5).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -28,6 +29,7 @@ PACKAGES = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO, ".cache", "p
 
 Q = "fhir/quantity.go"
 DEC = "fhir/decimal.go"
+NONFINITE_TESTS = "^Test(CanonicalKeyRejectsNonFinite|CanonicalKeyFiniteInvariant)$"
 COMPARATOR_ALIASING = "^TestComparator(DoesNotMutateOperands|ProtectsOperandsFromService)$"
 T = "fhir/canonicalkey_test.go"
 
@@ -102,8 +104,7 @@ MUTATIONS = [
      [M1, (T, "if gotCode != code || got != want {", "if gotCode != code {")],
      "CanonicalKeyScaleCommonUnits$", "survive"),
     ("M7", "fallback uses Value instead of float()",
-     [(Q, "p, err := c.svc.Canonical(q.float(), q.Code)\n\tif err != nil {\n\t\treturn \"\", 0, err\n\t}\n\treturn p.Code",
-       "p, err := c.svc.Canonical(q.Value, q.Code)\n\tif err != nil {\n\t\treturn \"\", 0, err\n\t}\n\treturn p.Code")],
+     [(Q, "p, err := c.svc.Canonical(q.float(), q.Code)", "p, err := c.svc.Canonical(q.Value, q.Code)")],
      "CanonicalKeyNonRationalUsesExact$", "kill"),
     ("M8", "Compare oracle with same-unit pairs: M1 must survive it",
      [M1,
@@ -436,6 +437,80 @@ MUTATIONS = [
      [(DEC, "\tif sigFigs < 0 {\n\t\tsigFigs = 0\n\t}\n",
        "\tif sigFigs == 0 {\n\t\treturn Decimal{value: value}\n\t}\n\tif sigFigs < 0 {\n\t\tsigFigs = 0\n\t}\n")],
      "^TestDecimalDoesNotAlias$", "kill", "./fhir/", False),
+    # Plan 008: un valor que no es un número finito de float64 no tiene clave.
+    ("K75", "CanonicalKey does not check the value",
+     [(Q, "\tif err := checkFinite(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n", "")],
+     NONFINITE_TESTS, "kill", "./fhir/", False),
+    ("K76", "the check looks only at NaN",
+     [(Q, "(math.IsNaN(q.Value) || math.IsInf(q.Value, 0))", "math.IsNaN(q.Value)")],
+     "^TestCanonicalKeyRejectsNonFinite$", "kill", "./fhir/", False),
+    ("K77", "the check looks only at +Inf",
+     [(Q, "(math.IsNaN(q.Value) || math.IsInf(q.Value, 0))", "math.IsInf(q.Value, 1)")],
+     "^TestCanonicalKeyRejectsNonFinite$", "kill", "./fhir/", False),
+    ("K78", "the check ignores Exact",
+     [(Q, "if q.Exact == nil && (math.IsNaN(q.Value) || math.IsInf(q.Value, 0)) {",
+       "if math.IsNaN(q.Value) || math.IsInf(q.Value, 0) {")],
+     "^TestCanonicalKeyExactOverridesNonFiniteValue$", "kill", "./fhir/", False),
+    ("K79", "CanonicalKey checks the value before the system",
+     [(Q, "\tif err := checkSystems(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n\tif err := checkFinite(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n",
+       "\tif err := checkFinite(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n\tif err := checkSystems(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n")],
+     "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
+    ("K80", "CanonicalKey reads the code before the value",
+     [(Q, "\tif err := checkFinite(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n",
+       "\tif _, err := c.svc.Canonical(1, q.Code); err != nil {\n\t\treturn \"\", 0, err\n\t}\n\tif err := checkFinite(q); err != nil {\n\t\treturn \"\", 0, err\n\t}\n")],
+     "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
+    ("K81", "Add and Sub check the value after ConversionFactor",
+     [(Q, "\tif err := checkFinite(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n", ""),
+      (Q, "\tav, bv := a.rat(), b.rat()\n\tbv.Mul",
+       "\tif err := checkFinite(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n\tav, bv := a.rat(), b.rat()\n\tbv.Mul")],
+     "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
+    ("K82", "Compare returns an error without the sentinel",
+     [(Q, "\tif err := checkFinite(a, b); err != nil {\n\t\treturn 0, err\n\t}",
+       "\tif err := checkFinite(a, b); err != nil {\n\t\treturn 0, errors.New(\"quantity value is not finite\")\n\t}")],
+     "^TestNonFiniteSentinel$", "kill", "./fhir/", False),
+    ("K83", "an Exact too large for float64 rounds to ±Inf on the float path",
+     [(Q, "\tcase math.IsInf(f, 0):\n\t\treturn math.Copysign(math.MaxFloat64, f)\n", "")],
+     "^TestExactOutOfRangeOnFloatPath$|^TestCanonicalKeyFiniteInvariant$", "kill", "./fhir/", False),
+    ("K84", "Compare's float path reads the right operand's Exact as a float64, not through its key",
+     [(Q, "kb, vb, errB := c.key(b)",
+       "kb, vb, errB := func() (string, float64, error) { p, err := c.svc.Canonical(b.float(), b.Code); return p.Code, p.Value, err }()")],
+     "^TestCompareMixedPairs$", "kill", "./fhir/", False),
+    ("K85", "an Exact that rounds to 0 on the float path has no key (the stricter rule of round 1)",
+     [(Q, "return math.Copysign(math.SmallestNonzeroFloat64, float64(q.Exact.Sign()))", "return math.NaN()")],
+     "^TestFloatPathKeysThatFit$", "kill", "./fhir/", False),
+    ("K86", "the oversized Exact loses its sign",
+     [(Q, "return math.Copysign(math.MaxFloat64, f)", "return math.MaxFloat64")],
+     "^TestFloatPathKeysThatFit$|^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
+    ("K87", "Add checks the value before the system",
+     [(Q, "\tif err := checkSystems(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n\tif err := checkFinite(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n",
+       "\tif err := checkFinite(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n\tif err := checkSystems(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n")],
+     "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
+    ("K88", "the out-of-range error carries a position",
+     [(Q, "\t\tOffset:  -1,\n\t\tErr:     ucum.ErrOutOfRange,", "\t\tOffset:  0,\n\t\tErr:     ucum.ErrOutOfRange,")],
+     "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
+    # Ronda 2 del code review de 008.
+    ("K89", "a tiny Exact on the float path is read as 0",
+     [(Q, "\tcase f == 0 && q.Exact.Sign() != 0:\n\t\treturn math.Copysign(math.SmallestNonzeroFloat64, float64(q.Exact.Sign()))\n", "")],
+     "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
+    ("K90", "the float path's range error names the float64, not the caller's Exact",
+     [(Q, "\tif q.Exact != nil && errors.Is(err, ucum.ErrOutOfRange) {\n\t\treturn ucum.Pair{}, q.outOfRange()\n\t}\n", "")],
+     "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
+    # Ronda 3 del code review de 008.
+    ("K91", "Compare's float path reads the left operand's Exact as a float64, not through its key",
+     [(Q, "ka, va, errA := c.key(a)",
+       "ka, va, errA := func() (string, float64, error) { p, err := c.svc.Canonical(a.float(), a.Code); return p.Code, p.Value, err }()")],
+     "^TestCompareMixedPairs$", "kill", "./fhir/", False),
+    ("K92", "Compare's float path reports a range error before incommensurable units",
+     [(Q, "\tif !ok {\n\t\treturn notComparable(a, b)\n\t}\n", "\t_ = ok\n")],
+     "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
+    ("K93", "the rational path's not-comparable error names the canonical codes",
+     [(Q, "\tif ca.Code != cb.Code {\n\t\treturn nil, nil, notComparable(a, b)",
+       "\tif ca.Code != cb.Code {\n\t\treturn nil, nil, fmt.Errorf(\"quantities are not comparable: %s vs %s\", ca.Code, cb.Code)")],
+     "^TestNotComparableNamesCallerCodes$", "kill", "./fhir/", False),
+    ("K94", "the float path's not-comparable error names the canonical codes",
+     [(Q, "\tif ka != kb {\n\t\treturn 0, notComparable(a, b)",
+       "\tif ka != kb {\n\t\treturn 0, fmt.Errorf(\"quantities are not comparable: %s vs %s\", ka, kb)")],
+     "^TestNotComparableNamesCallerCodes$", "kill", "./fhir/", False),
 ]
 
 
