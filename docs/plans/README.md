@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md),
+cerrado, pendiente de commit y PR (`fix:`). Cerrados:
 - [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md):
   cerrado e integrado el 2026-10-29 (#72).
 - [007 — aliasing de `*big.Rat` sin test (#56)](007-exact-aliasing.md):
@@ -18,11 +19,10 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** publicar la versión 4.4.0 (PR de release-please) y
-redactar el issue del redondeo de las escalas logarítmicas (plan 008 §9). Los defectos de Ucum-java quedaron
+**Próximo paso:** commit y PR de 009 cuando el usuario lo pida. La release 4.4.0 (#73) la integra el usuario. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
-Issues abiertos: #55 (NaN/Inf en `CanonicalKey`, acotado a entradas no
-finitas).
+Issues abiertos: #75 (redondeo de las escalas logarítmicas; 009 cubre la
+opción A).
 **Integrado:** PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`
 y `docs:`; cierra #55; sale en v4.4.0. PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
 (`fix:`), `94f1415` (`docs:`) y `2368b6f`; cierra #56; sale en v4.3.5 (#71,
