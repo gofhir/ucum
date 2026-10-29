@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/gofhir/ucum/compare/v4.3.5...v4.4.0) (2026-10-29)
+
+
+### Features
+
+* **fhir:** reject non-finite values with ErrNotFinite ([6e7acd7](https://github.com/gofhir/ucum/commit/6e7acd7852fc6263653fa13af7fca579a3e59b87))
+
 ## [4.3.5](https://github.com/gofhir/ucum/compare/v4.3.4...v4.3.5) (2026-10-29)
 
 
