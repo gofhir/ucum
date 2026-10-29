@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.5](https://github.com/gofhir/ucum/compare/v4.3.4...v4.3.5) (2026-10-29)
+
+
+### Bug Fixes
+
+* copy Quantity.Exact before CanonicalKey hands it to the service ([d73d3b9](https://github.com/gofhir/ucum/commit/d73d3b9abd59d753e308dd8ed1e57abec54e8fea)), closes [#56](https://github.com/gofhir/ucum/issues/56)
+
 ## [4.3.4](https://github.com/gofhir/ucum/compare/v4.3.3...v4.3.4) (2026-10-29)
 
 
