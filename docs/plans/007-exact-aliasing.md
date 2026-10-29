@@ -1,6 +1,6 @@
 # 007 — Ningún test ve si un `*big.Rat` de quien llama se modifica (#56)
 
-**Estado:** cerrado (paso 9); PR #70. Plan aprobado el 2026-10-28 con la opción A: `CanonicalKey` copia, `fix:`.
+**Estado:** cerrado e integrado: PR #70, *rebase and merge* (2026-10-28). Plan aprobado el 2026-10-28 con la opción A: `CanonicalKey` copia, `fix:`.
 
 ## 1. Revisión previa
 
