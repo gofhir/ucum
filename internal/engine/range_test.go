@@ -315,6 +315,11 @@ func TestRangeNonFinitePassesThrough(t *testing.T) {
 		{math.Inf(-1), "B", func(f float64) bool { return f == 0 }},
 		{math.Inf(1), "[pH]", func(f float64) bool { return f == 0 }},
 		{math.NaN(), "m", math.IsNaN},
+		// Una escala logarítmica de base entera, con y sin prefijo: NaN no
+		// entra a la potencia exacta (#75).
+		{math.NaN(), "B", math.IsNaN},
+		{math.NaN(), "dB", math.IsNaN},
+		{math.NaN(), "[pH]", math.IsNaN},
 		{math.Inf(1), "Ym", func(f float64) bool { return math.IsInf(f, 1) }},
 	} {
 		p, err := s.Canonical(c.v, c.code)

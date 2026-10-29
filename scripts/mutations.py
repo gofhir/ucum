@@ -38,6 +38,8 @@ JC = E + "/javaclasses_test.go"
 CACHE = E + "/cache.go"
 ENGINE = E + "/engine.go"
 LX = "internal/expr/lexer.go"
+SPECIAL = "internal/special/special.go"
+LOGPOW_TESTS = "^TestLogScale"
 ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
 JAVA_ANNOTATION_TESTS = "^TestJavaClass(SpaceIn|Nested)Annotation$"
 JR = E + "/testdata/java/ucum-java-1.0.10.tsv"
@@ -511,6 +513,48 @@ MUTATIONS = [
      [(Q, "\tif ka != kb {\n\t\treturn 0, notComparable(a, b)",
        "\tif ka != kb {\n\t\treturn 0, fmt.Errorf(\"quantities are not comparable: %s vs %s\", ka, kb)")],
      "^TestNotComparableNamesCallerCodes$", "kill", "./fhir/", False),
+    # Plan 009 (#75): potencia exacta en las escalas logarítmicas.
+    ("K95", "the exact power path is never taken",
+     [(SPECIAL, "if r, ok := h.exactPower(v, s.Alpha, alpha); ok {", "if r, ok := h.exactPower(v, s.Alpha, alpha); ok && false {")],
+     LOGPOW_TESTS, "kill", "./", False),
+    ("K96", "the exact exponent ignores the prefix",
+     [(SPECIAL, "e.Mul(e, alpha.Rat())", "e.Mul(e, big.NewRat(1, 1))")],
+     LOGPOW_TESTS, "kill", "./", False),
+    ("K97", "the exact power ignores the sign of the scales that count down",
+     [(SPECIAL, "\tif h.negate {\n\t\tn = -n\n\t}\n", "")],
+     LOGPOW_TESTS, "kill", "./", False),
+    ("K98", "the exact power uses base 10 for every scale",
+     [(SPECIAL, "big.NewInt(int64(h.base))", "big.NewInt(10)")],
+     LOGPOW_TESTS, "kill", "./", False),
+    ("K99", "ln is treated as an integer base",
+     [(SPECIAL, "\tif h.base != math.Trunc(h.base) {\n\t\treturn 0, false\n\t}\n\tf := v", "\tf := v")],
+     LOGPOW_TESTS, "kill", "./", False),
+    ("K100", "the exact power is capped at |log10| 40",
+     [(SPECIAL, "const maxPowLog10 = 310", "const maxPowLog10 = 40")],
+     LOGPOW_TESTS, "kill", "./", False),
+    # Equivalente: un exponente no entero que pasa el filtro tiene un
+    # numerador mayor que el tope, y el tope del exponente exacto lo descarta.
+    ("K101", "a non-integer exact exponent is read by its numerator (equivalent: the cap rejects it)",
+     [(SPECIAL, "if !e.IsInt() || !e.Num().IsInt64() {", "if !e.Num().IsInt64() {")],
+     LOGPOW_TESTS, "survive", "./", False),
+    ("K102", "the exact exponent is never computed",
+     [(SPECIAL, "if alphaF == 1 || math.Abs(f-n) > 1e-9*math.Abs(f) {", "if true {")],
+     LOGPOW_TESTS, "kill", "./", False),
+    # Equivalente, como cambiar la tolerancia relativa 1e-9·|f| por una
+    # absoluta: el filtro solo ahorra costo, el exponente exacto decide.
+    ("K103", "the cheap filter is removed (only a cost: equivalent mutation)",
+     [(SPECIAL, "if alphaF == 1 || math.Abs(f-n) > 1e-9*math.Abs(f) {", "if alphaF == 1 {")],
+     LOGPOW_TESTS, "survive", "./", False),
+    # Ronda 1 del code review de 009.
+    ("K105", "a NaN reaches the exact exponent and panics",
+     [(SPECIAL, "if !(math.Abs(n*math.Log10(h.base)) <= maxPowLog10) {", "if math.Abs(n*math.Log10(h.base)) > maxPowLog10 {")],
+     "^TestRangeNonFinitePassesThrough$", "kill", "./internal/engine/", False),
+    ("K106", "the exact exponent decides even when the float64 one is an integer (round 1)",
+     [(SPECIAL, "\tif f != n {\n\t\t// Sin prefijo", "\tif alphaF != 1 {\n\t\t// Sin prefijo")],
+     "^TestLogScaleMonotonicAtIntegerExponents$", "kill", "./", False),
+    ("K104", "the prefixed scales that count down lose their sign (internal test)",
+     [(SPECIAL, "\tif h.negate {\n\t\tn = -n\n\t}\n", "")],
+     "^TestUseToCanonicalIntegerExponentWithPrefix$", "kill", "./internal/special/", False),
 ]
 
 
