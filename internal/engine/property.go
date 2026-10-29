@@ -115,7 +115,9 @@ func (s *Service) canonicalFormsOfProperty(property string) (map[string]bool, er
 		}
 		forms[expr.ComposeCanonicalUnits(can)] = true
 	}
-	s.propertyForms.Store(key, forms)
+	// key es un trozo de property cuando ya viene en minúsculas; se copia para
+	// no mantener viva la entrada de quien llama (#61).
+	s.propertyForms.Store(strings.Clone(key), forms)
 	return forms, nil
 }
 

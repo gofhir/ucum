@@ -2,8 +2,9 @@
 """Mutaciones de los planes 001 (docs/plans/001-canonicalkey-exact.md, §7),
 002 (docs/plans/002-compare-java.md, §7), 003
 (docs/plans/003-float-range.md, §7), 004
-(docs/plans/004-annotation-space.md, §6) y 005
-(docs/plans/005-nested-braces.md, §6).
+(docs/plans/004-annotation-space.md, §6), 005
+(docs/plans/005-nested-braces.md, §6) y 006
+(docs/plans/006-cache-key-retention.md, §5 y §8).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -29,6 +30,8 @@ T = "fhir/canonicalkey_test.go"
 
 E = "internal/engine"
 JC = E + "/javaclasses_test.go"
+CACHE = E + "/cache.go"
+ENGINE = E + "/engine.go"
 LX = "internal/expr/lexer.go"
 ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
 JAVA_ANNOTATION_TESTS = "^TestJavaClass(SpaceIn|Nested)Annotation$"
@@ -369,6 +372,24 @@ MUTATIONS = [
     ("K57", "the annotation classes look for braces inside brackets",
      [(JC, "\t\t\tbracket = bracket || !inside", "\t\t\tbracket = false")],
      JAVA_ANNOTATION_TESTS, "kill", "./internal/engine/", False),
+    # Plan 006: las claves de las cachés no comparten el string de quien llama.
+    ("K58", "the parse cache stores the caller's string as its key",
+     [(CACHE, "Store(strings.Clone(code), t)", "Store(strings.TrimSpace(code), t)")],
+     "^TestCacheKeysDoNotAliasInput$", "kill", "./internal/engine/", False),
+    ("K59", "the copy is made in parseCached, so a promotion keeps the caller's string",
+     [(CACHE, "Store(strings.Clone(code), t)", "Store(strings.TrimSpace(code), t)"),
+      (ENGINE, "\ts.cache.store(code, t)", "\ts.cache.store(strings.Clone(code), t)")],
+     "^TestCacheKeysDoNotAliasInput$", "kill", "./internal/engine/", False),
+    ("K60", "the key is copied on every lookup",
+     [(CACHE, "func (c *termCache) load(code string) (*expr.Term, bool) {",
+       "func (c *termCache) load(code string) (*expr.Term, bool) {\n\tcode = strings.Clone(code)")],
+     "^TestCacheHitDoesNotAllocate$", "kill", "./internal/engine/", False),
+    ("K61", "the property cache stores the caller's string as its key",
+     [(E + "/property.go", "Store(strings.Clone(key), forms)", "Store(key, forms)")],
+     "^TestCacheKeysDoNotAliasInput$", "kill", "./internal/engine/", False),
+    ("K62", "the parse cache stores the caller's string as its key (end-to-end test)",
+     [(CACHE, "Store(strings.Clone(code), t)", "Store(strings.TrimSpace(code), t)")],
+     "^TestCacheDoesNotRetainInput$", "kill", "./", False),
 ]
 
 

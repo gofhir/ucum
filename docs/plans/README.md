@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [006 — la caché retiene la entrada (#61)](006-cache-key-retention.md),
+cerrado en el paso 9 (el review convergió en la ronda 1), sin commit. Cerrados:
 - [005 — llaves anidadas en una anotación (#65)](005-nested-braces.md):
   cerrado e integrado el 2026-10-28 (#67).
 - [004 — espacio dentro de una anotación (PR #52)](004-annotation-space.md):
@@ -12,7 +13,7 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** ninguno definido; el usuario elige el próximo issue. Los defectos de Ucum-java quedaron
+**Próximo paso:** commit y PR de 006 cuando el usuario lo pida. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`, acotado a entradas no
 finitas), #56 (aliasing de `Exact` sin test), y #61 (la caché retiene la
