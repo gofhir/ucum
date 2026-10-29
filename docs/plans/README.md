@@ -1,7 +1,7 @@
 # Punto de reanudación
 
 **Incremento activo:** [007 — aliasing de `*big.Rat` sin test (#56)](007-exact-aliasing.md),
-cerrado en el paso 9 (el review convergió en la ronda 1), sin commit. Cerrados:
+cerrado en el paso 9 (el review convergió en la ronda 1); PR #70. Cerrados:
 - [006 — la caché retiene la entrada (#61)](006-cache-key-retention.md):
   cerrado e integrado el 2026-10-28 (#68).
 - [005 — llaves anidadas en una anotación (#65)](005-nested-braces.md):
@@ -15,7 +15,8 @@ cerrado en el paso 9 (el review convergió en la ronda 1), sin commit. Cerrados:
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** commits y PR de 007 cuando el usuario lo pida. Los defectos de Ucum-java quedaron
+**Próximo paso:** que el usuario mergee #70 (cierra #56), con *rebase and merge*
+para conservar el commit `docs:` aparte. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #55 (NaN/Inf en `CanonicalKey`, acotado a entradas no
 finitas) y #56 (aliasing de `Exact` sin test).
