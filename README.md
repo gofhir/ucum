@@ -47,7 +47,7 @@ internal/special   the conversions for the non-ratio scales
 internal/engine    canonicalization and conversion
 ```
 
-The public surface is `Service`, `ExactService`, `Identified`, `Pair`, `RatPair`, `Definitions`, the two error types and the sentinels below. `Model` and its friends used to be exported — a leftover of the port from Java — but nothing could be done with them, and they are gone.
+The public surface is `Service`, `ExactService`, `Identified`, `PropertyLister`, `Inspector`, their result values, the two error types and the sentinels below. `Model` and its friends used to be exported — a leftover of the port from Java — but nothing could be done with them, and they are gone.
 
 ## Quickstart
 
@@ -79,6 +79,36 @@ defs := svc.(ucum.Identified).Definitions()
 defs.Version       // "2.2"
 defs.RevisionDate  // "2024-06-17"
 ```
+
+## Inspecting a supplied expression
+
+When a consumer needs the units before reduction, use the optional `Inspector`
+interface. For example, a consumer's substance-specific rule may need to
+distinguish `eq/L` from `mol/L` even though the definitions make them
+mathematically convertible. Inspection returns occurrences from the supplied
+expression; it does not enumerate units or decide a medical interpretation.
+
+```go
+symbols, err := svc.(ucum.Inspector).Inspect("mol.(eq/eq)/L")
+if err != nil {
+    return err
+}
+for _, symbol := range symbols {
+    fmt.Println(symbol.Code, symbol.Exponent)
+}
+// mol 1
+// eq 1
+// eq -1
+// L -1
+```
+
+Symbols retain their resolved prefix, signed power and declaration flags, and
+ordinary derived units include their defining unit expression. The values come
+from the service's selected definitions. Output codes and definition expressions
+are case-sensitive. The defining expression omits the numeric multiplier; use
+the exact conversion API for arithmetic. Numeric factors and annotations do not
+produce symbols, so inspection cannot reconstruct source text. Results are
+independent snapshots; mutating them cannot change the service or another call.
 
 ## The two vocabularies
 
