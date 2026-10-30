@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.1](https://github.com/gofhir/ucum/compare/v4.4.0...v4.4.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* map integer exponents of log scales through the exact power ([54fe288](https://github.com/gofhir/ucum/commit/54fe288cc790fdfa59b4d23ec85983d3d2a962d2))
+
 ## [4.4.0](https://github.com/gofhir/ucum/compare/v4.3.5...v4.4.0) (2026-10-29)
 
 
