@@ -1,7 +1,8 @@
 # Punto de reanudación
 
-**Incremento activo:** [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md),
-cerrado, pendiente de commit y PR (`fix:`). Cerrados:
+**Incremento activo:** ninguno. Cerrados:
+- [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md):
+  cerrado e integrado el 2026-10-30 (#76).
 - [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md):
   cerrado e integrado el 2026-10-29 (#72).
 - [007 — aliasing de `*big.Rat` sin test (#56)](007-exact-aliasing.md):
@@ -19,12 +20,15 @@ cerrado, pendiente de commit y PR (`fix:`). Cerrados:
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** commit y PR de 009 cuando el usuario lo pida. La release 4.4.0 (#73) la integra el usuario. Los defectos de Ucum-java quedaron
+**Próximo paso:** publicar la versión 4.4.1 (PR de release-please, lo
+integra el usuario). #75 sigue abierto por la opción B (doble redondeo con
+el factor) y los resultados subnormales. La release 4.4.0 (#73) la integra el usuario. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #75 (redondeo de las escalas logarítmicas; 009 cubre la
 opción A).
-**Integrado:** PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`
-y `docs:`; cierra #55; sale en v4.4.0. PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
+**Integrado:** PR #76, *rebase and merge* en `main` (2026-10-30): `fix:` y
+`docs:`; refiere #75 (opción A); sale en v4.4.1. PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`
+y `docs:`; cierra #55; sale en v4.4.0 (#73, publicada el 2026-10-29). PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
 (`fix:`), `94f1415` (`docs:`) y `2368b6f`; cierra #56; sale en v4.3.5 (#71,
 publicada el 2026-10-28). PR #68, squash `672635f` en `main` (2026-10-28), cierra #61;
 sale en v4.3.4 (#69, publicada el 2026-10-28). PR #67, squash `cd0d2bd` en `main` (2026-10-28), cierra #65;
