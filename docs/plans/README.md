@@ -1,7 +1,8 @@
 # Punto de reanudación
 
-**Incremento activo:** [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md),
-cerrado (paso 9), commit en `fix/log-subnormal`, sin PR. Cerrados:
+**Incremento activo:** ninguno. Cerrados:
+- [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md):
+  cerrado e integrado el 2026-10-31 (#79).
 - [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md):
   cerrado e integrado el 2026-10-30 (#76).
 - [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md):
@@ -21,11 +22,12 @@ cerrado (paso 9), commit en `fix/log-subnormal`, sin PR. Cerrados:
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** push y PR de 010 cuando el usuario lo pida (`fix:` → 4.4.2, «Refs #75»). Pendientes sin issue en el plan 010, §10. v4.4.1 publicada el 2026-10-30. Los defectos de Ucum-java quedaron
+**Próximo paso:** elegir el siguiente frente con el usuario. Pendientes sin issue en el plan 010, §10. v4.4.2 publicada el 2026-10-31. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #75 (redondeo de las escalas logarítmicas; 009 cubre la
-opción A).
-**Integrado:** PR #76, *rebase and merge* en `main` (2026-10-30): `fix:` y
+opción A y 010 el tramo no normal; la opción B sigue abierta).
+**Integrado:** PR #79, *rebase and merge* en `main` (2026-10-31): `fix:`; refiere #75 (tramo no normal);
+sale en v4.4.2 (#80, publicada el 2026-10-31). PR #76, *rebase and merge* en `main` (2026-10-30): `fix:` y
 `docs:`; refiere #75 (opción A); sale en v4.4.1. PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`
 y `docs:`; cierra #55; sale en v4.4.0 (#73, publicada el 2026-10-29). PR #70, *rebase and merge* en `main` (2026-10-28): `d73d3b9`
 (`fix:`), `94f1415` (`docs:`) y `2368b6f`; cierra #56; sale en v4.3.5 (#71,
