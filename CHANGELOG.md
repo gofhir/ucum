@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.2](https://github.com/gofhir/ucum/compare/v4.4.1...v4.4.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* round log scales once when the intermediate is not a normal float64 ([a478c84](https://github.com/gofhir/ucum/commit/a478c84bddaa61612c2044cf84c3e0784e2cb2d7))
+
 ## [4.4.1](https://github.com/gofhir/ucum/compare/v4.4.0...v4.4.1) (2026-10-30)
 
 
