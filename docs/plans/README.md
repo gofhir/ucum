@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md),
+cerrado (paso 9), commit en `fix/log-subnormal`, sin PR. Cerrados:
 - [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md):
   cerrado e integrado el 2026-10-30 (#76).
 - [008 — `CanonicalKey` acepta NaN y ±Inf (#55)](008-nonfinite-key.md):
@@ -20,9 +21,7 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** publicar la versión 4.4.1 (PR de release-please, lo
-integra el usuario). #75 sigue abierto por la opción B (doble redondeo con
-el factor) y los resultados subnormales. La release 4.4.0 (#73) la integra el usuario. Los defectos de Ucum-java quedaron
+**Próximo paso:** push y PR de 010 cuando el usuario lo pida (`fix:` → 4.4.2, «Refs #75»). Pendientes sin issue en el plan 010, §10. v4.4.1 publicada el 2026-10-30. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #75 (redondeo de las escalas logarítmicas; 009 cubre la
 opción A).
