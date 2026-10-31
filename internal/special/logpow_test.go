@@ -69,3 +69,24 @@ func TestUseToCanonicalIntegerExponentWithPrefix(t *testing.T) {
 		}
 	}
 }
+
+// Plan 010, §9: la potencia partida respeta el tope de costo. Más allá de
+// |n·log10 base| = maxExactLog10 no hay valor racional y quien llama sigue por
+// log10; sin el tope, un exponente de 10^15 haría inviable la potencia.
+func TestUseToCanonicalNearCostCap(t *testing.T) {
+	u := Use{Handler: handlerFor(t, "B"), Alpha: decimal.FromInt(1)}
+	for _, tc := range []struct {
+		v  float64
+		ok bool
+	}{
+		{4999.5, true},  // n = 5000, en el tope
+		{-4999.5, true}, // n = -5000
+		{5000.5, false}, // n = 5001
+		{5001, false},   // exponente entero, también fuera
+		{1e15 + 0.5, false},
+	} {
+		if _, ok := u.ToCanonicalNear(tc.v); ok != tc.ok {
+			t.Errorf("ToCanonicalNear(%v B) ok = %v, want %v", tc.v, ok, tc.ok)
+		}
+	}
+}

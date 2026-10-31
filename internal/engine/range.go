@@ -34,6 +34,46 @@ type scalar struct {
 	sign float64 // -1, 0 o 1, si es log
 	l10  float64 // log10 |valor|, si es log
 	log  bool
+
+	// La escala especial y el valor de origen, para obtener el valor racional
+	// solo si hace falta (rat). Por valor: un puntero haría escapar el Use
+	// al heap en cada conversión.
+	use special.Use
+	src float64
+}
+
+// maxExactResultLog10 acota |log10| del resultado que se calcula exacto: más
+// allá no cabe en float64 (el menor subnormal es 4.9e-324) y la vía log10 ya
+// da ErrOutOfRange.
+const maxExactResultLog10 = 330
+
+// rat da el valor de x como racional, o nil si no lo tiene (#75, plan 010):
+//   - guardado por log10 (intermedio no normal): special.ToCanonicalNear, la
+//     potencia exacta, la partida si el exponente no es entero, o el cuadrado
+//     exacto de sqrt;
+//   - con intermedio normal y exponente entero, la potencia exacta;
+//   - si no, el binario exacto del float64 finito que la vía float64 ya usa,
+//     como con Cel (un exponente no entero aporta el de math.Pow).
+//
+// Np, un valor sobre el tope de costo o uno no finito no lo tienen, y quien
+// llama sigue por log10.
+func (x scalar) rat() *big.Rat {
+	if x.use.Handler != nil {
+		if x.log {
+			if r, ok := x.use.ToCanonicalNear(x.src); ok {
+				return r
+			}
+			return nil
+		}
+		if r, ok := x.use.ToCanonicalExact(x.src); ok {
+			return r
+		}
+	}
+	if x.log {
+		return nil
+	}
+	// RatFromFloat da nil con NaN y ±Inf.
+	return decimal.RatFromFloat(x.v)
 }
 
 // normal: finito y de magnitud al menos 2^-1022, donde float64 tiene todas
@@ -51,6 +91,13 @@ func mapScalar(use *special.Use, value float64) (scalar, error) {
 	if use == nil {
 		return scalar{v: value}, nil
 	}
+	x, err := mapSpecial(use, value)
+	x.use, x.src = *use, value
+	return x, err
+}
+
+// mapSpecial es mapScalar con una escala especial.
+func mapSpecial(use *special.Use, value float64) (scalar, error) {
 	m := use.ToCanonical(value)
 	if l, ok := use.ToCanonicalLog10(value); ok {
 		// 0² = 0 es un valor, no un subdesborde.
@@ -91,7 +138,14 @@ func (x scalar) log10Times(factor *big.Rat) (sign, l float64) {
 // linearTimes da x·factor como float64, redondeado una vez.
 func (x scalar) linearTimes(factor *big.Rat) (float64, error) {
 	if x.log {
-		return fromLog10(x.log10Times(factor))
+		sign, l := x.log10Times(factor)
+		// Donde la vía log10 perdería cifras, el valor exacto, si lo hay.
+		if math.Abs(l) <= maxExactResultLog10 {
+			if r := x.rat(); r != nil {
+				return roundRat(r.Mul(r, factor))
+			}
+		}
+		return fromLog10(sign, l)
 	}
 	out := decimal.MulExact(x.v, factor)
 	if math.IsInf(out, 0) || out == 0 && x.v != 0 {
@@ -179,6 +233,18 @@ func combineScalars(x1, x2 scalar, div bool, factor *big.Rat) (float64, error) {
 			return 0, ucumerr.ErrDivisionByZero
 		}
 		l2 = -l2
+	}
+	// Donde la vía log10 perdería cifras, el valor exacto de los dos
+	// operandos, si lo tienen (#75).
+	if math.Abs(l1+l2+decimal.Log10Rat(factor)) <= maxExactResultLog10 {
+		if r1, r2 := x1.rat(), x2.rat(); r1 != nil && r2 != nil {
+			if div {
+				r1.Quo(r1, r2)
+			} else {
+				r1.Mul(r1, r2)
+			}
+			return roundRat(r1.Mul(r1, factor))
+		}
 	}
 	return scalar{sign: s1 * s2, l10: l1 + l2, log: true}.linearTimes(factor)
 }

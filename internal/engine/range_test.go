@@ -96,6 +96,9 @@ func TestRangeHandWritten(t *testing.T) {
 		{"-324 B", "§46■3, 10^-324 < 2^-1075", canonicalCall(-324, "B"), rangeOut, 0, 0},
 		{"709 Np", "§46■3", canonicalCall(709, "Np"), rangeFits, math.Exp(709), tol13},
 		{"710 Np", "§46■3", canonicalCall(710, "Np"), rangeOut, 0, 0},
+		// Base e: sin potencia exacta ni partida, sigue por fromLog10 (plan 010).
+		{"-710 Np", "§46■3, subnormal", canonicalCall(-710, "Np"), rangeFits, math.Exp(-710), tol13},
+		{"-710 Np to 10*-300", "§46■3: e^-710·10^300", convertCall(-710, "Np", "10*-300"), rangeFits, math.Exp(-710) * 1e300, tol13},
 		{"1023 bit_s", "§47■4", canonicalCall(1023, "bit_s"), rangeFits, 0x1p1023, tol13},
 		{"1024 bit_s", "§47■4", canonicalCall(1024, "bit_s"), rangeOut, 0, 0},
 		{"3080 dB", "§22■4: α escala el argumento", canonicalCall(3080, "dB"), rangeFits, 1e308, tol13},

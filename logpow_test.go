@@ -170,8 +170,9 @@ func TestLogScaleDocumentedBoundaries(t *testing.T) {
 		// 0.3·1000 da 300 en float64, el exponente que usa math.Pow: el mismo
 		// resultado que 300 B, como en main.
 		{0.3, "kB", 1e300, "0.3 kB is 300 B"},
-		// Subnormal: mapScalar lo rehace por log10.
-		{-308, "B", 9.999999999999994e-309, "a subnormal result goes through log10"},
+		// Subnormal: desde 010 (#75) también es el más cercano a la potencia
+		// exacta; ver nonnormal_test.go.
+		{-308, "B", 1e-308, "a subnormal result is the exact power, rounded once"},
 		// ln no tiene base entera.
 		{3, "Np", math.Pow(math.E, three), "the base of ln is not an integer"},
 	} {
