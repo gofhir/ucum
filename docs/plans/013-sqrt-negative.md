@@ -1,6 +1,6 @@
 # 013 — un valor negativo en una escala de raíz cuadrada
 
-**Estado:** paso 9 (cierre). Plan aprobado el 2026-11-02; review convergido en la ronda 2 (§10). Evidencia: `evidence/013-2026-11-02-mutations.txt` (`make mutations`, todas con el resultado esperado) y `evidence/002-2026-11-02-compare-java.md` (solo cambia `xml-special:00097`). Falta commit y PR.
+**Estado:** cerrado e integrado el 2026-11-02 (#88, v4.4.5). Plan aprobado el 2026-11-02; review convergido en la ronda 2 (§10). Evidencia: `evidence/013-2026-11-02-mutations.txt` (`make mutations`, todas con el resultado esperado) y `evidence/002-2026-11-02-compare-java.md` (solo cambia `xml-special:00097`).
 
 ## 1. Revisión previa
 
