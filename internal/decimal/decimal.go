@@ -206,6 +206,9 @@ func (d Decimal) Equal(o Decimal) bool { return d.val.Cmp(o.val) == 0 }
 // IsZero reports whether the value is zero.
 func (d Decimal) IsZero() bool { return d.val.Sign() == 0 }
 
+// Sign returns -1, 0 or +1 as d is negative, zero or positive.
+func (d Decimal) Sign() int { return d.val.Sign() }
+
 func (d Decimal) String() string {
 	if d.val.IsInt() {
 		return d.val.Num().String()

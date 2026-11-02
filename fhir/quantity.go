@@ -72,12 +72,16 @@ func (q Quantity) float() float64 {
 
 // outOfRange es el error de un Exact cuya forma canónica no cabe en float64.
 // Lo comparten la vía racional y la de float64.
-func (q Quantity) outOfRange() error {
+func (q Quantity) outOfRange() error { return q.exactError(ucum.ErrOutOfRange) }
+
+// exactError es err (ErrOutOfRange o ErrOutOfDomain) con el Exact de q y su
+// código en el mensaje.
+func (q Quantity) exactError(err error) error {
 	return &ucum.ValidationError{
 		Code:    q.Code,
-		Message: fmt.Sprintf("%s %s: %v", new(big.Float).SetRat(q.Exact).Text('g', 6), q.Code, ucum.ErrOutOfRange),
+		Message: fmt.Sprintf("%s %s: %v", new(big.Float).SetRat(q.Exact).Text('g', 6), q.Code, err),
 		Offset:  -1,
-		Err:     ucum.ErrOutOfRange,
+		Err:     err,
 	}
 }
 
@@ -156,6 +160,10 @@ func NewComparatorWith(svc ucum.ExactService) *Comparator {
 // A Value of NaN or ±Inf with no Exact is ErrNotFinite, checked before the
 // units are read.
 //
+// A negative number in a square-root unit is ucum.ErrOutOfDomain, since the
+// square root has no negative values: -2 [m/s2/Hz^(1/2)] is an error, not equal
+// to 4 m2/s4/Hz. It comes after the code and units errors, as the range one does.
+//
 // Temperature is handled correctly, which is the case most likely to be wrong
 // elsewhere: 100 [degF] compares below 50 Cel.
 func (c *Comparator) Compare(a, b Quantity) (int, error) {
@@ -224,12 +232,12 @@ func notComparable(a, b Quantity) error {
 
 // firstError elige el error de Compare en la vía float64 con el orden de la
 // vía racional: un error de código antes que uno de unidades, y uno de
-// unidades antes que uno de rango, de cualquier lado. IsComparable solo corre
-// cuando hay un error de rango, para no canonicalizar dos veces en el caso
-// común.
+// unidades antes que uno de rango o de dominio, de cualquier lado.
+// IsComparable solo corre cuando hay uno de esos, para no canonicalizar dos
+// veces en el caso común.
 func (c *Comparator) firstError(a, b Quantity, errA, errB error) error {
 	for _, err := range []error{errA, errB} {
-		if err != nil && !errors.Is(err, ucum.ErrOutOfRange) {
+		if err != nil && !errors.Is(err, ucum.ErrOutOfRange) && !errors.Is(err, ucum.ErrOutOfDomain) {
 			return err
 		}
 	}
@@ -262,11 +270,16 @@ func (c *Comparator) canonicalRat(v *big.Rat, code string) (p ucum.RatPair, ok b
 }
 
 // canonicalFloat es la vía float64 de Compare y CanonicalKey. Un error de rango
-// nombra el Exact de quien llama, no el float64 en que se leyó.
+// o de dominio nombra el Exact de quien llama, no el float64 en que se leyó.
 func (c *Comparator) canonicalFloat(q Quantity) (ucum.Pair, error) {
 	p, err := c.svc.Canonical(q.float(), q.Code)
-	if q.Exact != nil && errors.Is(err, ucum.ErrOutOfRange) {
-		return ucum.Pair{}, q.outOfRange()
+	if q.Exact != nil {
+		switch {
+		case errors.Is(err, ucum.ErrOutOfRange):
+			return ucum.Pair{}, q.outOfRange()
+		case errors.Is(err, ucum.ErrOutOfDomain):
+			return ucum.Pair{}, q.exactError(ucum.ErrOutOfDomain)
+		}
 	}
 	return p, err
 }
@@ -390,6 +403,10 @@ func checkSystems(qs ...Quantity) error {
 //
 // A Value of NaN or ±Inf with no Exact has no key: it is ErrNotFinite, as in
 // Compare, so an index never stores a value that is not a number.
+//
+// A value that is no value of its scale has no key either: a negative number
+// in a square-root unit such as [m/s2/Hz^(1/2)] is ucum.ErrOutOfDomain, the
+// same error Canonical gives, naming the Exact when one was given.
 func (c *Comparator) CanonicalKey(q Quantity) (code string, value float64, err error) {
 	if err := checkSystems(q); err != nil {
 		return "", 0, err

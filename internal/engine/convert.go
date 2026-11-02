@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/gofhir/ucum/v4/internal/decimal"
@@ -278,7 +279,11 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 		return Pair{Value: out, Code: code}, nil
 	}
 
-	// Un operando no finito pasa sin verificar (#55).
+	// Un operando no finito pasa sin verificar (#55), pero el otro, si es
+	// finito, sí.
+	if err := s.checkOperandValues(t1, t2, v1, v2); err != nil {
+		return Pair{}, err
+	}
 	val1, val2 := s.mapFloat(t1, v1.Value), s.mapFloat(t2, v2.Value)
 	combined := val1 * val2
 	if div {
@@ -289,6 +294,24 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 	}
 	return Pair{Value: decimal.MulExact(combined, factor), Code: code}, nil
 }
+
+// checkOperandValues verifica que cada operando finito exista en su escala: un
+// negativo en una escala de raíz cuadrada no existe (plan 013). Con un operando
+// no finito no se pasa por mapSpecial, que es quien lo verifica.
+func (s *Service) checkOperandValues(t1, t2 *expr.Term, v1, v2 Pair) error {
+	for _, o := range []struct {
+		t *expr.Term
+		v Pair
+	}{{t1, v1}, {t2, v2}} {
+		if use := s.specialUseForTerm(o.t); use != nil && finite(o.v.Value) && !use.HasValue(o.v.Value) {
+			return ucumerr.Validation(o.v.Code, valueError(ucumerr.ErrOutOfDomain, o.v.Value, o.v.Code, false))
+		}
+	}
+	return nil
+}
+
+// finite dice si v no es NaN ni ±Inf.
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 // combineError agrega al error de rango la operación que lo produjo.
 func combineError(err error, v1, v2 Pair, div, exact bool) error {
