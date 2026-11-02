@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.4](https://github.com/gofhir/ucum/compare/v4.4.3...v4.4.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* round temperature scales once from their exact value on the float64 path ([65889c1](https://github.com/gofhir/ucum/commit/65889c18b19d92edc8fcb884ca7c1af87f832acb))
+
 ## [4.4.3](https://github.com/gofhir/ucum/compare/v4.4.2...v4.4.3) (2026-11-02)
 
 
