@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [011 — un solo redondeo con el factor de la unidad (#75, opción B)](011-log-factor.md),
+cerrado (paso 9), commit en `fix/log-factor`, PR abierto. Cerrados:
 - [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md):
   cerrado e integrado el 2026-10-31 (#79).
 - [009 — potencia exacta en las escalas logarítmicas (#75)](009-log-pow.md):
@@ -22,7 +23,7 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** elegir el siguiente frente con el usuario. Pendientes sin issue en el plan 010, §10. v4.4.2 publicada el 2026-10-31. Los defectos de Ucum-java quedaron
+**Próximo paso:** integrar el PR de 011 cuando pase el CI y el usuario lo pida; después, el PR de release 4.4.3 (lo integra el usuario). Pendientes sin issue en el plan 010, §10. v4.4.2 publicada el 2026-10-31. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: #75 (redondeo de las escalas logarítmicas; 009 cubre la
 opción A y 010 el tramo no normal; la opción B sigue abierta).

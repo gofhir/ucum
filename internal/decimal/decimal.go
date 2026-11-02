@@ -106,6 +106,14 @@ func (d Decimal) Pow(n int) Decimal {
 
 // Float64 returns the nearest float64, rounding once.
 func (d Decimal) Float64() float64 {
+	// Un entero de hasta 2^53 es un float64 exacto, y big.Rat.Float64 asigna
+	// memoria aun así: el factor de la mayoría de las escalas especiales es 1,
+	// y se lee en cada conversión.
+	if d.val.IsInt() && d.val.Num().IsInt64() {
+		if n := d.val.Num().Int64(); n >= -1<<53 && n <= 1<<53 {
+			return float64(n)
+		}
+	}
 	f, _ := d.val.Float64()
 	return f
 }

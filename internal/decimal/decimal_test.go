@@ -153,3 +153,20 @@ func TestLog10RatPowersOfTwo(t *testing.T) {
 		}
 	}
 }
+
+// Float64 de un entero pequeño no asigna memoria y da lo mismo que big.Rat:
+// el factor de una escala especial sin prefijo es 1 y se lee en cada
+// conversión.
+func TestFloat64SmallIntegersExactAndFree(t *testing.T) {
+	for _, n := range []int64{0, 1, -1, 10, 1 << 52, 1<<53 - 1, 1 << 53, -(1 << 53), 1<<53 + 1, -(1<<53 + 1), 1<<62 + 1} {
+		d := FromInt(n)
+		want, _ := new(big.Rat).SetInt64(n).Float64()
+		if got := d.Float64(); got != want {
+			t.Errorf("FromInt(%d).Float64() = %v, want %v", n, got, want)
+		}
+	}
+	one := FromInt(1)
+	if allocs := testing.AllocsPerRun(100, func() { _ = one.Float64() }); allocs != 0 {
+		t.Errorf("Float64 of 1 allocates %v times, want 0", allocs)
+	}
+}

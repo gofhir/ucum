@@ -23,6 +23,9 @@ type logUnit struct {
 	perStep float64 // el v que sube el exponente en uno, con su signo
 	refVal  *big.Rat
 	refUnit string
+	alpha   *big.Rat // el factor del prefijo, o 1
+	divisor float64  // divisor del exponente de la función
+	negate  bool     // la escala cuenta hacia abajo
 }
 
 // logFunctions es la semántica de cada función de base entera (UCUM §46
@@ -50,12 +53,18 @@ var logUnitCodes = []struct{ prefix, atom string }{
 // loadLogUnits arma la tabla desde ucum-essence.xml.
 func loadLogUnits(t *testing.T) []logUnit {
 	t.Helper()
+	return buildLogUnits(t, logUnitCodes)
+}
+
+// buildLogUnits arma las unidades de codes desde ucum-essence.xml.
+func buildLogUnits(t *testing.T, codes []struct{ prefix, atom string }) []logUnit {
+	t.Helper()
 	m, err := essence.Load(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := make([]logUnit, 0, len(logUnitCodes))
-	for _, c := range logUnitCodes {
+	out := make([]logUnit, 0, len(codes))
+	for _, c := range codes {
 		atom := m.Lookup(c.atom)
 		if atom == nil || atom.Value == nil || atom.Value.Function == nil {
 			t.Fatalf("%s: not a special unit in the XML", c.atom)
@@ -67,18 +76,24 @@ func loadLogUnits(t *testing.T) []logUnit {
 		}
 		// perStep = ±divisor/α, con α el factor del prefijo.
 		step := new(big.Rat).SetFloat64(sem.divisor)
+		alpha := big.NewRat(1, 1)
 		if c.prefix != "" {
 			p := m.LookupPrefix(c.prefix)
 			if p == nil {
 				t.Fatalf("prefix %s not in the XML", c.prefix)
 			}
-			step.Quo(step, p.Value.Rat())
+			alpha = p.Value.Rat()
+			step.Quo(step, alpha)
 		}
 		if sem.negate {
 			step.Neg(step)
 		}
 		perStep, _ := step.Float64()
-		out = append(out, logUnit{c.prefix + c.atom, sem.base, perStep, fn.Value.Rat(), fn.Unit})
+		out = append(out, logUnit{
+			code: c.prefix + c.atom, base: sem.base, perStep: perStep,
+			refVal: fn.Value.Rat(), refUnit: fn.Unit,
+			alpha: alpha, divisor: sem.divisor, negate: sem.negate,
+		})
 	}
 	return out
 }
@@ -253,13 +268,13 @@ func TestNonNormalProductIsNearest(t *testing.T) {
 	}
 }
 
-// Test 4, guarda de regresión (no derivada de la especificación): donde hoy
-// no se pasa por log10, el resultado es el de main; con exponente no entero en
-// el tramo no normal, la potencia partida.
+// Test 4: donde hoy no se pasa por log10, un exponente entero da el resultado
+// redondeado una vez (plan 011); con exponente no entero en el tramo no normal,
+// la potencia partida, guarda de regresión (no derivada de la especificación).
 func TestNonNormalLeavesOtherPathsAlone(t *testing.T) {
 	s := newService(t)
-	// Vía directa con factor: main redondea la potencia y luego la multiplicación
-	// (opción B de #75, fuera).
+	// Vía directa con factor: desde el plan 011 (#75, opción B) la potencia y el
+	// factor se redondean una vez; la rejilla completa está en factor_test.go.
 	units := loadLogUnits(t)
 	for _, code := range []string{"[pH]", "B[kW]", "B[SPL]"} {
 		u := unitByCode(t, units, code)
@@ -271,14 +286,13 @@ func TestNonNormalLeavesOtherPathsAlone(t *testing.T) {
 			if nonNormal(pow) {
 				continue
 			}
-			pf, _ := pow.Float64()
-			want, ok := fits(new(big.Rat).Mul(new(big.Rat).SetFloat64(pf), ref.Value))
+			want, ok := fits(new(big.Rat).Mul(pow, ref.Value))
 			if !ok || math.Abs(want) < 0x1p-1022 {
 				continue
 			}
 			p, err := s.Canonical(v, u.code)
 			if err != nil || p.Value != want {
-				t.Errorf("Canonical(%v, %q) = (%v, %v), want %v as on main (double rounding)", v, u.code, p.Value, err, want)
+				t.Errorf("Canonical(%v, %q) = (%v, %v), want %v, rounded once with the factor", v, u.code, p.Value, err, want)
 			}
 		}
 	}
