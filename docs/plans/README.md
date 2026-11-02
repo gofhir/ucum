@@ -1,7 +1,8 @@
 # Punto de reanudación
 
-**Incremento activo:** [013 — un valor negativo en una escala de raíz cuadrada](013-sqrt-negative.md),
-paso 9 (cierre; el review convergió en la ronda 2), rama `fix/sqrt-negative`. Cerrados:
+**Incremento activo:** ninguno. Cerrados:
+- [013 — un valor negativo en una escala de raíz cuadrada](013-sqrt-negative.md):
+  cerrado e integrado el 2026-11-02 (#88).
 - [012 — las escalas de temperatura en la vía float64](012-offset-float.md):
   cerrado e integrado el 2026-11-02 (#85).
 - [011 — un solo redondeo con el factor de la unidad (#75, opción B)](011-log-factor.md):
@@ -27,10 +28,11 @@ paso 9 (cierre; el review convergió en la ronda 2), rama `fix/sqrt-negative`. C
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** cierre de 013: mutaciones completas, `check-packages`, `compare-java`; commit y PR (`fix:` → 4.4.5) cuando el usuario lo pida. Los defectos de Ucum-java quedaron
+**Próximo paso:** elegir el siguiente frente con el usuario. Pendientes sin issue: el signo del cero (010 §10; 011 §12); `[p'diop]` hacia la escala da valores fuera de (-π/2, π/2) y un prefijo propio de valor 0 da NaN o +Inf (013 §6); las citas de temperatura de 012 dicen §21-22 y los orígenes están en §30 ■4 y §43 (013 §6); los límites de 012 §6. v4.4.5 publicada el 2026-11-02. CI y `make check` usan golangci-lint 2.15.0 (`GOLANGCI_LINT_VERSION`). Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: ninguno propio (#75 cerrado por 011; PR #53 espera a su autor).
-**Integrado:** PR #85, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 012, temperatura en la vía float64);
+**Integrado:** PR #88, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 013, negativos en `sqrt`) y `ci:` (golangci-lint 2.15.0);
+sale en v4.4.5 (#89, publicada el 2026-11-02). PR #85, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 012, temperatura en la vía float64);
 sale en v4.4.4 (#86, publicada el 2026-11-02). PR #82, *rebase and merge* en `main` (2026-11-02): `fix:`; cierra #75 (opción B);
 sale en v4.4.3 (#83, publicada el 2026-11-02). PR #79, *rebase and merge* en `main` (2026-10-31): `fix:`; refiere #75 (tramo no normal);
 sale en v4.4.2 (#80, publicada el 2026-10-31). PR #76, *rebase and merge* en `main` (2026-10-30): `fix:` y
