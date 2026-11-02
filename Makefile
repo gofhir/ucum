@@ -4,6 +4,10 @@
 GO ?= go
 FUZZTIME ?= 60s
 
+# La versión de golangci-lint que corre CI (.github/workflows/ci.yml). Con otra,
+# un linter puede aceptar en local lo que CI rechaza: se cambian juntas.
+GOLANGCI_LINT_VERSION := 2.15.0
+
 .PHONY: all
 all: fmt lint test
 
@@ -20,8 +24,12 @@ cover:
 	$(GO) test -coverprofile=coverage.txt -covermode=atomic ./...
 	$(GO) tool cover -func=coverage.txt | tail -1
 
+.PHONY: lint-version
+lint-version:
+	@v=$$(golangci-lint version --short 2>/dev/null); if [ "$$v" != "$(GOLANGCI_LINT_VERSION)" ]; then echo "golangci-lint $$v installed, CI runs $(GOLANGCI_LINT_VERSION)"; exit 1; fi
+
 .PHONY: lint
-lint:
+lint: lint-version
 	golangci-lint run ./...
 
 .PHONY: fmt
@@ -31,7 +39,7 @@ fmt:
 # Lo que hay que correr antes de dar algo por terminado. A diferencia de
 # `all`, no reescribe nada: falla si hay archivos sin formatear.
 .PHONY: check
-check:
+check: lint-version
 	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	$(GO) vet ./...
 	golangci-lint run ./...
