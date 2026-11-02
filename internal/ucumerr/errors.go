@@ -30,15 +30,18 @@ var ErrDivisionByZero = errors.New("division by zero in unit expression")
 // They are two questions, not one. With ErrOutOfRange the result exists but
 // does not fit: 1000 B is 10^1000, and 1e-300 ym rounds to zero. With
 // ErrOutOfDomain the result does not exist: the logarithm of 0 or of a negative
-// number, or the square root of a negative number, on a special scale. A value
-// that is not finite to begin with is passed through, not reported.
+// number, or the square root of a negative number, on a special scale; and,
+// the other way, a negative value on a square-root scale, which no quantity
+// takes. A value that is not finite to begin with is passed through, not
+// reported.
 var (
 	// ErrOutOfRange is returned when the result is beyond the largest float64,
 	// or is not zero and rounds to zero.
 	ErrOutOfRange = errors.New("value is out of the range of float64")
 
 	// ErrOutOfDomain is returned when the value has no image on the special
-	// scale it is converted to.
+	// scale it is converted to, or is no value of the special scale it is given
+	// in (a square-root unit, where the value times its prefix is negative).
 	ErrOutOfDomain = errors.New("value is outside the domain of the special unit")
 )
 

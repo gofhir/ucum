@@ -1593,6 +1593,16 @@ func (or *javaOracle) check(c javaCase, o ourOut) string {
 		}
 	}
 	or.specialChecked++
+	// §47■4: la imagen de sqrt es [0, ∞); un αv < 0 no es un valor de la
+	// escala, y la respuesta es ErrOutOfDomain, no su cuadrado (plan 013). La
+	// única unidad sqrt del XML no es métrica (α = 1), así que basta el signo de
+	// v; el barrido de range_oracle_test.go mira el de αv.
+	if or.x.functionOf(code) == "sqrt" && fv < 0 {
+		if errors.Is(o.Err, ucumerr.ErrOutOfDomain) {
+			return ""
+		}
+		return fmt.Sprintf("specification has no value for %s, ours is %s %v %s", c.Args[0]+" "+code, o.Status, o.Float, o.Msg)
+	}
 	if or.outOfRange(c, code, fv) {
 		// El valor verdadero no cabe en float64: la respuesta es
 		// ErrOutOfRange (#59).

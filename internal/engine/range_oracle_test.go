@@ -260,6 +260,11 @@ func (o *rangeOracle) canonical(v *big.Rat, code string) (rangeWant, bool) {
 		if !ok || ref.Sign() <= 0 {
 			return rangeWant{}, false
 		}
+		// UCUM §47■4: la imagen de sqrt es [0, ∞), así que αv < 0 no es un
+		// valor de la escala (plan 013).
+		if name == "sqrt" && av.Sign() < 0 {
+			return rangeWant{kind: rangeOutside}, true
+		}
 		if name == "sqrt" && a == 0 {
 			return rangeWant{kind: rangeFits}, true
 		}
@@ -298,10 +303,13 @@ func (o *rangeOracle) toSpecial(v *big.Rat, from, to string) (rangeWant, bool) {
 		av := new(big.Rat).Mul(v, src.alpha)
 		rl := bigF(ratLog10(sref))
 		switch {
+		case src.fn.Name == "sqrt" && av.Sign() < 0:
+			// §47■4: la imagen de sqrt es [0, ∞); αv < 0 no es un valor (013).
+			return rangeWant{kind: rangeOutside}, true
 		case src.fn.Name == "sqrt" && av.Sign() == 0:
 			sign = 0
 		case src.fn.Name == "sqrt":
-			// §48: log10 (αv)² = 2·log10 |αv|.
+			// §47■4: log10 (αv)² = 2·log10 |αv|, con αv > 0.
 			inv := bigF(2 * ratLog10(new(big.Rat).Abs(av)))
 			lm.Add(inv, rl)
 			scale.Add(new(big.Float).Abs(inv), new(big.Float).Abs(rl))

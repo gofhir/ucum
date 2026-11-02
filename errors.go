@@ -56,7 +56,11 @@ var (
 
 	// ErrOutOfDomain is returned when a value has no image on the special scale
 	// it is converted to: 0 or a negative number into a logarithmic unit such as
-	// B or [pH], or a negative number into a square-root unit.
+	// B or [pH], or a negative number into a square-root unit. It is also the
+	// error for a negative number given in a square-root unit (strictly, a value
+	// whose product with the unit's prefix is negative), which is no value of
+	// that scale: the image of the square root is [0, ∞). The exact API returns
+	// ErrNotRational for any value of a square-root unit instead.
 	ErrOutOfDomain = ucumerr.ErrOutOfDomain
 
 	// ErrNotLinear is returned by ConversionFactor when one of the units sits on

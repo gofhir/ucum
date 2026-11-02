@@ -19,7 +19,9 @@ import (
 // ucumerr.ErrOutOfRange, igual que uno distinto de cero que redondea a cero; un
 // subnormal distinto de cero se acepta, porque es el valor redondeado una vez.
 // Un valor sin imagen en la escala especial de destino es
-// ucumerr.ErrOutOfDomain. Una entrada no finita no pasa por aquí (#55).
+// ucumerr.ErrOutOfDomain, y también un valor que no existe en la de origen (un
+// negativo en una escala de raíz cuadrada, plan 013). Una entrada no finita no
+// pasa por aquí (#55).
 //
 // La vía float64 materializaba f⁻¹(αx) antes de multiplicar por el factor
 // canónico y de aplicar la f del destino, así que un intermedio fuera del rango
@@ -128,6 +130,11 @@ func mapScalar(use *special.Use, value float64) (scalar, error) {
 
 // mapSpecial es mapScalar con una escala especial.
 func mapSpecial(use *special.Use, value float64) (scalar, error) {
+	// Antes de mapear: ToCanonicalLog10 borra el signo (Log10Abs) y el cuadrado
+	// de un negativo parece un valor (plan 013).
+	if !use.HasValue(value) {
+		return scalar{}, ucumerr.ErrOutOfDomain
+	}
 	m := use.ToCanonical(value)
 	if l, ok := use.ToCanonicalLog10(value); ok {
 		// 0² = 0 es un valor, no un subdesborde.

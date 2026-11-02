@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/gofhir/ucum/v4/internal/decimal"
 	"github.com/gofhir/ucum/v4/internal/essence"
 )
 
@@ -541,6 +542,47 @@ func TestTanHandlerRoundTrip(t *testing.T) {
 			if got := h.fromCanonical(h.toCanonical(v)); math.Abs(got-v) > 1e-9 {
 				t.Errorf("%s round-trip(%v) = %v", code, v, got)
 			}
+		}
+	}
+}
+
+// Plan 013: HasValue es falso solo en una escala de raíz cuadrada con α·v < 0
+// (UCUM §47 ■4: la imagen de sqrt es [0, ∞)); -0 y NaN no son menores que cero
+// y cuentan como valores, y ninguna otra escala tiene un hueco.
+func TestUseHasValue(t *testing.T) {
+	alpha := func(s string) decimal.Decimal {
+		a, err := decimal.FromString(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	negZero := math.Copysign(0, -1)
+	for _, tc := range []struct {
+		code  string
+		alpha string
+		v     float64
+		want  bool
+	}{
+		{"[m/s2/Hz^(1/2)]", "1", 2, true},
+		{"[m/s2/Hz^(1/2)]", "1", 0, true},
+		{"[m/s2/Hz^(1/2)]", "1", negZero, true},
+		{"[m/s2/Hz^(1/2)]", "1", math.NaN(), true},
+		{"[m/s2/Hz^(1/2)]", "1", math.Inf(1), true},
+		{"[m/s2/Hz^(1/2)]", "1", -2, false},
+		{"[m/s2/Hz^(1/2)]", "1", -5e-324, false},
+		// α·v redondea a -0 en float64: deciden los signos.
+		{"[m/s2/Hz^(1/2)]", "1e-3", -5e-324, false},
+		{"[m/s2/Hz^(1/2)]", "-1", 2, false},
+		{"[m/s2/Hz^(1/2)]", "-1", -2, true},
+		{"Cel", "1", -300, true},
+		{"B", "1", -2, true},
+		{"B", "1", 0, true},
+		{"[p'diop]", "1", -2, true},
+	} {
+		u := Use{Handler: handlerFor(t, tc.code), Alpha: alpha(tc.alpha)}
+		if got := u.HasValue(tc.v); got != tc.want {
+			t.Errorf("HasValue(%v) on α=%s %s = %v, want %v", tc.v, tc.alpha, tc.code, got, tc.want)
 		}
 	}
 }

@@ -6,7 +6,8 @@
 (docs/plans/005-nested-braces.md, §6), 006
 (docs/plans/006-cache-key-retention.md, §5 y §8), 007
 (docs/plans/007-exact-aliasing.md, §5) y 008
-(docs/plans/008-nonfinite-key.md, §5).
+(docs/plans/008-nonfinite-key.md, §5) y 013
+(docs/plans/013-sqrt-negative.md, §5).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -54,6 +55,8 @@ R = E + "/range.go"
 CV = E + "/convert.go"
 SP = "internal/special/special.go"
 RANGE_TESTS = "TestRangeHandWritten$|TestRangeSweep$"
+SQRT_TESTS = "^Test(Sqrt|OtherSpecial)"
+FHIR_SQRT_TESTS = "^TestSqrt"
 # math.Log solo falla con subnormales en amd64 (golang/go#56600): fuera de
 # amd64, quitar el escalado de Log10Abs no cambia ningún resultado.
 GOARCH = os.environ.get("GOARCH") or subprocess.run(
@@ -495,14 +498,14 @@ MUTATIONS = [
        "\tif err := checkFinite(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n\tif err := checkSystems(a, b); err != nil {\n\t\treturn Quantity{}, err\n\t}\n")],
      "^TestNonFiniteErrorOrder$", "kill", "./fhir/", False),
     ("K88", "the out-of-range error carries a position",
-     [(Q, "\t\tOffset:  -1,\n\t\tErr:     ucum.ErrOutOfRange,", "\t\tOffset:  0,\n\t\tErr:     ucum.ErrOutOfRange,")],
+     [(Q, "\t\tOffset:  -1,\n\t\tErr:     err,", "\t\tOffset:  0,\n\t\tErr:     err,")],
      "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
     # Ronda 2 del code review de 008.
     ("K89", "a tiny Exact on the float path is read as 0",
      [(Q, "\tcase f == 0 && q.Exact.Sign() != 0:\n\t\treturn math.Copysign(math.SmallestNonzeroFloat64, float64(q.Exact.Sign()))\n", "")],
      "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
     ("K90", "the float path's range error names the float64, not the caller's Exact",
-     [(Q, "\tif q.Exact != nil && errors.Is(err, ucum.ErrOutOfRange) {\n\t\treturn ucum.Pair{}, q.outOfRange()\n\t}\n", "")],
+     [(Q, "\t\tcase errors.Is(err, ucum.ErrOutOfRange):\n\t\t\treturn ucum.Pair{}, q.outOfRange()\n", "")],
      "^TestExactOutOfRangeOnFloatPath$", "kill", "./fhir/", False),
     # Ronda 3 del code review de 008.
     ("K91", "Compare's float path reads the left operand's Exact as a float64, not through its key",
@@ -671,7 +674,7 @@ MUTATIONS = [
      "^TestFloat64SmallIntegersExactAndFree$", "kill", "./internal/decimal/", False),
     # Las de la ronda 1 del code review (plan 011, §12), que sobrevivían.
     ("K143", "a non-finite operand with a special scale gives 0 instead of passing through",
-     [(CV, "\t// Un operando no finito pasa sin verificar (#55).\n", "\t// Un operando no finito pasa sin verificar (#55).\n\tif s.specialUseForTerm(t1) != nil || s.specialUseForTerm(t2) != nil {\n\t\treturn Pair{Value: 0, Code: code}, nil\n\t}\n")],
+     [(CV, "\tval1, val2 := s.mapFloat(t1, v1.Value), s.mapFloat(t2, v2.Value)\n", "\tif s.specialUseForTerm(t1) != nil || s.specialUseForTerm(t2) != nil {\n\t\treturn Pair{Value: 0, Code: code}, nil\n\t}\n\tval1, val2 := s.mapFloat(t1, v1.Value), s.mapFloat(t2, v2.Value)\n")],
      "^TestLogFactorZeroDivisorAndNonFinite$", "kill", "./", False),
     ("K144", "a product without two exact powers is out of range",
      [(RANGE, "\tr2, ok2 := x2.exactPower()\n", "\tr2, ok2 := x2.exactPower()\n\tif !ok1 || !ok2 {\n\t\treturn 0, true, ucumerr.ErrOutOfRange\n\t}\n")],
@@ -726,6 +729,67 @@ MUTATIONS = [
     ("K160", "toLinearScale subtracts the origin from a non-exact intermediate in float64",
      [(RANGE, "\tif r := decimal.RatFromFloat(m); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat(r); ok {", "\tif r := decimal.RatFromFloat(m); r != nil && false {\n\t\tif out, ok := dst.FromCanonicalRat(r); ok {")],
      OFFSET_TESTS, "kill", "./", False),
+    ("K161", "HasValue is always true: a negative is a value of a square-root scale",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn true")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K162", "HasValue is the same without the check: fhir stops naming ErrOutOfDomain",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn true")],
+     FHIR_SQRT_TESTS, "kill", "./fhir/", False),
+    ("K163", "HasValue treats zero as no value (v > 0 instead of v >= 0)",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn v > 0 && s.Alpha.Sign() > 0 || v < 0 && s.Alpha.Sign() < 0")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K164", "HasValue looks at v and not at α·v",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn !(v < 0)")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K165", "HasValue is false for NaN (not (v >= 0) instead of v < 0)",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn v >= 0 && s.Alpha.Sign() > 0 || v <= 0 && s.Alpha.Sign() < 0")],
+     "^TestUseHasValue$", "kill", "./internal/special/", False),
+    ("K174", "HasValue multiplies v by α in float64: a tiny negative times a small α is -0",
+     [(SP, "\t\treturn !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)", "\t\treturn !(v*s.Alpha.Float64() < 0)")],
+     "^TestUseHasValue$", "kill", "./internal/special/", False),
+    ("K175", "a domain error with an Exact says out of range in its message",
+     [(Q, "q.Code, err),", "q.Code, ucum.ErrOutOfRange),")],
+     "^TestSqrtDomainErrorNamesExact$", "kill", "./fhir/", False),
+    ("K176", "the non-finite product names the first operand's unit for the second's domain error",
+     [(CV, "return ucumerr.Validation(o.v.Code, valueError(ucumerr.ErrOutOfDomain", "return ucumerr.Validation(v1.Code, valueError(ucumerr.ErrOutOfDomain")],
+     "^TestSqrtNegativeIsOutOfDomain$", "kill", "./", False),
+    ("K177", "the non-finite product's domain error offers the exact API",
+     [(CV, "o.v.Value, o.v.Code, false))", "o.v.Value, o.v.Code, true))")],
+     "^TestSqrtNegativeIsOutOfDomain$", "kill", "./", False),
+    ("K178", "Compare reports the second operand's value error before the first's",
+     [(Q, "\tif errA != nil {\n\t\treturn errA\n\t}\n\treturn errB", "\tif errB != nil {\n\t\treturn errB\n\t}\n\treturn errA")],
+     "^TestSqrtDomainErrorNamesExact$", "kill", "./fhir/", False),
+    ("K179", "the non-finite product's domain message names the first operand's unit",
+     [(CV, "valueError(ucumerr.ErrOutOfDomain, o.v.Value, o.v.Code, false)", "valueError(ucumerr.ErrOutOfDomain, o.v.Value, v1.Code, false)")],
+     "^TestSqrtNegativeIsOutOfDomain$", "kill", "./", False),
+    ("K180", "the fhir domain error with an Exact is a plain wrapped error, not a ValidationError",
+     [(Q, "\t\t\treturn ucum.Pair{}, q.exactError(ucum.ErrOutOfDomain)", "\t\t\treturn ucum.Pair{}, fmt.Errorf(\"%v %s: %w\", q.Exact, q.Code, ucum.ErrOutOfDomain)")],
+     "^TestSqrtDomainErrorNamesExact$", "kill", "./fhir/", False),
+    ("K166", "mapSpecial does not check that the value exists",
+     [(R, "\tif !use.HasValue(value) {\n\t\treturn scalar{}, ucumerr.ErrOutOfDomain\n\t}\n", "")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K167", "mapSpecial checks after ToCanonicalLog10, which erased the sign",
+     [(R, "\tif !use.HasValue(value) {\n\t\treturn scalar{}, ucumerr.ErrOutOfDomain\n\t}\n\tm := use.ToCanonical(value)\n\tif l, ok := use.ToCanonicalLog10(value); ok {",
+      "\tm := use.ToCanonical(value)\n\tif l, ok := use.ToCanonicalLog10(value); ok {\n\t\tif !use.HasValue(value) && m == 0 {\n\t\t\treturn scalar{}, ucumerr.ErrOutOfDomain\n\t\t}")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K168", "combine with a non-finite operand does not check the finite one",
+     [(CV, "use != nil && finite(o.v.Value) && !use.HasValue(o.v.Value)", "false && use != nil && finite(o.v.Value) && !use.HasValue(o.v.Value)")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K169", "combine with a non-finite operand checks the non-finite one too: -Inf is an error",
+     [(CV, "use != nil && finite(o.v.Value) && !use.HasValue(o.v.Value)", "use != nil && !math.IsNaN(o.v.Value) && !use.HasValue(o.v.Value)")],
+     SQRT_TESTS, "kill", "./", False),
+    ("K170", "firstError does not set aside ErrOutOfDomain: it hides \"not comparable\"",
+     [(Q, " && !errors.Is(err, ucum.ErrOutOfDomain) {\n\t\t\treturn err", " {\n\t\t\treturn err")],
+     FHIR_SQRT_TESTS, "kill", "./fhir/", False),
+    ("K171", "canonicalFloat does not name the Exact in a domain error",
+     [(Q, "\t\tcase errors.Is(err, ucum.ErrOutOfDomain):\n\t\t\treturn ucum.Pair{}, q.exactError(ucum.ErrOutOfDomain)\n", "")],
+     FHIR_SQRT_TESTS, "kill", "./fhir/", False),
+    ("K172", "the range oracle reads |αv| for a negative on a square-root scale again",
+     [(E + "/range_oracle_test.go", "\t\tif name == \"sqrt\" && av.Sign() < 0 {\n\t\t\treturn rangeWant{kind: rangeOutside}, true\n\t\t}\n", "")],
+     RANGE_TESTS, "kill", "./internal/engine/", False),
+    ("K173", "the Java-class oracle accepts the square of a negative again",
+     [(JC, "\tif or.x.functionOf(code) == \"sqrt\" && fv < 0 {", "\tif or.x.functionOf(code) == \"sqrt\" && fv < 0 && false {")],
+     JAVA_TESTS, "kill", "./internal/engine/", False),
     ("K156", "mapRat sends an exact zero through the log10 form",
      [(RANGE, "\tif r.Sign() == 0 {\n\t\treturn scalar{}\n\t}", "")],
      OFFSET_TESTS, "kill", "./", False),

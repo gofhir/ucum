@@ -202,6 +202,21 @@ func (s Use) FromCanonicalRat(v *big.Rat) (*big.Rat, bool) {
 	return new(big.Rat).Quo(rh.fromCanonicalRat(v), s.Alpha.Rat()), true
 }
 
+// HasValue reports whether v is a value of the scaled special scale, as opposed
+// to a number no quantity on that scale takes. It is false only on a
+// square-root scale when α·v < 0: the image of sqrt is [0, ∞), so x = f⁻¹(α x')
+// is the square of a number that does not exist. The sign of α·v decides, as in
+// ToCanonical, so a prefix of its own with a negative value does not slip past.
+// -0 and NaN are values: neither is less than zero.
+func (s Use) HasValue(v float64) bool {
+	if _, ok := s.Handler.(sqrtHandler); ok {
+		// Por los signos, no multiplicando en float64: -5e-324 por un α
+		// menor que 1 redondea a -0, que pasaría por un valor.
+		return !(v < 0 && s.Alpha.Sign() > 0 || v > 0 && s.Alpha.Sign() < 0)
+	}
+	return true
+}
+
 // InDomain reports whether f_s is defined at a value on the reference scale: a
 // logarithm only at a positive value, the square root at a non-negative one.
 func (s Use) InDomain(v float64) bool { return s.Handler.inDomain(v) }
@@ -323,7 +338,7 @@ func mustRat(s string) *big.Rat {
 //   - §46 Table 20: "ln", "lg" and "2lg" are the natural logarithm, the decadic
 //     logarithm, and the decadic logarithm times two, with their inverses.
 //   - §47 Table 22: "ld", the binary logarithm.
-//   - §48 Table 21: "sqrt", the square root with the square as its inverse.
+//   - §47 ■4, Table 21: "sqrt", the square root with the square as its inverse.
 var functions = map[string]func(code string) Handler{
 	// Temperature. Each scale's origin is stated in that scale's own degrees, and
 	// is the one figure the definitions do not carry.
@@ -573,7 +588,7 @@ func (h sqrtHandler) code() string                    { return h.unitCode }
 func (h sqrtHandler) toCanonical(v float64) float64   { return v * v }
 func (h sqrtHandler) fromCanonical(v float64) float64 { return math.Sqrt(v) }
 
-// La raíz cuadrada real no existe para un negativo (§48).
+// La raíz cuadrada real no existe para un negativo (§47 ■4).
 func (h sqrtHandler) inDomain(v float64) bool { return v >= 0 }
 func (h sqrtHandler) logarithmic() bool       { return false }
 
