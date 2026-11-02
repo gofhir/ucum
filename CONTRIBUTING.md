@@ -90,3 +90,62 @@ release-please reads them to decide the version and write the changelog. `feat`
 for anything that adds public surface, `fix` for a behaviour correction, and `!`
 only for a genuine break: a changed signature or a removed export. A result that
 changes because it was previously wrong is a `fix`.
+
+## Developer Certificate of Origin
+
+The project is licensed under the [BSD 3-Clause License](LICENSE), and every
+contribution is accepted under the same licence. Each commit in a pull request
+must be signed off to certify the Developer Certificate of Origin below, with a
+line like this at the end of the commit message:
+
+```
+Signed-off-by: Your Name <you@example.com>
+```
+
+`git commit -s` adds it from the `user.name` and `user.email` in your Git
+configuration. Use your real name: the sign-off is a public, permanent record.
+To sign off the commits already in a branch, run `git rebase --signoff main`
+and force-push it.
+
+A pull request whose commits are not all signed off is not merged. Commits by
+the copyright holder named in [LICENSE](LICENSE) do not need a sign-off: the
+certificate is how a contributor licenses their work to the project, and the
+holder's work is already theirs. Contributors keep the copyright on what they
+write; the Git history records who wrote it.
+
+```
+Developer Certificate of Origin
+Version 1.1
+
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
+```
