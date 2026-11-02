@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.5](https://github.com/gofhir/ucum/compare/v4.4.4...v4.4.5) (2026-11-02)
+
+
+### Bug Fixes
+
+* reject a negative value on a square-root scale with ErrOutOfDomain ([72ea42e](https://github.com/gofhir/ucum/commit/72ea42e809d48640e1c24b3565ab2ddb92e32e08))
+
 ## [4.4.4](https://github.com/gofhir/ucum/compare/v4.4.3...v4.4.4) (2026-11-02)
 
 
