@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.3](https://github.com/gofhir/ucum/compare/v4.4.2...v4.4.3) (2026-11-02)
+
+
+### Bug Fixes
+
+* round log scales once with the unit's factor ([54c0ff1](https://github.com/gofhir/ucum/commit/54c0ff1de67e3efff8b611949b3691138e34e444))
+
 ## [4.4.2](https://github.com/gofhir/ucum/compare/v4.4.1...v4.4.2) (2026-10-31)
 
 
