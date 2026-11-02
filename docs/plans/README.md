@@ -1,7 +1,8 @@
 # Punto de reanudación
 
-**Incremento activo:** [012 — las escalas de temperatura en la vía float64](012-offset-float.md),
-paso 9 (cierre; el review convergió en la ronda 3), rama `fix/offset-float`. Cerrados:
+**Incremento activo:** ninguno. Cerrados:
+- [012 — las escalas de temperatura en la vía float64](012-offset-float.md):
+  cerrado e integrado el 2026-11-02 (#85).
 - [011 — un solo redondeo con el factor de la unidad (#75, opción B)](011-log-factor.md):
   cerrado e integrado el 2026-11-02 (#82).
 - [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md):
@@ -25,10 +26,11 @@ paso 9 (cierre; el review convergió en la ronda 3), rama `fix/offset-float`. Ce
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** cierre de 012: evidencia de mutaciones y Java, commit y PR (`fix:` → 4.4.4) cuando el usuario lo pida.
+**Próximo paso:** elegir el siguiente frente con el usuario. Pendientes sin issue: `sqrt` acepta negativos y el signo del cero (plan 010, §10; 011, §12); los límites de 012, §6, solo con definiciones propias. v4.4.4 publicada el 2026-11-02. Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: ninguno propio (#75 cerrado por 011; PR #53 espera a su autor).
-**Integrado:** PR #82, *rebase and merge* en `main` (2026-11-02): `fix:`; cierra #75 (opción B);
+**Integrado:** PR #85, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 012, temperatura en la vía float64);
+sale en v4.4.4 (#86, publicada el 2026-11-02). PR #82, *rebase and merge* en `main` (2026-11-02): `fix:`; cierra #75 (opción B);
 sale en v4.4.3 (#83, publicada el 2026-11-02). PR #79, *rebase and merge* en `main` (2026-10-31): `fix:`; refiere #75 (tramo no normal);
 sale en v4.4.2 (#80, publicada el 2026-10-31). PR #76, *rebase and merge* en `main` (2026-10-30): `fix:` y
 `docs:`; refiere #75 (opción A); sale en v4.4.1. PR #72, *rebase and merge* en `main` (2026-10-29): `feat(fhir)`

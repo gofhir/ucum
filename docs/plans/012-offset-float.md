@@ -1,6 +1,6 @@
 # 012 — Las escalas de temperatura en la vía float64
 
-**Estado:** paso 9 (cierre). Plan aprobado el 2026-11-02; review convergido en la ronda 3 (§10). Evidencia: `evidence/012-2026-11-02-mutations.txt` (`make mutations`, todas con el resultado esperado) y `evidence/002-2026-11-02-compare-java.md` (sin cambios frente al 2026-10-31). Falta commit y PR.
+**Estado:** cerrado e integrado el 2026-11-02 (#85, v4.4.4). Plan aprobado el 2026-11-02; review convergido en la ronda 3 (§10). Evidencia: `evidence/012-2026-11-02-mutations.txt` (`make mutations`, todas con el resultado esperado) y `evidence/002-2026-11-02-compare-java.md` (sin cambios frente al 2026-10-31).
 
 ## 1. Revisión previa
 
