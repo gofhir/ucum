@@ -43,6 +43,7 @@ LOGPOW_TESTS = "^TestLogScale"
 RANGE = E + "/range.go"
 NONNORMAL_TESTS = "^TestNonNormal"
 FACTOR_TESTS = "^TestLogFactor"
+OFFSET_TESTS = "^TestOffset"
 ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
 JAVA_ANNOTATION_TESTS = "^TestJavaClass(SpaceIn|Nested)Annotation$"
 JR = E + "/testdata/java/ucum-java-1.0.10.tsv"
@@ -560,7 +561,7 @@ MUTATIONS = [
      "^TestLogScaleMonotonicAtIntegerExponents$", "kill", "./", False),
     # Plan 010 (#75): el valor exacto donde hoy se materializa por log10.
     ("K107", "linearTimes never uses the exact value",
-     [(RANGE, "if r := x.rat(); r != nil {", "if r := x.rat(); r != nil && false {")],
+     [(RANGE, "if r := x.rat(); r != nil {\n\t\t\t\treturn roundRat(r.Mul(r, factor))", "if r := x.rat(); r != nil && false {\n\t\t\t\treturn roundRat(r.Mul(r, factor))")],
      NONNORMAL_TESTS, "kill", "./", False),
     ("K108", "combineScalars never uses the exact value",
      [(RANGE, "r1 != nil && r2 != nil {", "r1 != nil && r2 != nil && false {")],
@@ -648,7 +649,7 @@ MUTATIONS = [
      [(RANGE, "\tr2, ok2 := x2.exactPower()\n\tif !ok1 {", "\tr2, ok2 := x2.exactPower()\n\tif !ok1 && !ok2 {\n\t\treturn 0, false, nil\n\t}\n\tif !ok1 {")],
      "^TestLogFactor(TwoLogOperands|Monotonic)$", "kill", "./", False),
     ("K135", "exactPower also takes the binary of a non-integer power (equivalent: the binary is what MulExact and the product already use)",
-     [(RANGE, "\t\treturn nil, false\n\t}\n\treturn x.use.ToCanonicalExact(x.src)", "\t\treturn nil, false\n\t}\n\tr := x.rat()\n\treturn r, r != nil")],
+     [(RANGE, "\t\treturn new(big.Rat).Set(x.exact), true\n\t}\n\treturn x.use.ToCanonicalExact(x.src)", "\t\treturn new(big.Rat).Set(x.exact), true\n\t}\n\tr := x.rat()\n\treturn r, r != nil")],
      FACTOR_TESTS, "survive", "./", False),
     ("K136", "the factor-1 shortcut is taken for every factor but 1",
      [(RANGE, "\tif !isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {", "\tif isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {")],
@@ -682,6 +683,52 @@ MUTATIONS = [
     ("K146", "a product of B with an exponent between 16 and 70 is out of range",
      [(RANGE, "\tr2, ok2 := x2.exactPower()\n", "\tr2, ok2 := x2.exactPower()\n\tif x1.use.Handler != nil && x1.src >= 16 && x1.src <= 70 {\n\t\treturn 0, true, ucumerr.ErrOutOfRange\n\t}\n")],
      "^TestLogFactorMonotonic$", "kill", "./", False),
+    # Plan 012 (docs/plans/012-offset-float.md, §5): una escala de temperatura
+    # entra a la vía float64 con su valor exacto.
+    ("K147", "ToCanonicalExact has no rational form for a temperature scale",
+     [(SPECIAL, "\tif rh, ok := s.Handler.(RatHandler); ok {\n\t\tr := decimal.RatFromFloat(v)", "\tif rh, ok := s.Handler.(RatHandler); ok && false {\n\t\tr := decimal.RatFromFloat(v)")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K148", "the direct product takes the binary of the float64 sum for the temperature",
+     [(RANGE, "\tr1, ok1 := x1.exactPower()\n", "\tr1, ok1 := x1.exactPower()\n\tif x1.exact != nil {\n\t\tok1 = false\n\t}\n")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K149", "mapSpecial sums the origin in float64 again",
+     [(RANGE, "\tif r, ok := use.ToCanonicalExact(value); ok {\n\t\treturn mapRat(r), nil", "\tif r, ok := use.ToCanonicalExact(value); ok && false {\n\t\treturn mapRat(r), nil")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K150", "an exact zero temperature is out of range",
+     [(RANGE, "\t\treturn mapRat(r), nil", "\t\tif r.Sign() == 0 {\n\t\t\treturn scalar{}, ucumerr.ErrOutOfRange\n\t\t}\n\t\treturn mapRat(r), nil")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K151", "a temperature that does not round to a normal float64 is kept as its float64",
+     [(RANGE, "\tif f, _ := r.Float64(); normal(f) {", "\tif f, _ := r.Float64(); true || normal(f) {")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K152", "toLinearScale skips the rational form",
+     [(RANGE, "\tif r := x.rat(); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat", "\tif r := x.rat(); r != nil && false {\n\t\tif out, ok := dst.FromCanonicalRat")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K153", "toLinearScale keeps the cap of 330",
+     [(RANGE, "\tif r := x.rat(); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat", "\tif r := x.rat(); r != nil && math.Abs(decimal.Log10Rat(r)) <= maxExactResultLog10 {\n\t\tif out, ok := dst.FromCanonicalRat")],
+     OFFSET_TESTS, "kill", "./", False),
+    # El origen del oráculo como float64: los tests tienen que fallar, o el
+    # oráculo copia al código.
+    ("K154", "the oracle origin of Celsius is the float64 273.15",
+     [("offset_test.go", "\t\"Cel\":   big.NewRat(27315, 100),", "\t\"Cel\":   new(big.Rat).SetFloat64(273.15),")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K155", "toward a temperature scale, an intermediate without an exact value below the normal range is out of range again",
+     [(RANGE, "if sign, l := x.log10Times(factor); l < smallestNormalLog10 {", "if sign, l := x.log10Times(factor); false && l < smallestNormalLog10 {")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K157", "toLinearScale takes f(0)/α only below 10^-330, as in round 1",
+     [(RANGE, "l < smallestNormalLog10 {", "l < -maxExactResultLog10 {")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K158", "toLinearScale divides the origin by α in float64",
+     [(RANGE, "\t\t\tif out, ok := dst.FromCanonicalRat(eps); ok {\n\t\t\t\treturn roundRat(out)\n\t\t\t}", "\t\t\t_ = eps\n\t\t\treturn dst.FromCanonical(0), nil")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K159", "toLinearScale rounds f(0)/α, without the sign of the intermediate",
+     [(RANGE, "eps := new(big.Rat).SetFloat64(math.Copysign(0x1p-1074, sign))", "eps := new(big.Rat)\n\t\t\t_ = sign")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K160", "toLinearScale subtracts the origin from a non-exact intermediate in float64",
+     [(RANGE, "\tif r := decimal.RatFromFloat(m); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat(r); ok {", "\tif r := decimal.RatFromFloat(m); r != nil && false {\n\t\tif out, ok := dst.FromCanonicalRat(r); ok {")],
+     OFFSET_TESTS, "kill", "./", False),
+    ("K156", "mapRat sends an exact zero through the log10 form",
+     [(RANGE, "\tif r.Sign() == 0 {\n\t\treturn scalar{}\n\t}", "")],
+     OFFSET_TESTS, "kill", "./", False),
 ]
 
 

@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [012 — las escalas de temperatura en la vía float64](012-offset-float.md),
+paso 9 (cierre; el review convergió en la ronda 3), rama `fix/offset-float`. Cerrados:
 - [011 — un solo redondeo con el factor de la unidad (#75, opción B)](011-log-factor.md):
   cerrado e integrado el 2026-11-02 (#82).
 - [010 — potencia exacta cuando el intermedio no es normal (#75)](010-log-nonnormal.md):
@@ -24,7 +25,7 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** elegir el siguiente frente con el usuario. Pendientes sin issue en el plan 010, §10, y en el 011, §12 (signo del cero). v4.4.3 publicada el 2026-11-02. Los defectos de Ucum-java quedaron
+**Próximo paso:** cierre de 012: evidencia de mutaciones y Java, commit y PR (`fix:` → 4.4.4) cuando el usuario lo pida.
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: ninguno propio (#75 cerrado por 011; PR #53 espera a su autor).
 **Integrado:** PR #82, *rebase and merge* en `main` (2026-11-02): `fix:`; cierra #75 (opción B);

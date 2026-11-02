@@ -128,10 +128,20 @@ func (s Use) ToCanonical(v float64) float64 {
 }
 
 // ToCanonicalExact returns f_s-1(α x') as an exact rational when it has one:
-// on a logarithmic scale of integer base, with an integer exponent. Callers
-// use it where the float64 value would be rebuilt from its logarithm or would
-// enter a product as a rounded power.
+// on a scale with a rational form (RatHandler: the temperature scales), from the
+// exact binary of v; on a logarithmic scale of integer base, with an integer
+// exponent. Callers use it where the float64 value would be rebuilt from its
+// logarithm, would enter a product as a rounded power, or would round a sum
+// that cancels (-273.15 Cel is not 0 K in float64: it is 2.3e-14 K).
 func (s Use) ToCanonicalExact(v float64) (*big.Rat, bool) {
+	if rh, ok := s.Handler.(RatHandler); ok {
+		r := decimal.RatFromFloat(v)
+		if r == nil {
+			return nil, false
+		}
+		// Sin pasar por ToCanonicalRat, que copia v antes de multiplicar.
+		return rh.toCanonicalRat(r.Mul(r, s.Alpha.Rat())), true
+	}
 	h, ok := s.Handler.(logHandler)
 	if !ok {
 		return nil, false

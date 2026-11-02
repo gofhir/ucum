@@ -226,10 +226,10 @@ func TestNonNormalProductIsNearest(t *testing.T) {
 		{"170 [pH] · 150 [pH]", ucum.Pair{Value: 170, Code: "[pH]"}, ucum.Pair{Value: 150, Code: "[pH]"}, false,
 			new(big.Rat).Mul(powRat(10, -320), new(big.Rat).Mul(molL.Value, molL.Value))},
 		{"1 / 308 B", ucum.Pair{Value: 1, Code: "1"}, ucum.Pair{Value: 308, Code: "B"}, true, powRat(10, -308)},
-		// Un operando de escala lineal aporta el binario del float64 que da su
-		// escala, como en el resto de la librería: Cel es v + 273.15 K (UCUM
-		// §21-22), sumado en float64.
-		{"-308 B · 1 Cel", ucum.Pair{Value: -308, Code: "B"}, ucum.Pair{Value: 1, Code: "Cel"}, false, new(big.Rat).Mul(powRat(10, -308), bin(1+273.15))},
+		// Una escala de temperatura aporta su valor exacto, redondeado una vez con
+		// la multiplicación (plan 012): Cel es 1 + 273.15 K exactos (UCUM §21-22), no el
+		// binario de la suma en float64.
+		{"-308 B · 1 Cel", ucum.Pair{Value: -308, Code: "B"}, ucum.Pair{Value: 1, Code: "Cel"}, false, new(big.Rat).Mul(powRat(10, -308), big.NewRat(27415, 100))},
 		// Un operando lineal subnormal es su binario exacto: no es 1e-310.
 		// El factor de la unidad devuelve el resultado al rango: el tope mira
 		// el resultado con el factor, no los operandos.

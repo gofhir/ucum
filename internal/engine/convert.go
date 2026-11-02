@@ -247,9 +247,9 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 	switch {
 	case err == nil && m1 != nil:
 		if div {
-			// Defensive: a special operand can only map to exactly zero if its
-			// input is exactly the bottom of its scale, which float64 cannot
-			// represent for Cel or [degF]. Guarded so big.Rat.Quo cannot panic.
+			// A special operand maps to exactly zero when its input is exactly
+			// the bottom of its scale: -273.15 Cel, or -273150 mCel, which
+			// float64 represents. Guarded so big.Rat.Quo cannot panic.
 			if m2.Sign() == 0 {
 				return Pair{}, zeroDivisorValue(v2)
 			}

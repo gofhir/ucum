@@ -40,6 +40,12 @@ type scalar struct {
 	// al heap en cada conversión.
 	use special.Use
 	src float64
+
+	// exact es el valor racional de una escala con forma racional
+	// (temperatura), que mapSpecial ya calculó para redondearlo: una caché de
+	// ToCanonicalExact, que daría el mismo valor. Se copia al usarlo: quien
+	// llama lo muta.
+	exact *big.Rat
 }
 
 // maxExactResultLog10 acota |log10| del resultado que se calcula exacto: más
@@ -52,12 +58,16 @@ const maxExactResultLog10 = 330
 //     potencia exacta, la partida si el exponente no es entero, o el cuadrado
 //     exacto de sqrt;
 //   - con intermedio normal y exponente entero, la potencia exacta;
+//   - una escala de temperatura: su valor exacto, nunca el float64 de la suma;
 //   - si no, el binario exacto del float64 finito que la vía float64 ya usa,
 //     como con Cel (un exponente no entero aporta el de math.Pow).
 //
 // Np, un valor sobre el tope de costo o uno no finito no lo tienen, y quien
 // llama sigue por log10.
 func (x scalar) rat() *big.Rat {
+	if x.exact != nil {
+		return new(big.Rat).Set(x.exact)
+	}
 	if x.use.Handler != nil {
 		if x.log {
 			if r, ok := x.use.ToCanonicalNear(x.src); ok {
@@ -78,11 +88,15 @@ func (x scalar) rat() *big.Rat {
 
 // exactPower da la potencia exacta de x cuando no está guardado por log10 y la
 // escala es logarítmica de base entera con exponente entero (la regla de 009):
-// el valor que la vía float64 redondea una vez en x.v. Con otra escala, o con un
+// el valor que la vía float64 redondea una vez en x.v. Una escala de
+// temperatura da su valor exacto (plan 012). Con otra escala, o con un
 // exponente no entero, no hay (el resultado no es racional).
 func (x scalar) exactPower() (*big.Rat, bool) {
 	if x.log || x.use.Handler == nil {
 		return nil, false
+	}
+	if x.exact != nil {
+		return new(big.Rat).Set(x.exact), true
 	}
 	return x.use.ToCanonicalExact(x.src)
 }
@@ -130,13 +144,32 @@ func mapSpecial(use *special.Use, value float64) (scalar, error) {
 		}
 		return scalar{v: m}, nil
 	}
-	// Sin forma log10 (tan, Cel, [degF] y [degRe]): f⁻¹ es inyectiva y
-	// finita en todo ℝ, así que un ±Inf, o un 0 que no sale de 0, es
-	// redondeo de float64.
+	// Una escala con forma racional (temperatura): el valor exacto, redondeado
+	// una vez (plan 012). La suma en float64 cancela (-273.15 Cel da 0, no los
+	// 2.3e-14 K del binario) y redondea dos veces, con la multiplicación.
+	if r, ok := use.ToCanonicalExact(value); ok {
+		return mapRat(r), nil
+	}
+	// Sin forma log10 ni racional (tan): f⁻¹ es inyectiva y finita en todo ℝ,
+	// así que un ±Inf, o un 0 que no sale de 0, es redondeo de float64.
 	if math.IsInf(m, 0) || m == 0 && value != 0 {
 		return scalar{}, ucumerr.ErrOutOfRange
 	}
 	return scalar{v: m}, nil
+}
+
+// mapRat es mapSpecial para el valor exacto r de una escala con forma racional.
+// Un cero exacto es un valor (-273150 mCel es 0 K), no un subdesborde. Si el
+// redondeo no es normal (solo con un prefijo grande: 1.7e308 MCel es 1.7e314 K)
+// el valor va por log10, como el intermedio no normal de 010, y rat() da r.
+func mapRat(r *big.Rat) scalar {
+	if r.Sign() == 0 {
+		return scalar{}
+	}
+	if f, _ := r.Float64(); normal(f) {
+		return scalar{v: f, exact: r}
+	}
+	return scalar{sign: float64(r.Sign()), l10: decimal.Log10Rat(r), log: true, exact: r}
 }
 
 // log10Times da el signo y log10 |x·factor| sin multiplicar.
@@ -211,13 +244,7 @@ func toDestination(x scalar, factor *big.Rat, dst *special.Use) (float64, error)
 		return x.linearTimes(factor)
 	}
 	if !dst.HasLog10() {
-		// tan y las escalas de temperatura: f es finita en todo valor
-		// finito.
-		m, err := x.linearTimes(factor)
-		if err != nil {
-			return 0, err
-		}
-		return dst.FromCanonical(m), nil
+		return toLinearScale(x, factor, dst)
 	}
 	if !x.log {
 		if m := x.directTimes(factor); normal(m) || x.v == 0 {
@@ -241,6 +268,49 @@ func toDestination(x scalar, factor *big.Rat, dst *special.Use) (float64, error)
 		return 0, ucumerr.ErrOutOfRange
 	}
 	return r, nil
+}
+
+// smallestNormalLog10 es log10 del menor float64 normal, 2^-1022.
+var smallestNormalLog10 = math.Log10(smallestNormal)
+
+// toLinearScale es toDestination hacia una escala sin forma log10: tan y las
+// de temperatura, donde f es finita en todo valor finito.
+func toLinearScale(x scalar, factor *big.Rat, dst *special.Use) (float64, error) {
+	// Una escala de temperatura: el exacto de x·factor pasa por f una vez, y
+	// se redondea una vez (plan 012). Sin tope de 330: el origen devuelve al
+	// rango un intermedio que no cabe (-400 [lgK] es -273.15 Cel).
+	if r := x.rat(); r != nil {
+		if out, ok := dst.FromCanonicalRat(r.Mul(r, factor)); ok {
+			return roundRat(out)
+		}
+	}
+	// Sin exacto (la base de ln no es racional, o bajo el tope de costo de
+	// 10^-5000) y bajo el rango normal, el intermedio ε no alcanza a mover
+	// f(ε)/α al otro lado de un punto medio entre dos float64 con los prefijos
+	// del XML (un prefijo propio de cientos de cifras sí podría): se redondea
+	// f(ε')/α, con ε' el menor subnormal con el signo de ε, para que un origen
+	// justo en un punto medio quede del lado de ε.
+	if x.log {
+		if sign, l := x.log10Times(factor); l < smallestNormalLog10 {
+			eps := new(big.Rat).SetFloat64(math.Copysign(0x1p-1074, sign))
+			if out, ok := dst.FromCanonicalRat(eps); ok {
+				return roundRat(out)
+			}
+		}
+	}
+	// Un intermedio sin exacto entra como el binario de su float64, como un
+	// operando lineal (la regla de 010), y se redondea una vez: (m - origen)/α en
+	// float64 redondearía dos veces.
+	m, err := x.linearTimes(factor)
+	if err != nil {
+		return 0, err
+	}
+	if r := decimal.RatFromFloat(m); r != nil {
+		if out, ok := dst.FromCanonicalRat(r); ok {
+			return roundRat(out)
+		}
+	}
+	return dst.FromCanonical(m), nil
 }
 
 // combineScalars es x1·x2 o x1/x2, por el factor de las unidades. Un divisor
