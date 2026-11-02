@@ -76,6 +76,22 @@ func (x scalar) rat() *big.Rat {
 	return decimal.RatFromFloat(x.v)
 }
 
+// exactPower da la potencia exacta de x cuando no está guardado por log10 y la
+// escala es logarítmica de base entera con exponente entero (la regla de 009):
+// el valor que la vía float64 redondea una vez en x.v. Con otra escala, o con un
+// exponente no entero, no hay (el resultado no es racional).
+func (x scalar) exactPower() (*big.Rat, bool) {
+	if x.log || x.use.Handler == nil {
+		return nil, false
+	}
+	return x.use.ToCanonicalExact(x.src)
+}
+
+// isOne: el factor es exactamente 1. Todo factor canónico es positivo.
+func isOne(factor *big.Rat) bool {
+	return factor.IsInt() && factor.Num().IsInt64() && factor.Num().Int64() == 1
+}
+
 // normal: finito y de magnitud al menos 2^-1022, donde float64 tiene todas
 // sus cifras.
 func normal(v float64) bool {
@@ -135,6 +151,22 @@ func (x scalar) log10Times(factor *big.Rat) (sign, l float64) {
 	return math.Copysign(1, x.v), decimal.Log10Abs(x.v) + decimal.Log10Rat(factor)
 }
 
+// directTimes da x·factor, para un x que no está guardado por log10, redondeado
+// una vez. Con potencia exacta y un factor distinto de 1 es base^n·factor
+// exacto (#75, plan 011): redondear primero la potencia y después la multiplicación
+// dejaba el resultado a 1 ulp del más cercano. Con factor 1 la potencia ya está
+// redondeada una vez en x.v, y no se paga aritmética racional. El resultado
+// puede ser ±Inf o cero, como el de decimal.MulExact: quien llama decide.
+func (x scalar) directTimes(factor *big.Rat) float64 {
+	if !isOne(factor) {
+		if r, ok := x.exactPower(); ok {
+			out, _ := r.Mul(r, factor).Float64()
+			return out
+		}
+	}
+	return decimal.MulExact(x.v, factor)
+}
+
 // linearTimes da x·factor como float64, redondeado una vez.
 func (x scalar) linearTimes(factor *big.Rat) (float64, error) {
 	if x.log {
@@ -147,7 +179,7 @@ func (x scalar) linearTimes(factor *big.Rat) (float64, error) {
 		}
 		return fromLog10(sign, l)
 	}
-	out := decimal.MulExact(x.v, factor)
+	out := x.directTimes(factor)
 	if math.IsInf(out, 0) || out == 0 && x.v != 0 {
 		return 0, ucumerr.ErrOutOfRange
 	}
@@ -188,7 +220,7 @@ func toDestination(x scalar, factor *big.Rat, dst *special.Use) (float64, error)
 		return dst.FromCanonical(m), nil
 	}
 	if !x.log {
-		if m := decimal.MulExact(x.v, factor); normal(m) || x.v == 0 {
+		if m := x.directTimes(factor); normal(m) || x.v == 0 {
 			if !dst.InDomain(m) {
 				return 0, ucumerr.ErrOutOfDomain
 			}
@@ -222,6 +254,9 @@ func combineScalars(x1, x2 scalar, div bool, factor *big.Rat) (float64, error) {
 			c = x1.v / x2.v
 		}
 		if normal(c) || c == 0 && x1.v == 0 {
+			if out, ok, err := exactDirect(x1, x2, div, factor); ok {
+				return out, err
+			}
 			return scalar{v: c}.linearTimes(factor)
 		}
 	}
@@ -247,6 +282,38 @@ func combineScalars(x1, x2 scalar, div bool, factor *big.Rat) (float64, error) {
 		}
 	}
 	return scalar{sign: s1 * s2, l10: l1 + l2, log: true}.linearTimes(factor)
+}
+
+// exactDirect es la vía directa de combineScalars (#75, plan 011): r1 ⊙ r2 ·
+// factor exacto, redondeado una vez. Cada operando entra con la potencia exacta
+// si la tiene y, si no, con el binario de su float64, como en el tramo no
+// normal (rat). Redondear primero x1·x2 dejaba el resultado a 1 ulp, y un valor
+// con potencia exacta quedaba fuera de orden con sus vecinos: 0 [pH] es 10^0
+// exacto, y ±5e-324 [pH] dan math.Pow = 1. No hay atajo con factor 1: la
+// multiplicación por el otro operando redondea igual (Multiply(-1 B, 3 1) es
+// nearest(3/10)). Un divisor cero no llega: x1.v/x2.v es infinito o NaN y no
+// entra en la vía directa. Con un operando no finito devuelve false y sigue el
+// camino de float64, que da los mismos errores que antes.
+func exactDirect(x1, x2 scalar, div bool, factor *big.Rat) (out float64, exact bool, err error) {
+	r1, ok1 := x1.exactPower()
+	r2, ok2 := x2.exactPower()
+	if !ok1 {
+		r1 = decimal.RatFromFloat(x1.v)
+	}
+	if !ok2 {
+		r2 = decimal.RatFromFloat(x2.v)
+	}
+	// RatFromFloat da nil con NaN y ±Inf.
+	if r1 == nil || r2 == nil {
+		return 0, false, nil
+	}
+	if div {
+		r1.Quo(r1, r2)
+	} else {
+		r1.Mul(r1, r2)
+	}
+	out, err = roundRat(r1.Mul(r1, factor))
+	return out, true, err
 }
 
 // convertFloat es Convert por float64, para una entrada finita en una escala

@@ -164,9 +164,9 @@ func TestLogScaleDocumentedBoundaries(t *testing.T) {
 		want float64
 		why  string
 	}{
-		// Opción A: 10^-1 ya es el float64 más cercano; el factor de la
-		// unidad redondea otra vez (#75, opción B).
-		{1, "[pH]", 6.022140760000001e+25, "the unit's factor rounds a second time"},
+		// Opción B (plan 011): 10^-1 · 6.02214076e26 (mol/l, ucum-essence.xml)
+		// se redondea una vez, no la potencia y después el factor.
+		{1, "[pH]", 6.02214076e+25, "the power and the unit's factor are rounded once"},
 		// 0.3·1000 da 300 en float64, el exponente que usa math.Pow: el mismo
 		// resultado que 300 B, como en main.
 		{0.3, "kB", 1e300, "0.3 kB is 300 B"},

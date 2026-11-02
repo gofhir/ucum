@@ -42,6 +42,7 @@ SPECIAL = "internal/special/special.go"
 LOGPOW_TESTS = "^TestLogScale"
 RANGE = E + "/range.go"
 NONNORMAL_TESTS = "^TestNonNormal"
+FACTOR_TESTS = "^TestLogFactor"
 ANNOTATION_TESTS = "^TestAnnotation(CharacterRange|SpacePosition|SpaceConversion)$"
 JAVA_ANNOTATION_TESTS = "^TestJavaClass(SpaceIn|Nested)Annotation$"
 JR = E + "/testdata/java/ucum-java-1.0.10.tsv"
@@ -218,9 +219,12 @@ MUTATIONS = [
     ("K9", "fromLog10 does not check what it materializes",
      [(R, "\tif math.IsInf(v, 0) || v == 0 {\n\t\treturn 0, ucumerr.ErrOutOfRange", "\tif false {\n\t\treturn 0, ucumerr.ErrOutOfRange")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
-    ("K10", "combine multiplies directly even when the product is not normal",
+    # Equivalente desde el plan 011: la vía directa de un producto es exacta
+    # (exactDirect), así que un producto no normal también da el valor
+    # redondeado una vez.
+    ("K10", "combine multiplies directly even when the product is not normal (equivalent since plan 011)",
      [(R, "if normal(c) || c == 0 && x1.v == 0 {", "if !math.IsInf(c, 0) && (c != 0 || x1.v == 0) {")],
-     RANGE_TESTS, "kill", "./internal/engine/", False),
+     RANGE_TESTS, "survive", "./internal/engine/", False),
     ("K11", "LogToLog inverts the ratio of the prefixes",
      [(SP, "Quo(src.Alpha.Rat(), dst.Alpha.Rat())", "Quo(dst.Alpha.Rat(), src.Alpha.Rat())")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
@@ -564,10 +568,6 @@ MUTATIONS = [
     ("K109", "the exact value ignores the unit's factor",
      [(RANGE, "return roundRat(r.Mul(r, factor))", "return roundRat(r)")],
      NONNORMAL_TESTS, "kill", "./", False),
-    ("K110", "the exact value is also used on the direct path (option B of #75)",
-     [(RANGE, "\tout := decimal.MulExact(x.v, factor)\n",
-       "\tif r := x.rat(); r != nil && x.use.Handler != nil {\n\t\tout, _ := r.Mul(r, factor).Float64()\n\t\treturn out, nil\n\t}\n\tout := decimal.MulExact(x.v, factor)\n")],
-     NONNORMAL_TESTS, "kill", "./", False),
     ("K111", "an operand with no rational value (Np outside the normal range) reaches the exact product and panics",
      [(RANGE, "r1 != nil && r2 != nil {", "true {")],
      NONNORMAL_TESTS, "kill", "./", False),
@@ -631,6 +631,57 @@ MUTATIONS = [
      [(SPECIAL, "\tn := math.Round(e)\n\t// Negado, también descarta NaN y ±Inf.\n\tif !(math.Abs(n*math.Log10(h.base)) <= maxExactLog10) {",
        "\tn := math.Round(e)\n\t// Negado, también descarta NaN y ±Inf.\n\tif !(math.Abs(n*math.Log10(h.base)) <= maxExactLog10+1000) {")],
      "^TestUseToCanonicalNearCostCap$", "kill", "./internal/special/", False),
+    # Plan 011: un solo redondeo con el factor de la unidad (#75, opción B).
+    ("K130", "the direct path rounds the exact power before the unit's factor again",
+     [(RANGE, "\tif !isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {", "\tif false {\n\t\tif r, ok := x.exactPower(); ok {")],
+     FACTOR_TESTS, "kill", "./", False),
+    ("K131", "the same, seen from fhir.Comparator (Compare and CanonicalKey)",
+     [(RANGE, "\tif !isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {", "\tif false {\n\t\tif r, ok := x.exactPower(); ok {")],
+     "^TestLogFactorCompareAndKey$", "kill", "./fhir/", False),
+    ("K132", "toDestination toward a log10 scale multiplies the rounded power",
+     [(RANGE, "if m := x.directTimes(factor); normal(m)", "if m := decimal.MulExact(x.v, factor); normal(m)")],
+     "^TestLogFactorToSqrtDestination$", "kill", "./", False),
+    ("K133", "the direct path of a product rounds x1·x2 before the factor",
+     [(RANGE, "if out, ok, err := exactDirect(x1, x2, div, factor); ok {", "if out, ok, err := exactDirect(x1, x2, div, factor); false && ok {")],
+     FACTOR_TESTS, "kill", "./", False),
+    ("K134", "a product is exact only when an operand has an exact power (the approved plan before §10)",
+     [(RANGE, "\tr2, ok2 := x2.exactPower()\n\tif !ok1 {", "\tr2, ok2 := x2.exactPower()\n\tif !ok1 && !ok2 {\n\t\treturn 0, false, nil\n\t}\n\tif !ok1 {")],
+     "^TestLogFactor(TwoLogOperands|Monotonic)$", "kill", "./", False),
+    ("K135", "exactPower also takes the binary of a non-integer power (equivalent: the binary is what MulExact and the product already use)",
+     [(RANGE, "\t\treturn nil, false\n\t}\n\treturn x.use.ToCanonicalExact(x.src)", "\t\treturn nil, false\n\t}\n\tr := x.rat()\n\treturn r, r != nil")],
+     FACTOR_TESTS, "survive", "./", False),
+    ("K136", "the factor-1 shortcut is taken for every factor but 1",
+     [(RANGE, "\tif !isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {", "\tif isOne(factor) {\n\t\tif r, ok := x.exactPower(); ok {")],
+     FACTOR_TESTS, "kill", "./", False),
+    ("K137", "a product also takes the factor-1 shortcut",
+     [(RANGE, "\tr1, ok1 := x1.exactPower()\n", "\tif isOne(factor) {\n\t\treturn 0, false, nil\n\t}\n\tr1, ok1 := x1.exactPower()\n")],
+     "^TestLogFactorProductWithUnitFactorOne$", "kill", "./", False),
+    ("K138", "the other operand of a product enters rounded to float32",
+     [(RANGE, "\t\tr1 = decimal.RatFromFloat(x1.v)", "\t\tr1 = decimal.RatFromFloat(float64(float32(x1.v)))")],
+     FACTOR_TESTS, "kill", "./", False),
+    ("K139", "the exact quotient multiplies instead of dividing",
+     [(RANGE, "\tif div {\n\t\tr1.Quo(r1, r2)", "\tif div {\n\t\tr1.Mul(r1, r2)")],
+     FACTOR_TESTS, "kill", "./", False),
+    ("K141", "the XML gives the mole another value (the hand-written factors do not move)",
+     [("internal/essence/ucum-essence.xml", '<value Unit="10*23" UNIT="10*23" value="6.02214076">6.02214076</value>', '<value Unit="10*23" UNIT="10*23" value="6.02214077">6.02214077</value>')],
+     "^TestLogFactorByHand$", "kill", "./", False),
+    ("K142", "Decimal.Float64 misreads a small integer (internal test)",
+     [("internal/decimal/decimal.go", "\t\t\treturn float64(n)\n", "\t\t\treturn float64(n + 1)\n")],
+     "^TestFloat64SmallIntegersExactAndFree$", "kill", "./internal/decimal/", False),
+    # Las de la ronda 1 del code review (plan 011, §12), que sobrevivían.
+    ("K143", "a non-finite operand with a special scale gives 0 instead of passing through",
+     [(CV, "\t// Un operando no finito pasa sin verificar (#55).\n", "\t// Un operando no finito pasa sin verificar (#55).\n\tif s.specialUseForTerm(t1) != nil || s.specialUseForTerm(t2) != nil {\n\t\treturn Pair{Value: 0, Code: code}, nil\n\t}\n")],
+     "^TestLogFactorZeroDivisorAndNonFinite$", "kill", "./", False),
+    ("K144", "a product without two exact powers is out of range",
+     [(RANGE, "\tr2, ok2 := x2.exactPower()\n", "\tr2, ok2 := x2.exactPower()\n\tif !ok1 || !ok2 {\n\t\treturn 0, true, ucumerr.ErrOutOfRange\n\t}\n")],
+     "^TestLogFactorMonotonic$", "kill", "./", False),
+    ("K145", "the exact product is NaN",
+     [(RANGE, "\tr1, ok1 := x1.exactPower()\n", "\treturn math.NaN(), true, nil\n\tr1, ok1 := x1.exactPower()\n")],
+     "^TestLogFactorMonotonic$", "kill", "./", False),
+    # Ronda 2 (§12): un ErrOutOfRange espurio en un tramo chico de exponentes.
+    ("K146", "a product of B with an exponent between 16 and 70 is out of range",
+     [(RANGE, "\tr2, ok2 := x2.exactPower()\n", "\tr2, ok2 := x2.exactPower()\n\tif x1.use.Handler != nil && x1.src >= 16 && x1.src <= 70 {\n\t\treturn 0, true, ucumerr.ErrOutOfRange\n\t}\n")],
+     "^TestLogFactorMonotonic$", "kill", "./", False),
 ]
 
 
