@@ -1,6 +1,6 @@
 # 015 — un factor canónico negativo en la vía log10
 
-**Estado:** paso 9 (cierre), sin commit. `make check`, `make check-packages`, `make compare-java` y las mutaciones completas K1-K202 en verde el 2026-11-03 ([evidencia](evidence/015-2026-11-03-mutations.txt)); K156 pasó a equivalente (§10). Decisión del usuario (2026-11-03): se soporta el signo.
+**Estado:** cerrado e integrado el 2026-11-03 (#95).
 
 ## 1. Revisión previa
 
