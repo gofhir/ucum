@@ -171,8 +171,8 @@ func FuzzComposeRoundTrip(f *testing.F) {
 
 		// The rendering is not always byte-identical — annotations are dropped,
 		// since they carry no meaning — but it must denote the same unit.
-		c1, err1 := svc.canonicalizeTerm(t1, svc.specialContextOf(t1))
-		c2, err2 := svc.canonicalizeTerm(t2, svc.specialContextOf(t2))
+		c1, err1 := svc.canonicalizeTerm(t1, svc.specialContextOf(t1), 0)
+		c2, err2 := svc.canonicalizeTerm(t2, svc.specialContextOf(t2), 0)
 		if err1 != nil || err2 != nil {
 			return
 		}

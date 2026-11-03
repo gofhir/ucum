@@ -183,7 +183,7 @@ func (s *Service) productResult(t1, t2 *expr.Term, div bool, exact *big.Rat, wan
 	if err != nil {
 		return Pair{}, false
 	}
-	can, err := s.canonicalizeTerm(t, s.specialContextOf(t))
+	can, err := s.canonicalizeTerm(t, s.specialContextOf(t), 0)
 	if err != nil || can.Value.IsZero() || expr.ComposeCanonicalUnits(can) != want {
 		return Pair{}, false
 	}

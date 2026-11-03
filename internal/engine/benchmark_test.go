@@ -92,3 +92,12 @@ func BenchmarkMultiplyLogScale(b *testing.B) {
 		_, _ = benchSvc.Multiply(x, y)
 	}
 }
+
+// BenchmarkConvertTan mide el chequeo de dominio del plan 014: 45 deg hacia una
+// escala de tangente va por convertFloat y toLinearScale.
+func BenchmarkConvertTan(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = benchSvc.Convert(45, "deg", "[p'diop]")
+	}
+}

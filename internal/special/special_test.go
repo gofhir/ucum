@@ -586,3 +586,20 @@ func TestUseHasValue(t *testing.T) {
 		}
 	}
 }
+
+// IsTangent es verdadero solo para las dos escrituras de la función de tangente
+// de UCUM §44 Table 18 (tanTimes100, 100tan); ninguna otra función del registro.
+func TestIsTangentOnlyForTangentFunctions(t *testing.T) {
+	for name, build := range functions {
+		want := name == "tanTimes100" || name == "100tan"
+		if got := (Use{Handler: build("[x]")}).IsTangent(); got != want {
+			t.Errorf("IsTangent of function %q = %v, want %v", name, got, want)
+		}
+	}
+	// Las unidades del XML: [p'diop] y %[slope] son de tangente, Cel y B no.
+	for code, want := range map[string]bool{"[p'diop]": true, "%[slope]": true, "Cel": false, "B": false, "[pH]": false} {
+		if got := (Use{Handler: handlerFor(t, code)}).IsTangent(); got != want {
+			t.Errorf("IsTangent of %s = %v, want %v", code, got, want)
+		}
+	}
+}

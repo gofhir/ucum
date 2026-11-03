@@ -97,7 +97,7 @@ func (s *Service) canonicalParts(code string) (*expr.Term, *model.Canonical, err
 	if err != nil {
 		return nil, nil, err
 	}
-	can, err := s.canonicalizeTerm(t, s.specialContextOf(t))
+	can, err := s.canonicalizeTerm(t, s.specialContextOf(t), 0)
 	if err != nil {
 		return nil, nil, err
 	}

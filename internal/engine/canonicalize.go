@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gofhir/ucum/v4/internal/decimal"
@@ -16,6 +17,25 @@ import (
 // unit is given its own dimension, and where a special unit's reference quantity
 // is read out of the definitions.
 
+// cycleError es el error de una definición que vuelve a sí misma. Es un tipo
+// propio para que cada nivel de la expansión lo deje pasar sin envolverlo otra
+// vez: el mensaje nombra la unidad y no repite la cadena entera.
+type cycleError struct{ code string }
+
+func (e *cycleError) Error() string {
+	return fmt.Sprintf("unit %q is part of or leads to a definition cycle", e.code)
+}
+
+// wrapExpand envuelve el error de expandir la definición de code, salvo el de
+// un ciclo, que ya viene completo.
+func wrapExpand(code string, err error) error {
+	var ce *cycleError
+	if errors.As(err, &ce) {
+		return err
+	}
+	return fmt.Errorf("expand unit %q: %w", code, err)
+}
+
 // canonicalOfDefinition canonicalizes a code that came from the definitions
 // rather than from a caller, so it resolves case-sensitively whatever vocabulary
 // the service was built for.
@@ -24,7 +44,7 @@ func (s *Service) canonicalOfDefinition(code string) (*model.Canonical, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.canonicalizeTerm(t, s.specialContextOf(t))
+	return s.canonicalizeTerm(t, s.specialContextOf(t), 0)
 }
 
 // getCanonical computes the canonical form of a UCUM code.
@@ -33,16 +53,16 @@ func (s *Service) getCanonical(code string) (*model.Canonical, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.canonicalizeTerm(t, s.specialContextOf(t))
+	return s.canonicalizeTerm(t, s.specialContextOf(t), 0)
 }
 
 // canonicalizeTerm recursively converts a term AST into canonical form.
-func (s *Service) canonicalizeTerm(t *expr.Term, ctx specialContext) (*model.Canonical, error) {
+func (s *Service) canonicalizeTerm(t *expr.Term, ctx specialContext, depth int) (*model.Canonical, error) {
 	if t == nil {
 		return &model.Canonical{Value: decimal.FromInt(1)}, nil
 	}
 
-	left, err := s.canonicalizeComponent(t.Comp, ctx)
+	left, err := s.canonicalizeComponent(t.Comp, ctx, depth)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +71,7 @@ func (s *Service) canonicalizeTerm(t *expr.Term, ctx specialContext) (*model.Can
 		return left, nil
 	}
 
-	right, err := s.canonicalizeTerm(t.Term, ctx)
+	right, err := s.canonicalizeTerm(t.Term, ctx, depth)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +87,14 @@ func (s *Service) canonicalizeTerm(t *expr.Term, ctx specialContext) (*model.Can
 }
 
 // canonicalizeComponent converts a single expr.Component to canonical form.
-func (s *Service) canonicalizeComponent(c expr.Component, ctx specialContext) (*model.Canonical, error) {
+func (s *Service) canonicalizeComponent(c expr.Component, ctx specialContext, depth int) (*model.Canonical, error) {
 	switch v := c.(type) {
 	case *expr.Factor:
 		return &model.Canonical{Value: decimal.FromInt(int64(v.Value))}, nil
 	case *expr.Symbol:
-		return s.canonicalizeSymbol(v, ctx)
+		return s.canonicalizeSymbol(v, ctx, depth)
 	case *expr.Term:
-		return s.canonicalizeTerm(v, ctx)
+		return s.canonicalizeTerm(v, ctx, depth)
 	default:
 		return nil, fmt.Errorf("unexpected component type %T", c)
 	}
@@ -82,7 +102,7 @@ func (s *Service) canonicalizeComponent(c expr.Component, ctx specialContext) (*
 
 // canonicalizeSymbol converts a symbol to its canonical form by recursively
 // expanding the unit's definition.
-func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext) (*model.Canonical, error) {
+func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth int) (*model.Canonical, error) {
 	u := sym.Unit
 
 	// Start with the prefix value (or 1 if no prefix).
@@ -176,16 +196,25 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext) (*mod
 		return &model.Canonical{Value: val}, nil
 	}
 
+	// Una definición que vuelve a sí misma ([pi] definido en [pi], o [pi2] y [pi]
+	// una en la otra) nunca termina de expandirse: sin esta guarda desborda la
+	// pila, y recover no atrapa ese error. Una cadena sin ciclo expande cada
+	// unidad definida a lo más una vez, así que no pasa de maxDepth niveles; la
+	// profundidad se lleva por valor y no asigna memoria.
+	if depth >= s.maxDepth {
+		return nil, &cycleError{code: u.Code}
+	}
+
 	inner, err := s.parseDefinition(unitExpr)
 	if err != nil {
-		return nil, fmt.Errorf("expand unit %q: %w", u.Code, err)
+		return nil, wrapExpand(u.Code, err)
 	}
 
 	// The reference expression of a special unit contains no special units of its
 	// own, so it canonicalizes in the ordinary way.
-	can, err := s.canonicalizeTerm(inner, specialStandalone)
+	can, err := s.canonicalizeTerm(inner, specialStandalone, depth+1)
 	if err != nil {
-		return nil, fmt.Errorf("expand unit %q: %w", u.Code, err)
+		return nil, wrapExpand(u.Code, err)
 	}
 
 	// Multiply by the unit's numeric value and the prefix.

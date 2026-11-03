@@ -647,6 +647,30 @@ func (x *javaContext) loneSpecial(u string) (code string, alpha *big.Rat, ok boo
 	return sym.Unit.Code, pv, ok
 }
 
+// outsideTanDomain dice si el valor canónico canon (en las unidades base) es un
+// ángulo con |α| ≥ π/2 hacia la escala de tangente u. Con otra escala, o sin
+// [pi] en el XML, es false. El valor de π es el [pi] del XML, no math.Pi.
+func (x *javaContext) outsideTanDomain(u string, canon *big.Rat) bool {
+	code, _, ok := x.loneSpecial(u)
+	if !ok {
+		return false
+	}
+	if fn := x.functionOf(code); fn != "100tan" && fn != "tanTimes100" {
+		return false
+	}
+	ref, ok := x.specialRefCanonical(code)
+	if !ok {
+		return false
+	}
+	pi, ok := x.xmlFactor("[pi]", x.parse)
+	if !ok {
+		return false
+	}
+	angle := new(big.Rat).Quo(canon, ref)
+	halfPi := pi.Quo(pi, big.NewRat(2, 1))
+	return angle.Abs(angle).Cmp(halfPi) >= 0
+}
+
 // toSpecial lleva m, en las unidades base, a la unidad especial u:
 // r = f(m / u_ref) / α, según §22■4.
 func (x *javaContext) toSpecial(m float64, u string) (float64, bool) {
@@ -1489,7 +1513,18 @@ func (or *javaOracle) checkToSpecial(c javaCase, o ourOut, toCode string) string
 	if !ok {
 		return "no specification value for " + c.Args[1]
 	}
-	m, _ := f.Mul(f, v).Float64()
+	canon := f.Mul(f, v)
+	// §44■4: f⁻¹(x) = arctan(x/100) devuelve solo (-π/2, π/2), así que un
+	// ángulo fuera de ese intervalo abierto no es un valor de la escala de
+	// tangente, y la respuesta es ErrOutOfDomain, no el valor literal de tan
+	// (plan 014). El oráculo lo mira sobre el ángulo exacto y con el π del XML.
+	if or.x.outsideTanDomain(toCode, canon) {
+		if errors.Is(o.Err, ucumerr.ErrOutOfDomain) {
+			return ""
+		}
+		return fmt.Sprintf("specification has no value for %s in %s, ours is %s %v %s", c.Args[0]+" "+c.Args[1], c.Args[2], o.Status, o.Float, o.Msg)
+	}
+	m, _ := canon.Float64()
 	want, ok := or.x.toSpecial(m, c.Args[2])
 	if !ok {
 		return "no specification value for " + c.Args[2]
