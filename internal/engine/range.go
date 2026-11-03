@@ -103,7 +103,7 @@ func (x scalar) exactPower() (*big.Rat, bool) {
 	return x.use.ToCanonicalExact(x.src)
 }
 
-// isOne: el factor es exactamente 1. Todo factor canónico es positivo.
+// isOne: el factor es exactamente 1.
 func isOne(factor *big.Rat) bool {
 	return factor.IsInt() && factor.Num().IsInt64() && factor.Num().Int64() == 1
 }
@@ -179,16 +179,18 @@ func mapRat(r *big.Rat) scalar {
 	return scalar{sign: float64(r.Sign()), l10: decimal.Log10Rat(r), log: true, exact: r}
 }
 
-// log10Times da el signo y log10 |x·factor| sin multiplicar.
+// log10Times da el signo y log10 |x·factor| sin multiplicar. El factor puede
+// ser negativo (un XML propio, plan 015): el signo es el de x por el suyo, y
+// Log10Rat toma su valor absoluto.
 func (x scalar) log10Times(factor *big.Rat) (sign, l float64) {
-	// Todo factor canónico es positivo.
+	f := float64(factor.Sign())
 	switch {
 	case x.log:
-		return x.sign, x.l10 + decimal.Log10Rat(factor)
+		return x.sign * f, x.l10 + decimal.Log10Rat(factor)
 	case x.v == 0:
 		return 0, math.Inf(-1)
 	}
-	return math.Copysign(1, x.v), decimal.Log10Abs(x.v) + decimal.Log10Rat(factor)
+	return math.Copysign(1, x.v) * f, decimal.Log10Abs(x.v) + decimal.Log10Rat(factor)
 }
 
 // directTimes da x·factor, para un x que no está guardado por log10, redondeado
@@ -220,7 +222,9 @@ func (x scalar) linearTimes(factor *big.Rat) (float64, error) {
 		return fromLog10(sign, l)
 	}
 	out := x.directTimes(factor)
-	if math.IsInf(out, 0) || out == 0 && x.v != 0 {
+	// Un cero con un factor cero es el valor exacto (plan 015), no un
+	// subdesborde.
+	if math.IsInf(out, 0) || out == 0 && x.v != 0 && factor.Sign() != 0 {
 		return 0, ucumerr.ErrOutOfRange
 	}
 	return out, nil
@@ -273,8 +277,9 @@ func toDestination(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64
 		return 0, ucumerr.ErrOutOfDomain
 	}
 	r, _ := dst.FromCanonicalLog10(l)
-	// Un logaritmo vale 0 legítimamente (lg 1); la raíz de un positivo, no.
-	if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() {
+	// Un logaritmo vale 0 legítimamente (lg 1); la raíz de un positivo, no,
+	// salvo con un factor cero (sign 0): el intermedio es 0 exacto (plan 015).
+	if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() && sign != 0 {
 		return 0, ucumerr.ErrOutOfRange
 	}
 	return r, nil
@@ -282,6 +287,20 @@ func toDestination(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64
 
 // smallestNormalLog10 es log10 del menor float64 normal, 2^-1022.
 var smallestNormalLog10 = math.Log10(smallestNormal)
+
+// exactTimes es el exacto de x·factor, o nil si x no lo tiene. Con un factor
+// cero el intermedio es exactamente 0 aunque el origen sea logarítmico: vía
+// exacta, sin el ε de toLinearScale (que llevaría signo +).
+func exactTimes(x scalar, factor *big.Rat) *big.Rat {
+	r := x.rat()
+	if r != nil {
+		return r.Mul(r, factor)
+	}
+	if factor.Sign() == 0 {
+		return new(big.Rat)
+	}
+	return nil
+}
 
 // toLinearScale es toDestination hacia una escala sin forma log10: tan y las
 // de temperatura, donde f es finita en todo valor finito.
@@ -292,10 +311,7 @@ var smallestNormalLog10 = math.Log10(smallestNormal)
 func toLinearScale(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64, error) {
 	// El exacto de x·factor se arma una vez: sirve al dominio de tan y a la
 	// escala de temperatura.
-	r := x.rat()
-	if r != nil {
-		r.Mul(r, factor)
-	}
+	r := exactTimes(x, factor)
 	tangent := halfPi != nil && dst.IsTangent()
 	if tangent {
 		if r != nil {
@@ -322,9 +338,10 @@ func toLinearScale(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64
 	// Sin exacto (la base de ln no es racional, o bajo el tope de costo de
 	// 10^-5000) y bajo el rango normal, el intermedio ε no alcanza a mover
 	// f(ε)/α al otro lado de un punto medio entre dos float64 con los prefijos
-	// del XML (un prefijo propio de cientos de cifras sí podría): se redondea
-	// f(ε')/α, con ε' el menor subnormal con el signo de ε, para que un origen
-	// justo en un punto medio quede del lado de ε.
+	// del XML. Un prefijo propio de una docena de cifras sí puede dejar f(0)/α
+	// justo en un punto medio (273.15/5²³ con Cel, plan 015): por eso se
+	// redondea f(ε')/α, con ε' el menor subnormal con el signo de ε, para que
+	// un origen en un punto medio quede del lado de ε.
 	if x.log {
 		if sign, l := x.log10Times(factor); l < smallestNormalLog10 {
 			eps := new(big.Rat).SetFloat64(math.Copysign(0x1p-1074, sign))
@@ -441,6 +458,16 @@ func (s *Service) convertFloat(value float64, p convertParts) (float64, error) {
 		return 0, ucumerr.Conversion(p.from, p.to, valueError(err, value, p.from, false))
 	}
 	if srcUse != nil && dstUse != nil {
+		// Con un factor negativo el valor canónico del origen y el del destino
+		// tienen signos opuestos, y el logaritmo del destino no existe; con un
+		// factor cero el valor canónico de la referencia es 0 y su logaritmo
+		// tampoco existe (Log10Rat(0) es -Inf). Solo
+		// entre dos escalas logarítmicas: un origen logarítmico a Cel sí existe,
+		// y un origen no logarítmico (Cel, [p'diop]) hacia un destino logarítmico
+		// también (no pasa por LogToLog).
+		if srcUse.IsLogarithmic() && dstUse.IsLogarithmic() && factor.Sign() <= 0 {
+			return fail(ucumerr.ErrOutOfDomain)
+		}
 		if exact, ok := special.LogToLog(*srcUse, *dstUse, value, decimal.Log10Rat(factor)); ok {
 			// 1e-300 yB es 10^-324 B, que redondea a cero.
 			r, err := roundRat(exact)
