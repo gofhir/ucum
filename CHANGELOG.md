@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.7](https://github.com/gofhir/ucum/compare/v4.4.6...v4.4.7) (2026-11-03)
+
+
+### Bug Fixes
+
+* keep the sign of a negative canonical factor on the log10 path ([e061b4d](https://github.com/gofhir/ucum/commit/e061b4d126ea214a58f87d233ee688f5fd9558f6))
+
 ## [4.4.6](https://github.com/gofhir/ucum/compare/v4.4.5...v4.4.6) (2026-11-03)
 
 
