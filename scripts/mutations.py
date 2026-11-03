@@ -57,6 +57,7 @@ SP = "internal/special/special.go"
 RANGE_TESTS = "TestRangeHandWritten$|TestRangeSweep$"
 SQRT_TESTS = "^Test(Sqrt|OtherSpecial)"
 FHIR_SQRT_TESTS = "^TestSqrt"
+NEG_TESTS = "^TestNeg"
 TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
 TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
@@ -278,10 +279,10 @@ MUTATIONS = [
      [(R, "normal(m) || x.v == 0 {", "x.v == 0 {")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
     ("K23", "the square root may overflow",
-     [(R, "if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() {", "if r == 0 && !dst.IsLogarithmic() {")],
+     [(R, "if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() && sign != 0 {", "if r == 0 && !dst.IsLogarithmic() && sign != 0 {")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
     ("K24", "the square root may underflow",
-     [(R, "if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() {", "if math.IsInf(r, 0) {")],
+     [(R, "if math.IsInf(r, 0) || r == 0 && !dst.IsLogarithmic() && sign != 0 {", "if math.IsInf(r, 0) {")],
      RANGE_TESTS, "kill", "./internal/engine/", False),
     ("K25", "an overflowed log10 carried on (Inf - Inf = NaN)",
      [(R, "\t\tif math.IsInf(l, 0) {\n\t\t\treturn scalar{}, ucumerr.ErrOutOfRange", "\t\tif false {\n\t\t\treturn scalar{}, ucumerr.ErrOutOfRange")],
@@ -808,7 +809,7 @@ MUTATIONS = [
      [(ENGINE, "\treturn pi.Quo(pi, big.NewRat(2, 1))", "\treturn new(big.Rat).SetFloat64(3.141592653589793 / 2)")],
      TAN_TESTS, "kill", "./", False),
     ("K184", "the tangent check leaves out the factor of the unit",
-     [(RANGE, "\tif r != nil {\n\t\tr.Mul(r, factor)\n\t}\n", "")],
+     [(RANGE, "\t\treturn r.Mul(r, factor)\n", "\t\treturn r\n")],
      TAN_TESTS, "kill", "./", False),
     ("K185", "the tangent check runs after linearTimes: 1e300 Yrad is out of range again",
      [(RANGE, TAN_PRE, ""),
@@ -839,9 +840,39 @@ MUTATIONS = [
     ("K193", "the depth bound of a definition chain is too small for a long acyclic chain",
      [(E + "/engine.go", "maxDepth:        len(m.DefinedUnits),", "maxDepth:        8,")],
      TAN_TESTS, "kill", "./", False),
-    ("K156", "mapRat sends an exact zero through the log10 form",
+    # Equivalente desde 015: un cero de signo 0 por la forma log10 da 0 en
+    # linearTimes, toDestination y combineScalars, y ErrOutOfDomain hacia un
+    # logaritmo, como scalar{}. El atajo de mapRat queda como vía barata.
+    ("K156", "mapRat sends an exact zero through the log10 form (equivalent since 015)",
      [(RANGE, "\tif r.Sign() == 0 {\n\t\treturn scalar{}\n\t}", "")],
-     OFFSET_TESTS, "kill", "./", False),
+     OFFSET_TESTS, "survive", "./", False),
+    ("K194", "log10Times drops the sign of the factor in the x.log branch",
+     [(RANGE, "return x.sign * f, x.l10", "return x.sign, x.l10")],
+     NEG_TESTS, "kill", "./", False),
+    ("K195", "log10Times drops the sign of the factor in the x.v branch",
+     [(RANGE, "return math.Copysign(1, x.v) * f, decimal", "return math.Copysign(1, x.v), decimal")],
+     NEG_TESTS, "kill", "./", False),
+    ("K196", "no sign check on the factor before LogToLog",
+     [(RANGE, "srcUse.IsLogarithmic() && dstUse.IsLogarithmic() && factor.Sign() <= 0", "false")],
+     NEG_TESTS, "kill", "./", False),
+    ("K197", "the epsilon of toLinearScale takes +1 as its sign (a custom prefix of 11 digits puts f(0)/alpha of XCel at a midpoint)",
+     [(RANGE, "math.Copysign(0x1p-1074, sign)", "math.Copysign(0x1p-1074, sign*sign)")],
+     NEG_TESTS, "kill", "./", False),
+    ("K198", "the LogToLog sign check drops srcUse.IsLogarithmic()",
+     [(RANGE, "srcUse.IsLogarithmic() && dstUse.IsLogarithmic() && factor.Sign() <= 0", "dstUse.IsLogarithmic() && factor.Sign() <= 0")],
+     NEG_TESTS, "kill", "./", False),
+    ("K199", "the LogToLog check lets a zero factor through (<= 0 back to < 0)",
+     [(RANGE, "dstUse.IsLogarithmic() && factor.Sign() <= 0", "dstUse.IsLogarithmic() && factor.Sign() < 0")],
+     NEG_TESTS, "kill", "./", False),
+    ("K200", "toLinearScale drops the exact zero shortcut for a zero factor",
+     [(RANGE, "\tif factor.Sign() == 0 {\n\t\treturn new(big.Rat)", "\tif false {\n\t\treturn new(big.Rat)")],
+     NEG_TESTS, "kill", "./", False),
+    ("K201", "linearTimes reads the zero of a zero factor as an underflow",
+     [(RANGE, "out == 0 && x.v != 0 && factor.Sign() != 0", "out == 0 && x.v != 0")],
+     NEG_TESTS, "kill", "./", False),
+    ("K202", "toDestination reads the zero of a zero factor as an underflow",
+     [(RANGE, "r == 0 && !dst.IsLogarithmic() && sign != 0", "r == 0 && !dst.IsLogarithmic()")],
+     NEG_TESTS, "kill", "./", False),
 ]
 
 
