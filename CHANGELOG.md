@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.6](https://github.com/gofhir/ucum/compare/v4.4.5...v4.4.6) (2026-11-03)
+
+
+### Bug Fixes
+
+* reject an angle outside (-π/2, π/2) for a tangent scale ([3e7c658](https://github.com/gofhir/ucum/commit/3e7c658ff899ff25a2430a2bebf01cf915521fa2))
+
 ## [4.4.5](https://github.com/gofhir/ucum/compare/v4.4.4...v4.4.5) (2026-11-02)
 
 
