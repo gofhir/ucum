@@ -1,6 +1,6 @@
 # 014 — un ángulo fuera de (-π/2, π/2) hacia una escala de tangente
 
-**Estado:** paso 9 (cierre), sin commit. `make check`, `make check-packages`, `make compare-java` y las mutaciones completas K1-K193 en verde el 2026-11-02 ([evidencia](evidence/014-2026-11-02-mutations.txt)). Decisión del usuario (2026-11-02): fuera de (-π/2, π/2) es `ErrOutOfDomain`.
+**Estado:** cerrado e integrado el 2026-11-02 (#92). `make check`, `make check-packages`, `make compare-java` y las mutaciones completas K1-K193 en verde el 2026-11-02 ([evidencia](evidence/014-2026-11-02-mutations.txt)). Decisión del usuario (2026-11-02): fuera de (-π/2, π/2) es `ErrOutOfDomain`.
 
 ## 1. Revisión previa
 
