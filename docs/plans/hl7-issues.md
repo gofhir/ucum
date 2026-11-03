@@ -58,3 +58,23 @@ specification it describes. Probable fix: `([eE][+-]?[0-9]{1,9})?`.
 Not affected here: this library parses decimals with its own reader
 (`fhir.ParseDecimal`), not with the regex. Found while checking that FHIR's
 decimal excludes NaN and INF, which all three patterns do.
+
+---
+
+## Observation 3 — UCUM §44 ■4 gives no domain for the angle of a tangent scale
+
+**Found in:** plan [014](014-tan-domain.md), 2026-11-02.
+**Source:** UCUM §44 ■4, Table 18, and `ucum-essence.xml` (`[p'diop]`,
+`%[slope]`).
+
+Table 18 defines f_PD(α) = tan(α) × 100 "to convert from a plane angle α to a
+prism diopter value" and f_PD⁻¹(x) = arctan(x / 100). It does not say for which
+α the first holds. tan has period π and arctan returns only (-π/2, π/2), so the
+pair are inverses only there; outside it, tan(α) × 100 is a number that does
+not convert back to α. This library treats |α| ≥ π/2 as outside the domain.
+Suggested fix: state the interval of α.
+
+Also, the XML contradicts itself for `%[slope]`: the `<value>` is
+`Unit="100tan(1 rad)"`, but its `<function name="100tan" value="1" Unit="deg"/>`
+names `deg` (lines 1476-1483). `[p'diop]` has `rad` in both. The library takes
+radians for both, as §44 ■4 reads.

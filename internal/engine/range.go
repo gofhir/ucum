@@ -246,12 +246,15 @@ func fromLog10(sign, l float64) (float64, error) {
 // x más log10 del factor perdería cifras sin necesidad (1000 W en B[kW] daría
 // -1.8e-16 y no 0, porque log10(1/1000) no es -3 exacto). Solo un valor
 // fuera del rango normal va por log10.
-func toDestination(x scalar, factor *big.Rat, dst *special.Use) (float64, error) {
+//
+// El parámetro halfPi, si no es nil, es el borde abierto de los ángulos que
+// acepta una escala de tangente (toLinearScale).
+func toDestination(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64, error) {
 	if dst == nil {
 		return x.linearTimes(factor)
 	}
 	if !dst.HasLog10() {
-		return toLinearScale(x, factor, dst)
+		return toLinearScale(x, factor, halfPi, dst)
 	}
 	if !x.log {
 		if m := x.directTimes(factor); normal(m) || x.v == 0 {
@@ -282,12 +285,37 @@ var smallestNormalLog10 = math.Log10(smallestNormal)
 
 // toLinearScale es toDestination hacia una escala sin forma log10: tan y las
 // de temperatura, donde f es finita en todo valor finito.
-func toLinearScale(x scalar, factor *big.Rat, dst *special.Use) (float64, error) {
+//
+// Hacia tan el dominio va primero, antes que cualquier cosa que dé
+// ErrOutOfRange: un ángulo fuera de (-π/2, π/2) no tiene valor en la escala
+// (plan 014).
+func toLinearScale(x scalar, factor, halfPi *big.Rat, dst *special.Use) (float64, error) {
+	// El exacto de x·factor se arma una vez: sirve al dominio de tan y a la
+	// escala de temperatura.
+	r := x.rat()
+	if r != nil {
+		r.Mul(r, factor)
+	}
+	tangent := halfPi != nil && dst.IsTangent()
+	if tangent {
+		if r != nil {
+			if new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {
+				return 0, ucumerr.ErrOutOfDomain
+			}
+		} else if x.log {
+			// Sin exacto: un origen logarítmico sobre el tope de costo, o de base
+			// no racional como ln. El margen de 1e-9 cubre el redondeo de log10;
+			// lo que queda entre los dos se mide exacto después de materializar.
+			if _, l := x.log10Times(factor); l > decimal.Log10Rat(halfPi)+1e-9 {
+				return 0, ucumerr.ErrOutOfDomain
+			}
+		}
+	}
 	// Una escala de temperatura: el exacto de x·factor pasa por f una vez, y
 	// se redondea una vez (plan 012). Sin tope de 330: el origen devuelve al
 	// rango un intermedio que no cabe (-400 [lgK] es -273.15 Cel).
-	if r := x.rat(); r != nil {
-		if out, ok := dst.FromCanonicalRat(r.Mul(r, factor)); ok {
+	if r != nil {
+		if out, ok := dst.FromCanonicalRat(r); ok {
 			return roundRat(out)
 		}
 	}
@@ -311,6 +339,15 @@ func toLinearScale(x scalar, factor *big.Rat, dst *special.Use) (float64, error)
 	m, err := x.linearTimes(factor)
 	if err != nil {
 		return 0, err
+	}
+	// Bajo ese log10 el ángulo materializado se mide como el binario de su
+	// float64 contra el π/2 racional, nunca contra un π/2 en float64. Un float64
+	// no puede valer el π/2 racional del XML, así que >= y > son equivalentes
+	// aquí (el cambio de uno por otro es un mutante equivalente).
+	if tangent && r == nil {
+		if a := decimal.RatFromFloat(m); a != nil && a.Abs(a).Cmp(halfPi) >= 0 {
+			return 0, ucumerr.ErrOutOfDomain
+		}
 	}
 	if r := decimal.RatFromFloat(m); r != nil {
 		if out, ok := dst.FromCanonicalRat(r); ok {
@@ -417,7 +454,7 @@ func (s *Service) convertFloat(value float64, p convertParts) (float64, error) {
 	if err != nil {
 		return fail(err)
 	}
-	out, err := toDestination(x, factor, dstUse)
+	out, err := toDestination(x, factor, s.halfPi, dstUse)
 	if err != nil {
 		return fail(err)
 	}

@@ -217,6 +217,15 @@ func (s Use) HasValue(v float64) bool {
 	return true
 }
 
+// IsTangent reports whether the scale is a tangent scale (prism diopter,
+// percent slope): f_s(α) = tan(α) × 100, whose inverse arctan returns only the
+// angles in (-π/2, π/2) (UCUM §44 ■4, Table 18). The engine uses it to refuse
+// an angle outside them.
+func (s Use) IsTangent() bool {
+	_, ok := s.Handler.(tanHandler)
+	return ok
+}
+
 // InDomain reports whether f_s is defined at a value on the reference scale: a
 // logarithm only at a positive value, the square root at a non-negative one.
 func (s Use) InDomain(v float64) bool { return s.Handler.inDomain(v) }

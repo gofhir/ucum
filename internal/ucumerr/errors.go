@@ -30,7 +30,8 @@ var ErrDivisionByZero = errors.New("division by zero in unit expression")
 // They are two questions, not one. With ErrOutOfRange the result exists but
 // does not fit: 1000 B is 10^1000, and 1e-300 ym rounds to zero. With
 // ErrOutOfDomain the result does not exist: the logarithm of 0 or of a negative
-// number, or the square root of a negative number, on a special scale; and,
+// number, or the square root of a negative number, on a special scale, or an
+// angle of π/2 radians or more in absolute value on a tangent scale; and,
 // the other way, a negative value on a square-root scale, which no quantity
 // takes. A value that is not finite to begin with is passed through, not
 // reported.
@@ -41,7 +42,10 @@ var (
 
 	// ErrOutOfDomain is returned when the value has no image on the special
 	// scale it is converted to, or is no value of the special scale it is given
-	// in (a square-root unit, where the value times its prefix is negative).
+	// in (a square-root unit, where the value times its prefix is negative), or
+	// is an angle outside (-π/2, π/2) converted to a tangent scale (only if the
+	// definitions have a [pi] that is a positive number without dimension). The
+	// exact API returns ErrNotRational for a tangent unit, as for a square root.
 	ErrOutOfDomain = errors.New("value is outside the domain of the special unit")
 )
 

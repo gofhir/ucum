@@ -57,6 +57,14 @@ SP = "internal/special/special.go"
 RANGE_TESTS = "TestRangeHandWritten$|TestRangeSweep$"
 SQRT_TESTS = "^Test(Sqrt|OtherSpecial)"
 FHIR_SQRT_TESTS = "^TestSqrt"
+TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
+# El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
+TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
+           "\t\t} else if x.log {\n"
+           "\t\t\t// Sin exacto: un origen logarítmico sobre el tope de costo, o de base\n"
+           "\t\t\t// no racional como ln. El margen de 1e-9 cubre el redondeo de log10;\n"
+           "\t\t\t// lo que queda entre los dos se mide exacto después de materializar.\n"
+           "\t\t\tif _, l := x.log10Times(factor); l > decimal.Log10Rat(halfPi)+1e-9 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n\t\t}\n\t}\n")
 # math.Log solo falla con subnormales en amd64 (golang/go#56600): fuera de
 # amd64, quitar el escalado de Log10Abs no cambia ningún resultado.
 GOARCH = os.environ.get("GOARCH") or subprocess.run(
@@ -704,10 +712,10 @@ MUTATIONS = [
      [(RANGE, "\tif f, _ := r.Float64(); normal(f) {", "\tif f, _ := r.Float64(); true || normal(f) {")],
      OFFSET_TESTS, "kill", "./", False),
     ("K152", "toLinearScale skips the rational form",
-     [(RANGE, "\tif r := x.rat(); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat", "\tif r := x.rat(); r != nil && false {\n\t\tif out, ok := dst.FromCanonicalRat")],
+     [(RANGE, "\tif r != nil {\n\t\tif out, ok := dst.FromCanonicalRat(r)", "\tif r != nil && false {\n\t\tif out, ok := dst.FromCanonicalRat(r)")],
      OFFSET_TESTS, "kill", "./", False),
     ("K153", "toLinearScale keeps the cap of 330",
-     [(RANGE, "\tif r := x.rat(); r != nil {\n\t\tif out, ok := dst.FromCanonicalRat", "\tif r := x.rat(); r != nil && math.Abs(decimal.Log10Rat(r)) <= maxExactResultLog10 {\n\t\tif out, ok := dst.FromCanonicalRat")],
+     [(RANGE, "\tif r != nil {\n\t\tif out, ok := dst.FromCanonicalRat(r)", "\tif r != nil && math.Abs(decimal.Log10Rat(r)) <= maxExactResultLog10 {\n\t\tif out, ok := dst.FromCanonicalRat(r)")],
      OFFSET_TESTS, "kill", "./", False),
     # El origen del oráculo como float64: los tests tienen que fallar, o el
     # oráculo copia al código.
@@ -790,6 +798,47 @@ MUTATIONS = [
     ("K173", "the Java-class oracle accepts the square of a negative again",
      [(JC, "\tif or.x.functionOf(code) == \"sqrt\" && fv < 0 {", "\tif or.x.functionOf(code) == \"sqrt\" && fv < 0 && false {")],
      JAVA_TESTS, "kill", "./internal/engine/", False),
+    ("K181", "toLinearScale does not check the domain of a tangent scale",
+     [(RANGE, "\ttangent := halfPi != nil && dst.IsTangent()", "\ttangent := halfPi != nil && dst.IsTangent() && false")],
+     TAN_TESTS, "kill", "./", False),
+    ("K182", "the tangent domain is a closed interval: 90 deg passes",
+     [(RANGE, "\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {", "\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) > 0 {")],
+     TAN_TESTS, "kill", "./", False),
+    ("K183", "pi/2 comes from math.Pi, not from the XML",
+     [(ENGINE, "\treturn pi.Quo(pi, big.NewRat(2, 1))", "\treturn new(big.Rat).SetFloat64(3.141592653589793 / 2)")],
+     TAN_TESTS, "kill", "./", False),
+    ("K184", "the tangent check leaves out the factor of the unit",
+     [(RANGE, "\tif r != nil {\n\t\tr.Mul(r, factor)\n\t}\n", "")],
+     TAN_TESTS, "kill", "./", False),
+    ("K185", "the tangent check runs after linearTimes: 1e300 Yrad is out of range again",
+     [(RANGE, TAN_PRE, ""),
+      (RANGE, "\tm, err := x.linearTimes(factor)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\t// Bajo ese log10",
+       "\tm, err := x.linearTimes(factor)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n" + TAN_PRE + "\t// Bajo ese log10")],
+     TAN_TESTS, "kill", "./", False),
+    ("K186", "the tangent check has no branch for an angle without an exact value",
+     [(RANGE, "\t\t} else if x.log {", "\t\t} else if x.log && false {")],
+     TAN_TESTS, "kill", "./", False),
+    ("K187", "the tangent check does not compare the materialized angle with pi/2",
+     [(RANGE, "\tif tangent && r == nil {", "\tif tangent && r == nil && false {")],
+     TAN_TESTS, "kill", "./", False),
+    ("K188", "the log10 margin of the tangent check is -1e-4, not +1e-9",
+     [(RANGE, "decimal.Log10Rat(halfPi)+1e-9", "decimal.Log10Rat(halfPi)-1e-4")],
+     TAN_TESTS, "kill", "./", False),
+    ("K189", "IsTangent is true for every special scale",
+     [(SP, "\t_, ok := s.Handler.(tanHandler)\n\treturn ok", "\treturn true")],
+     TAN_TESTS, "kill", "./", False),
+    ("K190", "the log10 margin of the tangent check is -1e-12: it rejects valid angles just under pi/2",
+     [(RANGE, "decimal.Log10Rat(halfPi)+1e-9", "decimal.Log10Rat(halfPi)-1e-12")],
+     TAN_TESTS, "kill", "./", False),
+    ("K191", "a [pi] of zero is accepted as the number pi",
+     [(ENGINE, "\tif pi.Sign() <= 0 {", "\tif pi.Sign() < 0 {")],
+     TAN_TESTS, "kill", "./", False),
+    ("K192", "a unit defined in terms of itself is expanded without end",
+     [(E + "/canonicalize.go", "\tif depth >= s.maxDepth {", "\tif false {")],
+     TAN_TESTS, "kill", "./", False),
+    ("K193", "the depth bound of a definition chain is too small for a long acyclic chain",
+     [(E + "/engine.go", "maxDepth:        len(m.DefinedUnits),", "maxDepth:        8,")],
+     TAN_TESTS, "kill", "./", False),
     ("K156", "mapRat sends an exact zero through the log10 form",
      [(RANGE, "\tif r.Sign() == 0 {\n\t\treturn scalar{}\n\t}", "")],
      OFFSET_TESTS, "kill", "./", False),

@@ -12,6 +12,7 @@ package engine
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"strings"
 	"sync"
 
@@ -58,6 +59,17 @@ type Service struct {
 	// handlers holds one conversion per special unit, built from the function
 	// each definition names. Read-only after construction.
 	handlers map[string]special.Handler
+
+	// halfPi is half the value of [pi] in the definitions, the open bound of the
+	// angles a tangent scale takes; nil if the definitions have no [pi], or its
+	// canonical value is not a positive number without dimension, and then there
+	// is no such check.
+	halfPi *big.Rat
+
+	// maxDepth bounds how many definitions one canonicalization expands, one
+	// inside the other: an acyclic chain expands each defined unit at most once,
+	// so a longer one is a cycle. Set in New.
+	maxDepth int
 }
 
 // New creates a fully wired service.
@@ -111,7 +123,7 @@ func New(r io.Reader, insensitive bool) (*Service, error) {
 		return nil, fmt.Errorf("ucum: %w", err)
 	}
 
-	return &Service{
+	s := &Service{
 		model:           m,
 		parser:          expr.NewParserFor(m, insensitive),
 		cache:           newTermCache(),
@@ -120,7 +132,10 @@ func New(r io.Reader, insensitive bool) (*Service, error) {
 		arbitraryBases:  arbitrary,
 		codesByProperty: codesByProperty,
 		handlers:        handlers,
-	}, nil
+		maxDepth:        len(m.DefinedUnits),
+	}
+	s.halfPi = s.halfPiOfPi()
+	return s, nil
 }
 
 // parseCached parses a UCUM code, caching the result.
@@ -192,3 +207,21 @@ const (
 const unityDisplayName = "(unity)"
 
 // Special unit detection.
+
+// halfPiOfPi da π/2 con el valor de 1 [pi] que calcula el servicio, el mismo con
+// que deg y gon se llevan a radianes, o nil si no hay chequeo: el XML no define
+// [pi], o su valor canónico no es un número sin dimensión (unidad "1") y
+// positivo. [pi] se busca por su código porque es la constante que la propia
+// definición de deg nombra (2 [pi].rad/360); math.Pi no coincide con el XML (el
+// borde de dos float64 vecinos depende de eso). Se llama una vez, en New.
+func (s *Service) halfPiOfPi() *big.Rat {
+	can, err := s.canonicalOfDefinition("[pi]")
+	if err != nil || can == nil || len(can.Units) != 0 {
+		return nil
+	}
+	pi := can.Value.Rat()
+	if pi.Sign() <= 0 {
+		return nil
+	}
+	return pi.Quo(pi, big.NewRat(2, 1))
+}
