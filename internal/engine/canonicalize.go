@@ -110,15 +110,7 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 
 	if u.IsBase {
 		// Base unit: canonical is itself.
-		bu := s.findBaseUnit(u.Code)
-		if bu == nil {
-			return nil, fmt.Errorf("base unit %q not found", u.Code)
-		}
-		val := prefixVal.Pow(sym.Exponent)
-		return &model.Canonical{
-			Value: val,
-			Units: []model.CanonicalUnit{{Base: bu, Exponent: sym.Exponent}},
-		}, nil
+		return s.baseCanonical(u, prefixVal, sym.Exponent)
 	}
 
 	// Arbitrary unit: its own dimension, never reducible to a number. Expanding
@@ -129,8 +121,12 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 		if bu == nil {
 			return nil, fmt.Errorf("arbitrary unit %q not found", u.Code)
 		}
+		val, err := powValue(prefixVal, sym.Exponent)
+		if err != nil {
+			return nil, err
+		}
 		return &model.Canonical{
-			Value: prefixVal.Pow(sym.Exponent),
+			Value: val,
 			Units: []model.CanonicalUnit{{Base: bu, Exponent: sym.Exponent}},
 		}, nil
 	}
@@ -192,8 +188,7 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 	// Parse and canonicalize the unit's value expression.
 	if unitExpr == "" || unitExpr == "1" {
 		// Dimensionless unit.
-		val := prefixVal.Mul(unitValue).Pow(sym.Exponent)
-		return &model.Canonical{Value: val}, nil
+		return dimensionlessCanonical(prefixVal.Mul(unitValue), sym.Exponent)
 	}
 
 	// Una definición que vuelve a sí misma ([pi] definido en [pi], o [pi2] y [pi]
@@ -221,14 +216,63 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 	can.Value = prefixVal.Mul(unitValue).Mul(can.Value)
 
 	// Apply exponent.
-	if sym.Exponent != 1 {
-		can.Value = can.Value.Pow(sym.Exponent)
-		for i := range can.Units {
-			can.Units[i].Exponent *= sym.Exponent
-		}
+	if err := raiseCanonical(can, sym.Exponent); err != nil {
+		return nil, err
 	}
 
 	return can, nil
+}
+
+// baseCanonical is the canonical form of a base unit under a prefix value and
+// an exponent: the unit itself.
+func (s *Service) baseCanonical(u *model.Unit, prefixVal decimal.Decimal, n int) (*model.Canonical, error) {
+	bu := s.findBaseUnit(u.Code)
+	if bu == nil {
+		return nil, fmt.Errorf("base unit %q not found", u.Code)
+	}
+	val, err := powValue(prefixVal, n)
+	if err != nil {
+		return nil, err
+	}
+	return &model.Canonical{
+		Value: val,
+		Units: []model.CanonicalUnit{{Base: bu, Exponent: n}},
+	}, nil
+}
+
+// dimensionlessCanonical is the canonical form of v^n with no base units.
+func dimensionlessCanonical(v decimal.Decimal, n int) (*model.Canonical, error) {
+	val, err := powValue(v, n)
+	if err != nil {
+		return nil, err
+	}
+	return &model.Canonical{Value: val}, nil
+}
+
+// raiseCanonical raises a canonical form to the power n in place.
+func raiseCanonical(can *model.Canonical, n int) error {
+	if n == 1 {
+		return nil
+	}
+	val, err := powValue(can.Value, n)
+	if err != nil {
+		return err
+	}
+	can.Value = val
+	for i := range can.Units {
+		can.Units[i].Exponent *= n
+	}
+	return nil
+}
+
+// powValue raises v to the integer power n. A zero value with a negative
+// exponent is a division by zero, which decimal.Decimal.Pow would turn into a
+// panic: it comes back as ucumerr.ErrDivisionByZero instead.
+func powValue(v decimal.Decimal, n int) (decimal.Decimal, error) {
+	if n < 0 && v.IsZero() {
+		return decimal.Decimal{}, ucumerr.ErrDivisionByZero
+	}
+	return v.Pow(n), nil
 }
 
 // findBaseUnit looks up a model.BaseUnit by code.
@@ -300,15 +344,26 @@ func mergeUnitLists(left, right []model.CanonicalUnit, sign int) []model.Canonic
 // nesting, so without this "(Cel)" would fall through to the difference reading
 // and lose the 273.15 offset silently.
 func (s *Service) specialUseForTerm(t *expr.Term) *special.Use {
-	sym := expr.LoneSymbol(t)
-	if sym == nil || !sym.Unit.IsSpecial || sym.Exponent != 1 {
-		return nil
-	}
-	h, ok := s.handlers[sym.Unit.Code]
-	if !ok {
+	sym, h := s.loneSpecial(t)
+	if sym == nil {
 		return nil
 	}
 	return &special.Use{Handler: h, Alpha: prefixValue(sym)}
+}
+
+// loneSpecial returns the symbol and handler of a term that denotes a special
+// unit, under the rules of specialUseForTerm, and nil otherwise. It allocates
+// nothing, so a guard on every conversion can use it.
+func (s *Service) loneSpecial(t *expr.Term) (*expr.Symbol, special.Handler) {
+	sym := expr.LoneSymbol(t)
+	if sym == nil || !sym.Unit.IsSpecial || sym.Exponent != 1 {
+		return nil, nil
+	}
+	h, ok := s.handlers[sym.Unit.Code]
+	if !ok {
+		return nil, nil
+	}
+	return sym, h
 }
 
 // prefixValue returns the scale factor of a symbol's prefix, or 1 if it has
