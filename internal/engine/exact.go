@@ -79,6 +79,10 @@ func (s *Service) ConvertRat(value *big.Rat, from, to string) (*big.Rat, error) 
 	if dstCan.Value.IsZero() {
 		return nil, ucumerr.Conversion(from, to, ucumerr.ErrDivisionByZero)
 	}
+	// Un destino especial con α = 0 tampoco admite valor alguno (ver Convert).
+	if s.zeroAlphaDestination(dstTerm) {
+		return nil, ucumerr.Conversion(from, to, ucumerr.ErrDivisionByZero)
+	}
 
 	return s.convertRatCore(value, convertParts{
 		srcTerm: srcTerm, dstTerm: dstTerm,

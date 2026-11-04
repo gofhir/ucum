@@ -53,11 +53,13 @@ JAVA_TESTS = "TestCompareJava$|TestJavaCasesFresh$"
 
 R = E + "/range.go"
 CV = E + "/convert.go"
+CAN = E + "/canonicalize.go"
 SP = "internal/special/special.go"
 RANGE_TESTS = "TestRangeHandWritten$|TestRangeSweep$"
 SQRT_TESTS = "^Test(Sqrt|OtherSpecial)"
 FHIR_SQRT_TESTS = "^TestSqrt"
 NEG_TESTS = "^TestNeg"
+ZERO_TESTS = "^TestZeroPrefix"
 TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
 TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
@@ -132,7 +134,7 @@ MUTATIONS = [
 
     # Plan 002: la comparación contra Ucum-java.
     ("J1", "ignore the exponent of a prefix on a base unit",
-     [(E + "/canonicalize.go", "val := prefixVal.Pow(sym.Exponent)", "val := prefixVal")],
+     [(E + "/canonicalize.go", "val, err := powValue(prefixVal, n)", "val, err := prefixVal, error(nil)")],
      JAVA_TESTS, "kill", "./internal/engine/", False),
     ("J2", "accept the empty expression as unity, as Java does",
      [("internal/expr/parser.go", 'if code == "" {\n\t\treturn nil, fmt.Errorf("UCUM expression is empty")',
@@ -873,6 +875,27 @@ MUTATIONS = [
     ("K202", "toDestination reads the zero of a zero factor as an underflow",
      [(RANGE, "r == 0 && !dst.IsLogarithmic() && sign != 0", "r == 0 && !dst.IsLogarithmic()")],
      NEG_TESTS, "kill", "./", False),
+    ("K203", "Convert does not check for a special destination with alpha 0",
+     [(CV, "\tif s.zeroAlphaDestination(dstTerm) {\n\t\treturn 0,", "\tif false && s.zeroAlphaDestination(dstTerm) {\n\t\treturn 0,")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K204", "ConvertRat does not check for a special destination with alpha 0",
+     [(E + "/exact.go", "\tif s.zeroAlphaDestination(dstTerm) {\n\t\treturn nil,", "\tif false && s.zeroAlphaDestination(dstTerm) {\n\t\treturn nil,")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K205", "the alpha check of Convert skips a non-finite input: +-Inf and NaN reach the float64 path",
+     [(CV, "\tif s.zeroAlphaDestination(dstTerm) {\n\t\treturn 0,", "\tif decimal.RatFromFloat(value) != nil && s.zeroAlphaDestination(dstTerm) {\n\t\treturn 0,")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K206", "a base unit with a zero prefix and a negative exponent bypasses powValue",
+     [(CAN, "base unit %q not found\", u.Code)\n\t}\n\tval, err := powValue(prefixVal, n)", "base unit %q not found\", u.Code)\n\t}\n\tval, err := prefixVal.Pow(n), error(nil)")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K207", "an arbitrary unit with a zero prefix and a negative exponent bypasses powValue",
+     [(CAN, "arbitrary unit %q not found\", u.Code)\n\t\t}\n\t\tval, err := powValue(prefixVal, sym.Exponent)", "arbitrary unit %q not found\", u.Code)\n\t\t}\n\t\tval, err := prefixVal.Pow(sym.Exponent), error(nil)")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K208", "a dimensionless unit of value 0 and a negative exponent bypasses powValue",
+     [(CAN, "val, err := powValue(v, n)", "val, err := v.Pow(n), error(nil)")],
+     ZERO_TESTS, "kill", "./", False),
+    ("K209", "a defined unit of value 0 and a negative exponent bypasses powValue",
+     [(CAN, "val, err := powValue(can.Value, n)", "val, err := can.Value.Pow(n), error(nil)")],
+     ZERO_TESTS, "kill", "./", False),
 ]
 
 

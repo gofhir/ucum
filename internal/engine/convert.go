@@ -104,6 +104,15 @@ func (s *Service) canonicalParts(code string) (*expr.Term, *model.Canonical, err
 	return t, can, nil
 }
 
+// zeroAlphaDestination reports whether t is a special unit whose scale factor α
+// is 0, which no value can be converted into: x' = f(x)/α does not exist.
+func (s *Service) zeroAlphaDestination(t *expr.Term) bool {
+	// Sin construir el special.Use: esta guarda corre en cada conversión, y sin
+	// prefijo α vale 1.
+	sym, _ := s.loneSpecial(t)
+	return sym != nil && sym.Prefix != nil && sym.Prefix.Value.IsZero()
+}
+
 // Convert converts a value from one unit to another.
 func (s *Service) Convert(value float64, from, to string) (float64, error) {
 	srcTerm, err := s.parseCached(from)
@@ -131,6 +140,12 @@ func (s *Service) Convert(value float64, from, to string) (float64, error) {
 
 	// A zero destination factor ("0", "m/0" cancels to it) would divide by zero.
 	if dstCan.Value.IsZero() {
+		return 0, ucumerr.Conversion(from, to, ucumerr.ErrDivisionByZero)
+	}
+	// Un prefijo de valor 0 delante de una escala especial divide por α = 0 al
+	// pasar al destino (§22 ■4): es una propiedad de la unidad, no del valor, y
+	// va antes que el dominio y que una entrada no finita.
+	if s.zeroAlphaDestination(dstTerm) {
 		return 0, ucumerr.Conversion(from, to, ucumerr.ErrDivisionByZero)
 	}
 

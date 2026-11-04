@@ -77,6 +77,9 @@ func (d Decimal) Div(o Decimal) Decimal { return Decimal{new(big.Rat).Quo(d.val,
 // linearly from there. The exponent is bounded at parse time as well — see
 // MaxExponent — because the *result* still grows with n however few
 // multiplications produce it.
+//
+// A zero base with a negative exponent is not allowed: it divides by zero and
+// panics in big.Rat, so callers must check it first.
 func (d Decimal) Pow(n int) Decimal {
 	if n == 0 {
 		return FromInt(1)
