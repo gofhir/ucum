@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.8](https://github.com/gofhir/ucum/compare/v4.4.7...v4.4.8) (2026-11-04)
+
+
+### Bug Fixes
+
+* return ErrDivisionByZero for a zero-value prefix instead of panicking ([d721ec8](https://github.com/gofhir/ucum/commit/d721ec82e95683b5f6f9cf4e88b6fff992936edd))
+
 ## [4.4.7](https://github.com/gofhir/ucum/compare/v4.4.6...v4.4.7) (2026-11-03)
 
 
