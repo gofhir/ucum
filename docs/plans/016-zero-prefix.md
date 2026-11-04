@@ -1,6 +1,6 @@
 # 016 — un prefijo o una unidad de valor 0 dividen por cero
 
-**Estado:** paso 9 (cierre), sin commit. Plan aprobado por el usuario el 2026-11-03; code review convergió en la ronda 2 (§10). `make check`, `make check-packages`, `make compare-java` y las mutaciones completas en verde el 2026-11-03 ([evidencia](evidence/016-2026-11-03-mutations.txt)).
+**Estado:** cerrado e integrado el 2026-11-04 (#98); v4.4.8 (#99).
 
 ## 1. Revisión previa
 
