@@ -191,23 +191,9 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 		return dimensionlessCanonical(prefixVal.Mul(unitValue), sym.Exponent)
 	}
 
-	// Una definición que vuelve a sí misma ([pi] definido en [pi], o [pi2] y [pi]
-	// una en la otra) nunca termina de expandirse: sin esta guarda desborda la
-	// pila, y recover no atrapa ese error. Una cadena sin ciclo expande cada
-	// unidad definida a lo más una vez, así que no pasa de maxDepth niveles; la
-	// profundidad se lleva por valor y no asigna memoria.
-	if depth >= s.maxDepth {
-		return nil, &cycleError{code: u.Code}
-	}
-
-	inner, err := s.parseDefinition(unitExpr)
-	if err != nil {
-		return nil, wrapExpand(u.Code, err)
-	}
-
 	// The reference expression of a special unit contains no special units of its
 	// own, so it canonicalizes in the ordinary way.
-	can, err := s.canonicalizeTerm(inner, specialStandalone, depth+1)
+	can, err := s.expandDefinition(u.Code, unitExpr, depth)
 	if err != nil {
 		return nil, wrapExpand(u.Code, err)
 	}
@@ -220,6 +206,44 @@ func (s *Service) canonicalizeSymbol(sym *expr.Symbol, ctx specialContext, depth
 		return nil, err
 	}
 
+	return can, nil
+}
+
+// expandDefinition is the canonical form of the definition expression text of
+// the unit code, expanded once per service. The result depends only on the text (always
+// specialStandalone, always in the case-sensitive vocabulary), so a definition
+// reached by many paths is not expanded once per path.
+//
+// The cache holds its own copy and every caller gets another: callers mutate
+// what they receive (Value and the exponents of Units), and a shared Units
+// slice would carry one caller's exponent into the next. Errors are not stored:
+// a cycle never completes, and an error stops the expansion at the first path.
+func (s *Service) expandDefinition(code, text string, depth int) (*model.Canonical, error) {
+	if v, ok := s.defCanonical.Load(text); ok {
+		if c, isCan := v.(*model.Canonical); isCan {
+			return c.Clone(), nil
+		}
+	}
+	// Una definición que vuelve a sí misma ([pi] definido en [pi], o [pi2] y [pi]
+	// una en la otra) nunca termina de expandirse: sin esta guarda desborda la
+	// pila, y recover no atrapa ese error. Una cadena sin ciclo expande cada
+	// unidad definida a lo más una vez, así que no pasa de maxDepth niveles; la
+	// profundidad se lleva por valor y no asigna memoria. La guarda va después
+	// del caché: un acierto no baja, y un subárbol sano ya expandido no cuenta
+	// para la profundidad, así que el error nombra una unidad del ciclo y no
+	// depende del orden de las llamadas. Un ciclo nunca se guarda.
+	if depth >= s.maxDepth {
+		return nil, &cycleError{code: code}
+	}
+	inner, err := s.parseDefinition(text)
+	if err != nil {
+		return nil, err
+	}
+	can, err := s.canonicalizeTerm(inner, specialStandalone, depth+1)
+	if err != nil {
+		return nil, err
+	}
+	s.defCanonical.Store(text, can.Clone())
 	return can, nil
 }
 

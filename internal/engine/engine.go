@@ -44,6 +44,12 @@ type Service struct {
 	defParser *expr.Parser
 	defCache  sync.Map // map[string]*expr.Term
 
+	// defCanonical memoizes the canonical form of each definition expression, by
+	// its text. Like defCache it is unbounded, and for the same reason: its keys
+	// are the expressions of the definitions, never a caller's input. Its values
+	// are never mutated: they are read only through model.Canonical.Clone.
+	defCanonical sync.Map // map[string]*model.Canonical
+
 	// baseByCode indexes the seven base units, and arbitraryBases gives every
 	// arbitrary unit its own dimension. Both are populated once at construction
 	// and read-only afterwards.
