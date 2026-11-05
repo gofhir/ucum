@@ -44,6 +44,9 @@ type (
 	// Definitions identifies the UCUM release a service was built from, as the
 	// definitions themselves declare it.
 	Definitions = engine.Definitions
+
+	// Symbol is one resolved unit occurrence, before canonical reduction.
+	Symbol = engine.Symbol
 )
 
 // Identified is implemented by a service that can report which UCUM release it
@@ -82,6 +85,22 @@ type Identified interface {
 // so that adding it breaks no existing implementation of that interface.
 type PropertyLister interface {
 	Properties() []string
+}
+
+// Inspector is implemented by services that can inspect unit occurrences
+// without reducing them to base units. All constructors in this package return
+// services satisfying Inspector. It is separate from Service so existing
+// implementations need not add a method.
+//
+// Inspect returns the symbols in source occurrence order with signed powers
+// that account for division and grouping. Canceled and zero-power occurrences
+// remain present. Numeric factors and annotations are not symbols, so the result
+// is not a lossless expression representation. It is a caller-owned snapshot of
+// the selected definitions, safe to modify without affecting concurrent calls.
+// Invalid input returns a ValidationError and no partial result, using the same
+// syntax and resource limits as Validate. Inspect does not execute a conversion.
+type Inspector interface {
+	Inspect(code string) ([]Symbol, error)
 }
 
 // ValidateCanonicalUnits reports whether code reduces to the given canonical
