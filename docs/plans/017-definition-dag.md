@@ -1,6 +1,6 @@
 # 017 — una definición compartida se expande una vez
 
-**Estado:** paso 9 (cierre), sin commit. El usuario aprobó el enfoque el 2026-11-05; el code review convergió en la ronda 2 (§10). `make check`, `make check-packages`, `make compare-java` y las mutaciones completas en verde el 2026-11-05 ([evidencia](evidence/017-2026-11-05-mutations.txt)).
+**Estado:** cerrado e integrado el 2026-11-05 (#102); v4.4.9 (#103).
 
 ## 1. Revisión previa
 
