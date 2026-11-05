@@ -1,6 +1,7 @@
 # Punto de reanudación
 
-**Incremento activo:** ninguno. Cerrados:
+**Incremento activo:** [017 — una definición compartida se expande una vez](017-definition-dag.md),
+paso 9 (cierre, sin commit), rama `fix/definition-dag`. Cerrados:
 - [016 — un prefijo o una unidad de valor 0 dividen por cero](016-zero-prefix.md):
   cerrado e integrado el 2026-11-04 (#98).
 - [015 — un factor canónico negativo en la vía log10](015-negative-factor.md):
@@ -34,7 +35,7 @@
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** elegir el siguiente frente entre los pendientes. `Validate`/`Analyze` de una unidad cíclica no es un defecto (2026-11-05): `Validate` es sintáctico por diseño y toda definición rota de un XML propio (ciclo, unidad desconocida, sintaxis) se detecta al canonicalizar; validarlas al cargar costaría ~40 % de `New` (0.71 ms sobre 1.74 ms) y cambiaría el contrato, documentado en el README. Token de release-please (2026-11-05): evaluado y postergado, el truco de cerrar y reabrir cuesta un comando por release; retomar con una GitHub App si las releases dejan de ser manuales o se suman repos. Un PR de release-please no dispara el CI (lo abre `GITHUB_TOKEN`) y el ruleset lo bloquea: cerrarlo y reabrirlo lo dispara (#93). Pendientes sin issue: el signo del cero (010 §10; 011 §12); los de 014 §6 (tangente a tangente, ángulo diminuto, DAG exponencial); las citas de temperatura de 012 dicen §21-22 y los orígenes están en §30 ■4 y §43 (013 §6); los límites de 012 §6. v4.4.8 publicada el 2026-11-04 (#99). CI y `make check` usan golangci-lint 2.15.0 (`GOLANGCI_LINT_VERSION`). Los defectos de Ucum-java quedaron
+**Próximo paso:** commit `fix:` de 017 y PR (el usuario hace el push); después, release 4.4.9. Verificación al cierre en verde (evidence/017-2026-11-05-mutations.txt). Siguiente frente: el desborde del exponente de una definición (017 §6). Siguiente frente: el desborde del exponente de una definición (017 §6). `Validate`/`Analyze` de una unidad cíclica no es un defecto (2026-11-05): `Validate` es sintáctico por diseño y toda definición rota de un XML propio (ciclo, unidad desconocida, sintaxis) se detecta al canonicalizar; validarlas al cargar costaría ~40 % de `New` (0.71 ms sobre 1.74 ms) y cambiaría el contrato, documentado en el README. Token de release-please (2026-11-05): evaluado y postergado, el truco de cerrar y reabrir cuesta un comando por release; retomar con una GitHub App si las releases dejan de ser manuales o se suman repos. Un PR de release-please no dispara el CI (lo abre `GITHUB_TOKEN`) y el ruleset lo bloquea: cerrarlo y reabrirlo lo dispara (#93). Pendientes sin issue: el signo del cero (010 §10; 011 §12); los de 014 §6 (tangente a tangente, ángulo diminuto); las citas de temperatura de 012 dicen §21-22 y los orígenes están en §30 ■4 y §43 (013 §6); los límites de 012 §6. v4.4.8 publicada el 2026-11-04 (#99). CI y `make check` usan golangci-lint 2.15.0 (`GOLANGCI_LINT_VERSION`). Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: ninguno propio (#75 cerrado por 011; PR #53 espera a su autor).
 **Integrado:** PR #88, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 013, negativos en `sqrt`) y `ci:` (golangci-lint 2.15.0);

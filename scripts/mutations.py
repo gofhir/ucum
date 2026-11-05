@@ -60,6 +60,7 @@ SQRT_TESTS = "^Test(Sqrt|OtherSpecial)"
 FHIR_SQRT_TESTS = "^TestSqrt"
 NEG_TESTS = "^TestNeg"
 ZERO_TESTS = "^TestZeroPrefix"
+DAG_TESTS = "^TestDag"
 TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
 TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
@@ -896,6 +897,25 @@ MUTATIONS = [
     ("K209", "a defined unit of value 0 and a negative exponent bypasses powValue",
      [(CAN, "val, err := powValue(can.Value, n)", "val, err := can.Value.Pow(n), error(nil)")],
      ZERO_TESTS, "kill", "./", False),
+    ("K210", "a definition is expanded on every path: the cache is never consulted",
+     [(CAN, "if v, ok := s.defCanonical.Load(text); ok {", "if v, ok := s.defCanonical.Load(text); ok && false {")],
+     DAG_TESTS, "kill", "./", False),
+    ("K211", "the cache stores the expansion without copying it: the caller mutates what is stored",
+     [(CAN, "s.defCanonical.Store(text, can.Clone())", "s.defCanonical.Store(text, can)")],
+     DAG_TESTS, "kill", "./", False),
+    ("K212", "a cache hit returns the stored value without copying it",
+     [(CAN, "return c.Clone(), nil", "return c, nil")],
+     DAG_TESTS, "kill", "./", False),
+    ("K213", "the cache key ignores the text of the definition: one constant key",
+     [(CAN, "s.defCanonical.Load(text)", "s.defCanonical.Load(\"\")"),
+      (CAN, "s.defCanonical.Store(text, can.Clone())", "s.defCanonical.Store(\"\", can.Clone())")],
+     DAG_TESTS, "kill", "./", False),
+    ("K214", "Clone shares the Units slice with the stored value",
+     [("internal/model/canonical.go", "out.Units = append([]CanonicalUnit(nil), c.Units...)", "out.Units = c.Units")],
+     DAG_TESTS, "kill", "./", False),
+    ("K215", "the cycle guard runs before the cache: a healthy shared subtree counts toward the depth",
+     [(CAN, "\tif v, ok := s.defCanonical.Load(text); ok {", "\tif depth >= s.maxDepth {\n\t\treturn nil, &cycleError{code: code}\n\t}\n\tif v, ok := s.defCanonical.Load(text); ok {")],
+     DAG_TESTS, "kill", "./", False),
 ]
 
 
@@ -915,7 +935,7 @@ def spec(m):
 
 def run(work, env, tests, pkg):
     """Corre los tests y devuelve "kill", "survive", "no tests" o "build error"."""
-    r = subprocess.run(["go", "test", "-count=1", "-v", "-run", tests, pkg],
+    r = subprocess.run(["go", "test", "-count=1", "-failfast", "-v", "-run", tests, pkg],
                        cwd=work, env=env, capture_output=True, text=True)
     out = r.stdout + r.stderr
     if "[build failed]" in out or "[setup failed]" in out:
