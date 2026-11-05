@@ -279,6 +279,15 @@ svc, err := ucum.NewFromReader(myDefinitions)   // same schema as ucum-essence.x
 exact := svc.(ucum.ExactService)
 ```
 
+`NewFromReader` checks the schema, not each definition: canonicalizing every unit at load would add about 40% to construction for definitions that are mostly never used. A unit whose definition is broken — it names an unknown unit, is not valid syntax, or is part of a definition cycle — is still a well-formed code, so `Validate` and `Analyze` accept it, and the error comes from the first call that canonicalizes it (`Canonical`, `Convert`, `IsComparable`, `ValidateInProperty`, `Multiply`, `Divide` and the exact methods), naming the unit:
+
+```
+Validate("[cyc]")      nil
+Canonical(1, "[cyc]")  invalid UCUM code "[cyc]": unit "[cyc]" is part of or leads to a definition cycle
+```
+
+To check a set of definitions up front, canonicalize every code it defines once after loading.
+
 ## FHIR
 
 The root package implements UCUM and nothing else. The FHIR-specific rules that UCUM cannot infer live in a subpackage:
