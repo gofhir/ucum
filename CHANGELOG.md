@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.9](https://github.com/gofhir/ucum/compare/v4.4.8...v4.4.9) (2026-11-05)
+
+
+### Bug Fixes
+
+* expand each unit definition once per service ([109fc52](https://github.com/gofhir/ucum/commit/109fc52c29f8bbc81e9336954d9394bfa70a2870))
+
 ## [4.4.8](https://github.com/gofhir/ucum/compare/v4.4.7...v4.4.8) (2026-11-04)
 
 
