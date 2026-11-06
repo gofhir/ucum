@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.10](https://github.com/gofhir/ucum/compare/v4.4.9...v4.4.10) (2026-11-06)
+
+
+### Bug Fixes
+
+* report canonical exponents that overflow int ([ae93f6a](https://github.com/gofhir/ucum/commit/ae93f6a266ff495a18356928590d93aeff53ed4e))
+
 ## [4.4.9](https://github.com/gofhir/ucum/compare/v4.4.8...v4.4.9) (2026-11-05)
 
 
