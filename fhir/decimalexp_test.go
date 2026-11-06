@@ -541,9 +541,13 @@ func worstCaseAllocs(f func() string) (mallocs, bytes uint64) {
 // TestDecimalStringWorstCaseAllocs acota las asignaciones de las entradas de
 // TestDecimalStringWorstCaseCost (plan 020 §5.4). No es paralela: MemStats es
 // global y las pruebas paralelas del paquete empiezan al terminar las
-// secuenciales. Las cotas son alrededor del doble de lo medido el 2026-11-06 (Go
-// 1.27.2, arm64: 169, 189, 260, 158 y 233 mallocs; 18, 23, 1.4, 6.9 MB y 317 KB)
-// y muy por debajo de lo que costaría un cociente por dígito.
+// secuenciales. Las cotas de bytes son alrededor del doble de lo medido el
+// 2026-11-06 (Go 1.27.2, arm64: 18, 23, 1.4, 6.9 MB y 317 KB). Las de mallocs
+// dependen de la versión de math/big (Go 1.27.2: 169, 189, 260, 158 y 233; Go
+// 1.24 en CI: 8535, 6978, 460, 971 y 345), así que van con margen sobre la
+// mayor y muy por debajo del código anterior, que hacía al menos un cociente
+// por dígito: un millón de dígitos en las dos primeras, 300 000 en la cuarta
+// y unos 30 000 en las otras.
 func TestDecimalStringWorstCaseAllocs(t *testing.T) {
 	mustParse := func(s string) Decimal {
 		d, err := ParseDecimal(s)
@@ -562,22 +566,22 @@ func TestDecimalStringWorstCaseAllocs(t *testing.T) {
 		maxMallocs uint64
 		maxKiB     uint64
 	}{
-		{"1.0e999999", func() string { return mustParse("1.0e999999").String() }, 400, 40 << 10},
-		{"1.0e-999999", func() string { return mustParse("1.0e-999999").String() }, 400, 48 << 10},
+		{"1.0e999999", func() string { return mustParse("1.0e999999").String() }, 50000, 40 << 10},
+		{"1.0e-999999", func() string { return mustParse("1.0e-999999").String() }, 50000, 48 << 10},
 		{"add 1.0e30000 and 1.0e-30000", func() string {
 			return mustParse("1.0e30000").Add(mustParse("1.0e-30000")).String()
-		}, 600, 4 << 10},
+		}, 5000, 4 << 10},
 		{"1/(3*10^300000) at 3 figures", func() string {
 			den := new(big.Int).Mul(big.NewInt(3), new(big.Int).Exp(big.NewInt(10), big.NewInt(300000), nil))
 			return NewDecimal(new(big.Rat).SetFrac(big.NewInt(1), den), 3).String()
-		}, 400, 16 << 10},
+		}, 20000, 16 << 10},
 		{"ConvertDecimal 1.5 '300 to rad300", func() string {
 			out, err := cmp.ConvertDecimal(mustParse("1.5"), "'300", "rad300")
 			if err != nil {
 				return "ERR " + err.Error()
 			}
 			return out.String()
-		}, 600, 1 << 10},
+		}, 5000, 1 << 10},
 	}
 	for _, c := range cases {
 		done := make(chan struct{})
