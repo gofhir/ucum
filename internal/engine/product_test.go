@@ -210,7 +210,11 @@ func FuzzProductUnits(f *testing.F) {
 			if div {
 				sign = -1
 			}
-			oldCode := expr.ComposeCanonicalUnits(&model.Canonical{Units: mergeUnitLists(can1.Units, can2.Units, sign)})
+			oldUnits, err := mergeUnitLists(can1.Units, can2.Units, sign)
+			if err != nil {
+				t.Fatalf("mergeUnitLists(%q, %q): %v", code1, code2, err)
+			}
+			oldCode := expr.ComposeCanonicalUnits(&model.Canonical{Units: oldUnits})
 
 			// A canonical form can be past what the parser accepts — barn to the
 			// 700th is m1400, beyond MaxExponent — and then there is no code to

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/gofhir/ucum/v4/internal/decimal"
 	"github.com/gofhir/ucum/v4/internal/expr"
@@ -22,6 +23,23 @@ import (
 // vez: el mensaje nombra la unidad y no repite la cadena entera.
 type cycleError struct{ code string }
 
+// exponentError es el error de un exponente canónico que no cabe en un int.
+// Como cycleError, wrapExpand no lo envuelve otra vez: en una cadena de cientos
+// de definiciones el mensaje no repite «expand unit» por nivel. Es
+// ucumerr.ErrExponentTooLarge para errors.Is. El primer wrapExpand anota la
+// unidad cuya definición desbordó, como cycleError.
+type exponentError struct{ code string }
+
+func (e *exponentError) Error() string {
+	msg := ucumerr.ErrExponentTooLarge.Error() + ": a canonical exponent does not fit in an int"
+	if e.code == "" {
+		return msg
+	}
+	return fmt.Sprintf("expand unit %q: %s", e.code, msg)
+}
+
+func (*exponentError) Unwrap() error { return ucumerr.ErrExponentTooLarge }
+
 func (e *cycleError) Error() string {
 	return fmt.Sprintf("unit %q is part of or leads to a definition cycle", e.code)
 }
@@ -30,7 +48,16 @@ func (e *cycleError) Error() string {
 // un ciclo, que ya viene completo.
 func wrapExpand(code string, err error) error {
 	var ce *cycleError
+	var ee *exponentError
 	if errors.As(err, &ce) {
+		return err
+	}
+	if errors.As(err, &ee) {
+		// Cada desborde crea su propio exponentError: anotarlo no toca el de
+		// otra llamada.
+		if ee.code == "" {
+			ee.code = code
+		}
 		return err
 	}
 	return fmt.Errorf("expand unit %q: %w", code, err)
@@ -78,7 +105,7 @@ func (s *Service) canonicalizeTerm(t *expr.Term, ctx specialContext, depth int) 
 
 	switch t.Op {
 	case expr.OpMultiplication:
-		return multiplyCanonicals(left, right), nil
+		return multiplyCanonicals(left, right)
 	case expr.OpDivision:
 		return divideCanonicals(left, right)
 	default:
@@ -278,6 +305,15 @@ func raiseCanonical(can *model.Canonical, n int) error {
 	if n == 1 {
 		return nil
 	}
+	// Los exponentes nuevos se comprueban antes de la potencia del valor y antes
+	// de tocar can.Units: un exponente que no cabe no paga la potencia, y el
+	// error no deja la forma canónica a medio cambiar. Comprobar y luego
+	// multiplicar evita un slice auxiliar por llamada.
+	for _, u := range can.Units {
+		if _, err := mulExponent(u.Exponent, n); err != nil {
+			return err
+		}
+	}
 	val, err := powValue(can.Value, n)
 	if err != nil {
 		return err
@@ -287,6 +323,33 @@ func raiseCanonical(can *model.Canonical, n int) error {
 		can.Units[i].Exponent *= n
 	}
 	return nil
+}
+
+// mulExponent returns a*b, or an error that is ucumerr.ErrExponentTooLarge if
+// it does not fit in an int. UCUM §19 ■1 lets an implementation not represent
+// every dimension: a dimension that does not fit is an error, never a
+// wrapped-around exponent.
+func mulExponent(a, b int) (int, error) {
+	if b == 0 {
+		return 0, nil
+	}
+	// c/b devuelve a salvo desborde; el único caso que esa prueba no ve es
+	// MinInt·-1, que en Go da MinInt y MinInt/-1 da otra vez MinInt.
+	c := a * b
+	if (a == math.MinInt && b == -1) || c/b != a {
+		return 0, &exponentError{}
+	}
+	return c, nil
+}
+
+// addExponent returns a+b, or an error that is ucumerr.ErrExponentTooLarge if
+// it does not fit in an int (UCUM §19 ■1, as in mulExponent).
+func addExponent(a, b int) (int, error) {
+	c := a + b
+	if (b > 0 && c < a) || (b < 0 && c > a) {
+		return 0, &exponentError{}
+	}
+	return c, nil
 }
 
 // powValue raises v to the integer power n. A zero value with a negative
@@ -303,12 +366,12 @@ func powValue(v decimal.Decimal, n int) (decimal.Decimal, error) {
 func (s *Service) findBaseUnit(code string) *model.BaseUnit {
 	return s.baseByCode[code]
 }
-func multiplyCanonicals(left, right *model.Canonical) *model.Canonical {
-	result := &model.Canonical{
-		Value: left.Value.Mul(right.Value),
-		Units: mergeUnitLists(left.Units, right.Units, 1),
+func multiplyCanonicals(left, right *model.Canonical) (*model.Canonical, error) {
+	units, err := mergeUnitLists(left.Units, right.Units, 1)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	return &model.Canonical{Value: left.Value.Mul(right.Value), Units: units}, nil
 }
 func divideCanonicals(left, right *model.Canonical) (*model.Canonical, error) {
 	// A zero factor is syntactically valid ("m/0"), so the divisor has to be
@@ -316,34 +379,41 @@ func divideCanonicals(left, right *model.Canonical) (*model.Canonical, error) {
 	if right.Value.IsZero() {
 		return nil, ucumerr.ErrDivisionByZero
 	}
-	result := &model.Canonical{
-		Value: left.Value.Div(right.Value),
-		Units: mergeUnitLists(left.Units, right.Units, -1),
+	units, err := mergeUnitLists(left.Units, right.Units, -1)
+	if err != nil {
+		return nil, err
 	}
-	return result, nil
+	return &model.Canonical{Value: left.Value.Div(right.Value), Units: units}, nil
 }
 
 // mergeUnitLists merges two canonical unit lists. The sign parameter is
 // applied to the exponents of the right list (+1 for multiply, -1 for divide).
-func mergeUnitLists(left, right []model.CanonicalUnit, sign int) []model.CanonicalUnit {
+// An exponent that does not fit in an int is ucumerr.ErrExponentTooLarge.
+func mergeUnitLists(left, right []model.CanonicalUnit, sign int) ([]model.CanonicalUnit, error) {
 	result := make([]model.CanonicalUnit, len(left))
 	copy(result, left)
 
 	for _, ru := range right {
-		found := false
+		signed, err := mulExponent(ru.Exponent, sign)
+		if err != nil {
+			return nil, err
+		}
+		at := -1
 		for i := range result {
 			if result[i].Base.Code == ru.Base.Code {
-				result[i].Exponent += ru.Exponent * sign
-				found = true
+				at = i
 				break
 			}
 		}
-		if !found {
-			result = append(result, model.CanonicalUnit{
-				Base:     ru.Base,
-				Exponent: ru.Exponent * sign,
-			})
+		if at < 0 {
+			result = append(result, model.CanonicalUnit{Base: ru.Base, Exponent: signed})
+			continue
 		}
+		sum, err := addExponent(result[at].Exponent, signed)
+		if err != nil {
+			return nil, err
+		}
+		result[at].Exponent = sum
 	}
 
 	// Remove zero-exponent units.
@@ -353,7 +423,7 @@ func mergeUnitLists(left, right []model.CanonicalUnit, sign int) []model.Canonic
 			filtered = append(filtered, u)
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 // specialUseForTerm returns the special unit a term denotes, together with the

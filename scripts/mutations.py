@@ -61,6 +61,7 @@ FHIR_SQRT_TESTS = "^TestSqrt"
 NEG_TESTS = "^TestNeg"
 ZERO_TESTS = "^TestZeroPrefix"
 DAG_TESTS = "^TestDag"
+EXP_TESTS = "^TestExpOverflow"
 TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
 TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
@@ -916,6 +917,30 @@ MUTATIONS = [
     ("K215", "the cycle guard runs before the cache: a healthy shared subtree counts toward the depth",
      [(CAN, "\tif v, ok := s.defCanonical.Load(text); ok {", "\tif depth >= s.maxDepth {\n\t\treturn nil, &cycleError{code: code}\n\t}\n\tif v, ok := s.defCanonical.Load(text); ok {")],
      DAG_TESTS, "kill", "./", False),
+    ("K216", "raiseCanonical multiplies the exponents without the overflow check",
+     [(CAN, "if _, err := mulExponent(u.Exponent, n); err != nil {", "if _, err := u.Exponent*n, error(nil); err != nil {")],
+     EXP_TESTS, "kill", "./", False),
+    ("K217", "mergeUnitLists adds the exponents without the overflow check",
+     [(CAN, "sum, err := addExponent(result[at].Exponent, signed)", "sum, err := result[at].Exponent+signed, error(nil)")],
+     EXP_TESTS, "kill", "./", False),
+    ("K218", "mergeUnitLists negates the exponent without the overflow check",
+     [(CAN, "signed, err := mulExponent(ru.Exponent, sign)", "signed, err := ru.Exponent*sign, error(nil)")],
+     EXP_TESTS, "kill", "./", False),
+    ("K219", "combine discards the error of mergeUnitLists",
+     [(CV, "units, err := mergeUnitLists(can1.Units, can2.Units, sign)\n\tif err != nil {", "units, err := mergeUnitLists(can1.Units, can2.Units, sign)\n\tif err != nil && false {")],
+     EXP_TESTS, "kill", "./", False),
+    ("K220", "wrapExpand wraps the exponent error once per level: the message grows with the chain",
+     [(CAN, "\tif errors.As(err, &ee) {\n\t\t// Cada", "\tif ee != nil {\n\t\t// Cada")],
+     EXP_TESTS, "kill", "./", False),
+    ("K221", "mulExponent without the zero guard divides by zero",
+     [(CAN, "\tif b == 0 {\n\t\treturn 0, nil\n\t}\n\t// c/b", "\t// c/b")],
+     EXP_TESTS, "kill", "./", False),
+    ("K222", "combine names the wrong operation in the exponent error",
+     [(CV, "combineOp(sign < 0), v2.Code, err", "combineOp(sign > 0), v2.Code, err")],
+     EXP_TESTS, "kill", "./", False),
+    ("K223", "wrapExpand does not record the unit whose definition overflows",
+     [(CAN, "\t\tif ee.code == \"\" {\n\t\t\tee.code = code\n\t\t}\n", "")],
+     EXP_TESTS, "kill", "./", False),
 ]
 
 
