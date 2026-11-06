@@ -255,7 +255,13 @@ func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
 	} else {
 		factor.Mul(factor, can2.Value.Rat())
 	}
-	code := expr.ComposeCanonicalUnits(&model.Canonical{Units: mergeUnitLists(can1.Units, can2.Units, sign)})
+	units, err := mergeUnitLists(can1.Units, can2.Units, sign)
+	if err != nil {
+		// El exponente que no cabe es el del resultado, no el de un operando: el
+		// mensaje nombra la operación, como combineError.
+		return Pair{}, ucumerr.Validation(v1.Code, fmt.Errorf("%s %s %s: %w", v1.Code, combineOp(sign < 0), v2.Code, err))
+	}
+	code := expr.ComposeCanonicalUnits(&model.Canonical{Units: units})
 
 	// Preferred path: both operands mapped and combined in exact arithmetic,
 	// with a single rounding at the end.
@@ -330,11 +336,15 @@ func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 // combineError agrega al error de rango la operación que lo produjo.
 func combineError(err error, v1, v2 Pair, div, exact bool) error {
-	op := "times"
+	return valueError(err, v1.Value, fmt.Sprintf("%s %s %v %s", v1.Code, combineOp(div), v2.Value, v2.Code), exact)
+}
+
+// combineOp nombra la operación de Multiply o Divide en un mensaje de error.
+func combineOp(div bool) string {
 	if div {
-		op = "divided by"
+		return "divided by"
 	}
-	return valueError(err, v1.Value, fmt.Sprintf("%s %s %v %s", v1.Code, op, v2.Value, v2.Code), exact)
+	return "times"
 }
 
 // zeroDivisorValue reports a divisor whose *value* is zero, as opposed to a unit

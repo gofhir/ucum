@@ -45,7 +45,9 @@ var (
 	ErrCodeTooComplex = ucumerr.ErrCodeTooComplex
 
 	// ErrExponentTooLarge is returned for an exponent whose magnitude exceeds
-	// MaxExponent.
+	// MaxExponent, and for a canonical exponent that does not fit in an int,
+	// which a chain of custom definitions can reach (UCUM §19 ■1: an
+	// implementation need not represent every dimension).
 	ErrExponentTooLarge = ucumerr.ErrExponentTooLarge
 
 	// ErrOutOfRange is returned by Canonical, Convert, Multiply and Divide when

@@ -85,7 +85,9 @@ var (
 	ErrCodeTooComplex = errors.New("code is nested too deeply")
 
 	// ErrExponentTooLarge is returned for an exponent whose magnitude exceeds
-	// MaxExponent.
+	// MaxExponent, and for a canonical exponent that does not fit in an int,
+	// which a chain of custom definitions can reach (UCUM §19 ■1: an
+	// implementation need not represent every dimension).
 	ErrExponentTooLarge = errors.New("exponent is too large")
 )
 
