@@ -2,6 +2,7 @@ package fhir
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -152,10 +153,12 @@ func (d Decimal) round(n int) string {
 	}
 	out := d.value.FloatString(places)
 
-	// FloatString rounds to the requested places, which can carry into a new
-	// leading digit (9.99 to three figures is 10.0, not 10.00).
-	if rounded, ok := new(big.Rat).SetString(out); ok && decimalExponent(rounded) != exp && rounded.Sign() != 0 {
-		places = n - decimalExponent(rounded)
+	// FloatString redondea a los lugares pedidos, y eso puede llevar a un dígito
+	// inicial nuevo (9.99 con tres cifras es 10.0, no 10.00). El exponente del
+	// texto redondeado se lee del propio texto: volver a analizarlo costaría
+	// una división por dígito.
+	if re, ok := textExponent(out); ok && re != exp {
+		places = n - re
 		if places < 0 {
 			places = 0
 		}
@@ -183,36 +186,89 @@ func (d Decimal) scientific(n, exp int) string {
 
 // mantissa divides the value down to [1,10) and renders it to n significant
 // figures, reporting whether rounding carried it up to 10.
+//
+// The mantissa is the integer num / (den * 10^(exp-n)), with exp > n, rounded
+// like big.Rat.FloatString: up when twice the remainder reaches the divisor, on
+// the magnitude, and the sign applied afterwards. One integer division replaces
+// a rational quotient that would reduce by the greatest common divisor.
 func (d Decimal) mantissa(n, exp int) (string, bool) {
-	shift := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exp-1)), nil))
-	out := new(big.Rat).Quo(d.value, shift).FloatString(n - 1)
-	if r, ok := new(big.Rat).SetString(out); ok {
-		if new(big.Rat).Abs(r).Cmp(big.NewRat(10, 1)) >= 0 {
-			return out, true
-		}
+	num := new(big.Int).Abs(d.value.Num())
+	den := new(big.Int).Mul(d.value.Denom(), new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exp-n)), nil))
+	q, rem := new(big.Int).QuoRem(num, den, new(big.Int))
+	if rem.Lsh(rem, 1).Cmp(den) >= 0 {
+		q.Add(q, big.NewInt(1))
 	}
-	return out, false
+	out := q.String()
+	carried := len(out) > n
+	if n > 1 {
+		out = out[:1] + "." + out[1:]
+	}
+	if d.value.Sign() < 0 {
+		out = "-" + out
+	}
+	return out, carried
 }
+
+// textExponent reads the position of the leading significant digit from the
+// decimal text of FloatString, with the same meaning as decimalExponent. It
+// reports false when the text has no non-zero digit.
+func textExponent(s string) (int, bool) {
+	s = strings.TrimPrefix(s, "-")
+	point := strings.IndexByte(s, '.')
+	if point < 0 {
+		point = len(s)
+	}
+	first := strings.IndexFunc(s, func(c rune) bool { return c >= '1' && c <= '9' })
+	switch {
+	case first < 0:
+		return 0, false
+	case first < point:
+		return point - first, true
+	}
+	// Ceros después del punto: 0.05 está en [0.01, 0.1), posición -1.
+	return point - first + 1, true
+}
+
+// exponentCorrection is a test hook: decimalExponent calls it when the
+// estimate needs a correction, with up true for a correction toward a larger
+// exponent. It is nil in production.
+var exponentCorrection func(up bool)
 
 // decimalExponent returns the position of the leading significant digit: 1 for
 // values in [1,10), 2 for [10,100), 0 for [0.1,1), and so on.
+//
+// The estimate comes from the bit lengths of numerator and denominator, and
+// exact integer comparisons correct it, so the cost is a few multiplications and
+// not one division per digit. The estimate is off by one at most; the
+// corrections are loops so that the result does not rest on that bound, which
+// float64 already meets for every bit length a value can have.
 func decimalExponent(r *big.Rat) int {
 	if r.Sign() == 0 {
 		return 1
 	}
-	abs := new(big.Rat).Abs(r)
-	exp := 0
-	ten := big.NewRat(10, 1)
-	one := big.NewRat(1, 1)
-	for abs.Cmp(one) >= 0 {
-		abs.Quo(abs, ten)
-		exp++
-	}
-	for abs.Cmp(big.NewRat(1, 10)) < 0 {
-		abs.Mul(abs, ten)
+	num, den := r.Num(), r.Denom()
+	exp := int(math.Floor(float64(num.BitLen()-den.BitLen())*math.Log10(2))) + 1
+	for !atLeastPow10(num, den, exp-1) {
+		if exponentCorrection != nil {
+			exponentCorrection(false)
+		}
 		exp--
 	}
+	for atLeastPow10(num, den, exp) {
+		if exponentCorrection != nil {
+			exponentCorrection(true)
+		}
+		exp++
+	}
 	return exp
+}
+
+// atLeastPow10 reports whether |num| >= 10^k * den, with den positive.
+func atLeastPow10(num, den *big.Int, k int) bool {
+	if k >= 0 {
+		return num.CmpAbs(new(big.Int).Mul(den, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(k)), nil))) >= 0
+	}
+	return new(big.Int).Mul(new(big.Int).Abs(num), new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(-k)), nil)).Cmp(den) >= 0
 }
 
 // Arithmetic on Decimal keeps the value exact and propagates the declared
