@@ -941,6 +941,28 @@ MUTATIONS = [
     ("K223", "wrapExpand does not record the unit whose definition overflows",
      [(CAN, "\t\tif ee.code == \"\" {\n\t\t\tee.code = code\n\t\t}\n", "")],
      EXP_TESTS, "kill", "./", False),
+    ("K224", "decimalExponent without the upward correction loop",
+     [(DEC, "\tfor atLeastPow10(num, den, exp) {", "\tfor false && atLeastPow10(num, den, exp) {")],
+     "^TestDecimal(Exp|String)", "kill"),
+    ("K225", "decimalExponent without the downward correction loop",
+     [(DEC, "\tfor !atLeastPow10(num, den, exp-1) {", "\tfor false && !atLeastPow10(num, den, exp-1) {")],
+     "^TestDecimal(Exp|String)", "kill"),
+    # Equivalente: con e0 = floor((bn-bd)*log10 2)+1 el exponente verdadero está
+    # en e0-1..e0+1 y el borde de float64 no suma otro paso (la estimación nunca cae
+    # a menos de un float64 de un entero, salvo bn=bd donde es exacta), así que la
+    # corrección hacia arriba nunca corre dos veces y el bucle equivale a un if.
+    ("K226", "decimalExponent corrects upward with one fixed step instead of a loop (equivalent)",
+     [(DEC, "\tfor atLeastPow10(num, den, exp) {", "\tif atLeastPow10(num, den, exp) {")],
+     "^TestDecimal(Exp|String)", "survive"),
+    ("K227", "decimalExponent treats a value equal to a power of ten as below it (> instead of >=)",
+     [(DEC, "big.NewInt(int64(k)), nil))) >= 0", "big.NewInt(int64(k)), nil))) > 0")],
+     "^TestDecimal(Exp|String)", "kill"),
+    ("K228", "mantissa rounds exact halves to even",
+     [(DEC, "\tif rem.Lsh(rem, 1).Cmp(den) >= 0 {", "\tif c := rem.Lsh(rem, 1).Cmp(den); c > 0 || c == 0 && q.Bit(0) == 1 {")],
+     "^TestDecimal(Exp|String)", "kill"),
+    ("K229", "textExponent reads the exponent of the rounded text one position off",
+     [(DEC, "\tcase first < point:\n\t\treturn point - first, true", "\tcase first < point:\n\t\treturn point - first + 1, true")],
+     "^TestDecimal(Exp|String)", "kill"),
 ]
 
 
