@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.11](https://github.com/gofhir/ucum/compare/v4.4.10...v4.4.11) (2026-11-09)
+
+
+### Bug Fixes
+
+* render fhir decimals in time linear in their exponent ([f6f5cc8](https://github.com/gofhir/ucum/commit/f6f5cc86530531c5973b8cebf461cbeeb3fb23d5))
+
 ## [4.4.10](https://github.com/gofhir/ucum/compare/v4.4.9...v4.4.10) (2026-11-06)
 
 
