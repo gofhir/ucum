@@ -1,11 +1,12 @@
 # Punto de reanudación
 
-**Incremento activo:** [020 — `fhir.Decimal` cuadrático en el exponente decimal](020-decimal-string.md),
-paso 9 (cierre), rama `fix/decimal-string`: review convergido en la ronda 1, checks en verde. En pausa:
+**Incremento activo:** ninguno; el siguiente es 021 (`Log10Rat`). En pausa:
 [019 — el costo de los racionales exactos sin cota](019-exact-cost.md), dos rondas
 del plan sin converger; el usuario eligió el 2026-11-06 hacer antes tres arreglos
 chicos (020 `fhir.Decimal.String`, 021 `Log10Rat`, 022 las entradas de dos códigos)
 y retomar 019 con la tercera ronda. Cerrados:
+- [020 — `fhir.Decimal` cuadrático en el exponente decimal](020-decimal-string.md):
+  cerrado e integrado el 2026-11-07 (#108).
 - [018 — el exponente canónico desborda `int` sin error](018-exponent-overflow.md):
   cerrado e integrado el 2026-11-06 (#105).
 - [017 — una definición compartida se expande una vez](017-definition-dag.md):
@@ -43,7 +44,7 @@ y retomar 019 con la tercera ronda. Cerrados:
 - [002 — Comparación ejecutable contra Ucum-java](002-compare-java.md):
   cerrado e integrado el 2026-10-27 (#60).
 
-**Próximo paso:** commit `fix:` de 020 con el sí del usuario, push y PR (los corre el usuario), release 4.4.11; después 021 (`Log10Rat`). Pendiente nuevo (020 §10): `CanonicalKey` de un `Exact` diminuto tarda más de 20 s en el mensaje de `Quantity.exactError` (`big.Float.Text`); y 9.5 con una cifra da `"10"` (020 §7). Siguiente frente: 019, el costo de los racionales exactos: con el XML oficial `'1000.'1000.'1000.'1000.'1000` (29 bytes) tarda 1.9 s (018 §6). `Validate`/`Analyze` de una unidad cíclica no es un defecto (2026-11-05): `Validate` es sintáctico por diseño y toda definición rota de un XML propio (ciclo, unidad desconocida, sintaxis) se detecta al canonicalizar; validarlas al cargar costaría ~40 % de `New` (0.71 ms sobre 1.74 ms) y cambiaría el contrato, documentado en el README. Token de release-please (2026-11-05): evaluado y postergado, el truco de cerrar y reabrir cuesta un comando por release; retomar con una GitHub App si las releases dejan de ser manuales o se suman repos. Un PR de release-please no dispara el CI (lo abre `GITHUB_TOKEN`) y el ruleset lo bloquea: cerrarlo y reabrirlo lo dispara (#93). Pendientes sin issue: el signo del cero (010 §10; 011 §12); los de 014 §6 (tangente a tangente, ángulo diminuto); las citas de temperatura de 012 dicen §21-22 y los orígenes están en §30 ■4 y §43 (013 §6); los límites de 012 §6. v4.4.10 publicada el 2026-11-06 (#106). CI y `make check` usan golangci-lint 2.15.0 (`GOLANGCI_LINT_VERSION`). Los defectos de Ucum-java quedaron
+**Próximo paso:** abrir 021 (`Log10Rat` cuadrático, 019 §10 ronda 1) con la revisión previa. Go mínimo 1.26 desde el 2026-11-09 (las dos versiones con soporte, 1.26 y 1.27; CI con 1.26 y stable). Pendiente nuevo (020 §10): `CanonicalKey` de un `Exact` diminuto tarda más de 20 s en el mensaje de `Quantity.exactError` (`big.Float.Text`); y 9.5 con una cifra da `"10"` (020 §7). Siguiente frente: 019, el costo de los racionales exactos: con el XML oficial `'1000.'1000.'1000.'1000.'1000` (29 bytes) tarda 1.9 s (018 §6). `Validate`/`Analyze` de una unidad cíclica no es un defecto (2026-11-05): `Validate` es sintáctico por diseño y toda definición rota de un XML propio (ciclo, unidad desconocida, sintaxis) se detecta al canonicalizar; validarlas al cargar costaría ~40 % de `New` (0.71 ms sobre 1.74 ms) y cambiaría el contrato, documentado en el README. Token de release-please (2026-11-05): evaluado y postergado, el truco de cerrar y reabrir cuesta un comando por release; retomar con una GitHub App si las releases dejan de ser manuales o se suman repos. Un PR de release-please no dispara el CI (lo abre `GITHUB_TOKEN`) y el ruleset lo bloquea: cerrarlo y reabrirlo lo dispara (#93). Pendientes sin issue: el signo del cero (010 §10; 011 §12); los de 014 §6 (tangente a tangente, ángulo diminuto); las citas de temperatura de 012 dicen §21-22 y los orígenes están en §30 ■4 y §43 (013 §6); los límites de 012 §6. v4.4.11 publicada el 2026-11-09 (#109). CI y `make check` usan golangci-lint 2.15.0 (`GOLANGCI_LINT_VERSION`). Los defectos de Ucum-java quedaron
 redactados en [002-java-issues.md](002-java-issues.md), sin publicar.
 Issues abiertos: ninguno propio (#75 cerrado por 011; PR #53 espera a su autor).
 **Integrado:** PR #88, *rebase and merge* en `main` (2026-11-02): `fix:` (plan 013, negativos en `sqrt`) y `ci:` (golangci-lint 2.15.0);
