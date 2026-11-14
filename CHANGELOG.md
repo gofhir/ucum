@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.0](https://github.com/gofhir/ucum/compare/v4.4.11...v4.5.0) (2026-11-14)
+
+
+### Features
+
+* require Go 1.26, the oldest release still supported ([1c2290b](https://github.com/gofhir/ucum/commit/1c2290bf06fc7a2265d256996b91c39a3a92ef0d))
+
 ## [4.4.11](https://github.com/gofhir/ucum/compare/v4.4.10...v4.4.11) (2026-11-09)
 
 
