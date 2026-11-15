@@ -173,6 +173,9 @@ func (c *Comparator) Compare(a, b Quantity) (int, error) {
 	if err := checkFinite(a, b); err != nil {
 		return 0, err
 	}
+	if err := c.validatePair(a, b); err != nil {
+		return 0, err
+	}
 	ra, rb, err := c.canonicalPair(a, b)
 	if err != nil {
 		return 0, err
@@ -201,6 +204,16 @@ func (c *Comparator) Compare(a, b Quantity) (int, error) {
 	default:
 		return 0, nil
 	}
+}
+
+// validatePair analiza el código de a y después el de b, antes de expandir
+// ninguno: un error de sintaxis de b no espera a la expansión de a, y el error
+// sigue el orden de la llamada.
+func (c *Comparator) validatePair(a, b Quantity) error {
+	if err := c.svc.Validate(a.Code); err != nil {
+		return err
+	}
+	return c.svc.Validate(b.Code)
 }
 
 // canonicalPair maps both quantities onto their canonical scales exactly. It
@@ -319,7 +332,9 @@ func (c *Comparator) ConvertDecimal(d Decimal, from, to string) (Decimal, error)
 // It fails with ErrNotFinite if either Value is NaN or ±Inf with no Exact,
 // before anything else about the units; with ucum.ErrNotLinear if either
 // quantity sits on a non-ratio scale — see the note on Sub — and with an error
-// if the units are not comparable.
+// if the units are not comparable. A code that fails is reported as a
+// ConversionError from b's unit to a's, in the order of that conversion: the
+// syntax of b, the syntax of a, then the expansion of b and of a.
 func (c *Comparator) Add(a, b Quantity) (Quantity, error) {
 	return c.additive(a, b, true)
 }

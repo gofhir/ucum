@@ -31,12 +31,12 @@ var (
 )
 
 // ConversionFactor returns the exact multiplicative factor from -> to.
+//
+// Errors come in the order of Convert: the syntax of from, the syntax of to,
+// then the expansion of from and of to. A special unit is ErrNotLinear, decided
+// from the syntax alone, so it comes before either expansion.
 func (s *Service) ConversionFactor(from, to string) (*big.Rat, error) {
-	srcTerm, srcCan, err := s.canonicalParts(from)
-	if err != nil {
-		return nil, ucumerr.Conversion(from, to, err)
-	}
-	dstTerm, dstCan, err := s.canonicalParts(to)
+	srcTerm, dstTerm, _, err := s.parsePair(from, to)
 	if err != nil {
 		return nil, ucumerr.Conversion(from, to, err)
 	}
@@ -50,6 +50,15 @@ func (s *Service) ConversionFactor(from, to string) (*big.Rat, error) {
 		return nil, fmt.Errorf("ucum: %q: %w", to, ErrNotLinear)
 	}
 
+	srcCan, err := s.canonicalOf(srcTerm)
+	if err != nil {
+		return nil, ucumerr.Conversion(from, to, err)
+	}
+	dstCan, err := s.canonicalOf(dstTerm)
+	if err != nil {
+		return nil, ucumerr.Conversion(from, to, err)
+	}
+
 	if err := requireComparable(from, to, srcCan, dstCan); err != nil {
 		return nil, err
 	}
@@ -60,16 +69,24 @@ func (s *Service) ConversionFactor(from, to string) (*big.Rat, error) {
 }
 
 // ConvertRat converts an exact value from one unit to another.
+//
+// A nil value is reported first. The unit errors then come in the order of
+// Convert: the syntax of from, the syntax of to, then the expansion of from and
+// of to.
 func (s *Service) ConvertRat(value *big.Rat, from, to string) (*big.Rat, error) {
 	if value == nil {
 		return nil, fmt.Errorf("ucum: ConvertRat: %w", ErrNilValue)
 	}
 
-	srcTerm, srcCan, err := s.canonicalParts(from)
+	srcTerm, dstTerm, _, err := s.parsePair(from, to)
 	if err != nil {
 		return nil, ucumerr.Conversion(from, to, err)
 	}
-	dstTerm, dstCan, err := s.canonicalParts(to)
+	srcCan, err := s.canonicalOf(srcTerm)
+	if err != nil {
+		return nil, ucumerr.Conversion(from, to, err)
+	}
+	dstCan, err := s.canonicalOf(dstTerm)
 	if err != nil {
 		return nil, ucumerr.Conversion(from, to, err)
 	}

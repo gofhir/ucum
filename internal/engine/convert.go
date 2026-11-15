@@ -97,11 +97,52 @@ func (s *Service) canonicalParts(code string) (*expr.Term, *model.Canonical, err
 	if err != nil {
 		return nil, nil, err
 	}
-	can, err := s.canonicalizeTerm(t, s.specialContextOf(t), 0)
+	can, err := s.canonicalOf(t)
 	if err != nil {
 		return nil, nil, err
 	}
 	return t, can, nil
+}
+
+// canonicalOf es la forma canónica de un código ya analizado.
+func (s *Service) canonicalOf(t *expr.Term) (*model.Canonical, error) {
+	return s.canonicalizeTerm(t, s.specialContextOf(t), 0)
+}
+
+// parsePair analiza los dos códigos antes de expandir ninguno, para que un
+// error de sintaxis del segundo no espere a la expansión del primero. Devuelve
+// el error sin envolver y el código que falló, con el que quien llama lo
+// envuelve.
+func (s *Service) parsePair(code1, code2 string) (t1, t2 *expr.Term, bad string, err error) {
+	if t1, err = s.parseCached(code1); err != nil {
+		return nil, nil, code1, err
+	}
+	if t2, err = s.parseCached(code2); err != nil {
+		return nil, nil, code2, err
+	}
+	return t1, t2, "", nil
+}
+
+// pairParts son los AST y las formas canónicas de dos códigos.
+type pairParts struct {
+	t1, t2     *expr.Term
+	can1, can2 *model.Canonical
+}
+
+// canonicalPairParts es canonicalParts para dos códigos, con el orden de
+// parsePair: la sintaxis de los dos y después la expansión del primero y la del
+// segundo. En un error, bad es el código que falló.
+func (s *Service) canonicalPairParts(code1, code2 string) (p pairParts, bad string, err error) {
+	if p.t1, p.t2, bad, err = s.parsePair(code1, code2); err != nil {
+		return pairParts{}, bad, err
+	}
+	if p.can1, err = s.canonicalOf(p.t1); err != nil {
+		return pairParts{}, code1, err
+	}
+	if p.can2, err = s.canonicalOf(p.t2); err != nil {
+		return pairParts{}, code2, err
+	}
+	return p, "", nil
 }
 
 // zeroAlphaDestination reports whether t is a special unit whose scale factor α
@@ -199,7 +240,14 @@ func (s *Service) Convert(value float64, from, to string) (float64, error) {
 }
 
 // IsComparable returns true if the two unit codes have the same canonical units.
+//
+// Errors come in the order of Convert: the syntax of code1, the syntax of
+// code2, then the expansion of code1 and of code2. A syntax error in code2 is
+// reported without expanding code1.
 func (s *Service) IsComparable(code1, code2 string) (bool, error) {
+	if _, _, bad, err := s.parsePair(code1, code2); err != nil {
+		return false, ucumerr.Validation(bad, err)
+	}
 	can1, err := s.getCanonical(code1)
 	if err != nil {
 		return false, ucumerr.Validation(code1, err)
@@ -233,14 +281,11 @@ func (s *Service) Divide(v1, v2 Pair) (Pair, error) {
 // allow it. Where they do not, and on the float64 fallback, the result stays in
 // the canonical unit.
 func (s *Service) combine(v1, v2 Pair, op expr.Operator) (Pair, error) {
-	t1, can1, err := s.canonicalParts(v1.Code)
+	parts, bad, err := s.canonicalPairParts(v1.Code, v2.Code)
 	if err != nil {
-		return Pair{}, ucumerr.Validation(v1.Code, err)
+		return Pair{}, ucumerr.Validation(bad, err)
 	}
-	t2, can2, err := s.canonicalParts(v2.Code)
-	if err != nil {
-		return Pair{}, ucumerr.Validation(v2.Code, err)
-	}
+	t1, can1, t2, can2 := parts.t1, parts.can1, parts.t2, parts.can2
 
 	div := op == expr.OpDivision
 	if div && can2.Value.IsZero() {
