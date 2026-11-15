@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.1](https://github.com/gofhir/ucum/compare/v4.5.0...v4.5.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* compute Log10Rat in subquadratic time ([3d4ffe0](https://github.com/gofhir/ucum/commit/3d4ffe06ee029fbb4e4ed1f857f35f270c337c98))
+
 ## [4.5.0](https://github.com/gofhir/ucum/compare/v4.4.11...v4.5.0) (2026-11-14)
 
 
