@@ -63,6 +63,8 @@ ZERO_TESTS = "^TestZeroPrefix"
 DAG_TESTS = "^TestDag"
 EXP_TESTS = "^TestExpOverflow"
 TAN_TESTS = "^Test(Tan|JavaOracleKnowsTheTanDomain)"
+LOG10_TESTS = "^Test(StripTens|Log10Rat)"
+DM = "internal/decimal/decimal.go"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
 TAN_PRE = ("\tif tangent {\n\t\tif r != nil {\n\t\t\tif new(big.Rat).Abs(r).Cmp(halfPi) >= 0 {\n\t\t\t\treturn 0, ucumerr.ErrOutOfDomain\n\t\t\t}\n"
            "\t\t} else if x.log {\n"
@@ -963,6 +965,61 @@ MUTATIONS = [
     ("K229", "textExponent reads the exponent of the rounded text one position off",
      [(DEC, "\tcase first < point:\n\t\treturn point - first, true", "\tcase first < point:\n\t\treturn point - first + 1, true")],
      "^TestDecimal(Exp|String)", "kill"),
+    ("K230", "stripTens climbs without the descent",
+     [(DM, "\tfor i := len(pows) - 2; i >= 0; i-- {", "\tfor i := len(pows) - 2; false && i >= 0; i-- {")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K231", "stripTens descent stops before 10^1",
+     [(DM, "\tfor i := len(pows) - 2; i >= 0; i-- {", "\tfor i := len(pows) - 2; i >= 1; i-- {")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K232", "stripTens descent starts at the power that just failed",
+     [(DM, "\tfor i := len(pows) - 2; i >= 0; i-- {", "\tfor i := len(pows) - 1; i >= 0; i-- {")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K233", "stripTens without the shortcut for an odd n",
+     [(DM, "\tif n.Sign() == 0 || n.Bit(0) == 1 {", "\tif n.Sign() == 0 {")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K234", "stripTens back to one division by 10 per ten",
+     [(DM, "\tpows := []*big.Int{big.NewInt(10)}\n", "\tfor divide(big.NewInt(10)) {\n\t\ttens++\n\t}\n\tif true {\n\t\treturn n, tens\n\t}\n\tpows := []*big.Int{big.NewInt(10)}\n")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K235", "Log10Rat back to SetRat(SetFrac(...)) and its gcd",
+     [(DM, "\tf := new(big.Float).SetPrec(64).Quo(new(big.Float).SetInt(num), new(big.Float).SetInt(den))", "\tf := new(big.Float).SetPrec(64).SetRat(new(big.Rat).SetFrac(num, den))")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K236", "Log10Rat divides with the precision of the operands instead of 64 bits",
+     [(DM, "\tf := new(big.Float).SetPrec(64).Quo(", "\tf := new(big.Float).Quo(")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    # Equivalente en la salida y dentro de la cota de divisiones: sin el corte,
+    # la subida eleva al cuadrado una potencia que no puede dividir a n, y eso
+    # cuesta una multiplicación, divisiones que fallan y memoria (plan 021 §3).
+    ("K237", "stripTens squares a power longer than n (extra work only, equivalent)",
+     [(DM, "\t\tif p.BitLen() > n.BitLen() {\n\t\t\tbreak\n\t\t}\n", "")],
+     LOG10_TESTS, "survive", "./internal/decimal/", False),
+    ("K239", "Log10Rat divides with 65 bits instead of 64",
+     [(DM, "\tf := new(big.Float).SetPrec(64).Quo(", "\tf := new(big.Float).SetPrec(65).Quo(")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K240", "Log10Rat divides with 63 bits instead of 64",
+     [(DM, "\tf := new(big.Float).SetPrec(64).Quo(", "\tf := new(big.Float).SetPrec(63).Quo(")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K241", "Log10Rat truncates the 64-bit quotient instead of rounding to nearest",
+     [(DM, "\tf := new(big.Float).SetPrec(64).Quo(", "\tf := new(big.Float).SetPrec(64).SetMode(big.ToZero).Quo(")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K242", "Log10Rat rounds the numerator to 64 bits before dividing",
+     [(DM, "Quo(new(big.Float).SetInt(num), ", "Quo(new(big.Float).SetPrec(64).SetInt(num), ")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K243", "Log10Rat rounds the denominator to 64 bits before dividing",
+     [(DM, ", new(big.Float).SetInt(den))", ", new(big.Float).SetPrec(64).SetInt(den))")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K244", "Log10Rat rounds the numerator to 128 bits before dividing",
+     [(DM, "Quo(new(big.Float).SetInt(num), ", "Quo(new(big.Float).SetPrec(128).SetInt(num), ")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K245", "Log10Rat rounds the denominator to 128 bits before dividing",
+     [(DM, ", new(big.Float).SetInt(den))", ", new(big.Float).SetPrec(128).SetInt(den))")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K246", "Log10Rat rounds both operands to 128 bits before dividing",
+     [(DM, "Quo(new(big.Float).SetInt(num), new(big.Float).SetInt(den))",
+       "Quo(new(big.Float).SetPrec(128).SetInt(num), new(big.Float).SetPrec(128).SetInt(den))")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
+    ("K238", "Log10Rat strips the tens of the denominator of r in place",
+     [(DM, "stripTens(new(big.Int).Set(r.Denom()))", "stripTens(r.Denom())")],
+     LOG10_TESTS, "kill", "./internal/decimal/", False),
 ]
 
 
