@@ -1,6 +1,6 @@
 # 021 — `Log10Rat` cuadrático en la cantidad de dígitos
 
-**Estado:** paso 9 (cierre). La ronda 3 del code review no convergió y el usuario eligió probar el cociente directamente, sin una cuarta ronda (§10). `make check`, `make check-packages` y `make compare-java` en verde (2026-11-14; el informe de compare-java es idéntico al de 2026-11-03). Falta el commit, que aprueba el usuario.
+**Estado:** cerrado e integrado el 2026-11-14 (#112, v4.5.1). La ronda 3 del code review no convergió y el usuario eligió probar el cociente directamente, sin una cuarta ronda (§10). `make check`, `make check-packages` y `make compare-java` en verde (2026-11-14; el informe de compare-java es idéntico al de 2026-11-03).
 
 ## 1. Problema
 
