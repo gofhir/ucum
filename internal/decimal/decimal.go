@@ -154,6 +154,9 @@ func MulExact(value float64, factor *big.Rat) float64 {
 // a power of ten gives its exponent exactly on every platform: math.Log is not
 // correctly rounded, and on amd64 log10 of the mantissa of 10^-920 plus its
 // exponent comes out as -920.0000000000001.
+//
+// Its cost is subquadratic in the number of digits of r: a few big.Int
+// divisions, with no greatest common divisor.
 func Log10Rat(r *big.Rat) float64 {
 	if r.Sign() == 0 {
 		return math.Inf(-1)
@@ -164,24 +167,65 @@ func Log10Rat(r *big.Rat) float64 {
 	if num.Cmp(den) == 0 {
 		return tens
 	}
-	f := new(big.Float).SetPrec(64).SetRat(new(big.Rat).SetFrac(num, den))
 	mant := new(big.Float)
-	exp := f.MantExp(mant)
+	exp := quotient64(num, den).MantExp(mant)
 	m, _ := mant.Float64()
 	return tens + (math.Log10(m) + float64(exp)*math.Log10(2))
 }
 
-// stripTens divide n por 10 mientras se pueda y dice cuántas veces lo hizo.
+// quotient64 es num/den redondeado una vez a 64 bits, al más cercano y en un
+// empate al par: el mismo cociente que hace Float.SetRat. Como num y den ya son
+// coprimos, pasar por SetFrac(num, den) repetiría el máximo común divisor.
+func quotient64(num, den *big.Int) *big.Float {
+	f := new(big.Float).SetPrec(64).Quo(new(big.Float).SetInt(num), new(big.Float).SetInt(den))
+	return f
+}
+
+// stripTensDivision es un gancho de test: stripTens lo llama una vez por cada
+// división que hace.
+var stripTensDivision func()
+
+// stripTens quita de n los ceros finales y dice cuántos eran. Los cuenta con
+// las potencias 10^(2^j): sube dividiendo por 10, 10^2, 10^4 y siguientes
+// mientras la división sea exacta y después baja de la mayor a la menor
+// dividiendo por cada una que entra. Si quedan v diez tras fallar en 10^(2^j), v < 2^j y la
+// bajada los quita en binario: son O(log t) cocientes, no uno por cada diez.
+// Un n impar o cero sale sin dividir. Modifica n.
 func stripTens(n *big.Int) (rest *big.Int, tens int) {
-	ten := big.NewInt(10)
+	if n.Sign() == 0 || n.Bit(0) == 1 {
+		return n, 0
+	}
+	// divide hace n/p; si es exacta, deja el cociente en n y devuelve true.
 	q, m := new(big.Int), new(big.Int)
-	for n.Sign() != 0 {
-		q.QuoRem(n, ten, m)
+	divide := func(p *big.Int) bool {
+		q.QuoRem(n, p, m)
+		if stripTensDivision != nil {
+			stripTensDivision()
+		}
 		if m.Sign() != 0 {
-			break
+			return false
 		}
 		n, q = q, n
-		tens++
+		return true
+	}
+	pows := []*big.Int{big.NewInt(10)}
+	for {
+		p := pows[len(pows)-1]
+		if !divide(p) {
+			break
+		}
+		tens += 1 << (len(pows) - 1)
+		// Una potencia más larga que n no lo divide: no se eleva al cuadrado.
+		if p.BitLen() > n.BitLen() {
+			break
+		}
+		pows = append(pows, new(big.Int).Mul(p, p))
+	}
+	// Quedan menos de 2^(len-1) diez: la bajada los quita en binario.
+	for i := len(pows) - 2; i >= 0; i-- {
+		if divide(pows[i]) {
+			tens += 1 << i
+		}
 	}
 	return n, tens
 }
