@@ -168,12 +168,15 @@ type ExactService interface {
 	// ConversionFactor returns the exact factor to multiply a value in `from`
 	// by to obtain the value in `to`. It fails with ErrNotLinear if either unit
 	// is special, and with an error if the units are not commensurable. The
-	// result can be cached and composed by the caller.
+	// result can be cached and composed by the caller. Errors come in the order
+	// of Convert: the syntax of from, the syntax of to, then the expansion of
+	// from and of to; ErrNotLinear is decided before either expansion.
 	ConversionFactor(from, to string) (*big.Rat, error)
 
 	// ConvertRat converts an exact value between units, including the affine
 	// temperature scales. It fails with ErrNotRational when the mapping has no
-	// exact rational form.
+	// exact rational form. A nil value is reported first; the unit errors then
+	// follow the order of ConversionFactor.
 	ConvertRat(value *big.Rat, from, to string) (*big.Rat, error)
 
 	// CanonicalRat returns the exact canonical (base-unit) form of a value.
