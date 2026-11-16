@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.2](https://github.com/gofhir/ucum/compare/v4.5.1...v4.5.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* parse both codes before expanding either in two-code entry points ([5525b78](https://github.com/gofhir/ucum/commit/5525b78ec88c9182a658df987f0ae9789a1ba65b))
+
 ## [4.5.1](https://github.com/gofhir/ucum/compare/v4.5.0...v4.5.1) (2026-11-15)
 
 
