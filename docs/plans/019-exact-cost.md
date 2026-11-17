@@ -1,6 +1,6 @@
 # 019 — el costo de los racionales exactos sin cota
 
-**Estado:** en pausa en el paso 3, tras dos rondas del plan sin converger (§10). El usuario eligió el 2026-11-06 hacer antes 020, 021 y 022, y retomar con la tercera ronda.
+**Estado:** detenido en el paso 3 (2026-11-16). La tercera y última ronda del plan no convergió (§10, ronda 3); se consulta al usuario, sin cuarta ronda. El usuario había elegido el 2026-11-06 hacer antes 020, 021 y 022, ya cerrados; §3 se reescribió para la ronda 3.
 
 ## 1. Problema
 
@@ -77,123 +77,175 @@ del código.
 
 ## 3. Cambio
 
-> Reescrito tras la ronda 1 (§10): el presupuesto de trabajo no acotaba el
-> tiempo. El usuario eligió el 2026-11-06 el tope de tamaño con
-> normalización diferida.
+> Reescrito para la ronda 3 (2026-11-16). Lo que ya no está en este
+> incremento:
+> - `Log10Rat` cuadrático (ronda 1, alta 1): cerrado por 021 (#112).
+>   `Convert(1, "W.'1000.rad-1000", "B[W]")` tarda hoy 161 ms (3.0 s antes).
+> - Entradas de dos códigos que expandían antes de analizar (ronda 1, baja
+>   6): cerrado por 022 (#114).
+> - `fhir.Decimal.String` cuadrático (ronda 2, alta 1): cerrado por 020 (#108).
+> - **Partido** (ronda 2, media 8): la aritmética de `fhir` sobre valores del
+>   llamador (`ParseDecimal`, `Add`, `Mul`, `Quo`; ronda 2, baja 10) pasa a
+>   un incremento propio, 023, después de este. 019 queda en `decimal`,
+>   `engine`, `special` y la API exacta de la raíz.
+>
+> Medido hoy en `main` (v4.5.2, Go 1.27.2, arm64; sonda en el scratchpad):
+> `'1000` 52 ms, ×2 230 ms, ×3 556 ms, ×5 1.8 s, `'1000/'1000.'1000` 134 ms,
+> `Gb1000` 52 ms, `CanonicalRat(1, Ym1000×146)` 1.1 s.
 
-1. **Normalización diferida en `decimal`.** `Decimal` guarda numerador y
-   denominador (`big.Int`, signo en el numerador, denominador > 0) sin
-   exigir términos mínimos. `Mul`, `Div` y `Pow` solo multiplican (`Pow`
-   eleva cada uno con `Exp`; `Div` y un exponente negativo intercambian,
-   llevando el signo al numerador): ningún máximo común divisor.
-   - `Float64` divide sin reducir (el cociente es el mismo).
-   - `Sign`, `IsZero` y la comparación no necesitan reducir.
-   - `Rat()` reduce (un `SetFrac`), y es la única puerta hacia `big.Rat`:
-     las salidas exactas, la comparación con el valor del llamador y la
-     aritmética que hoy está en `engine`, `special` y `fhir` pasan por
-     `decimal` o reciben un valor ya bajo el tope.
-   - `IsInt` y `String` miran el valor reducido (ronda 1: `4/2` no es
-     `IsInt` sin reducir).
-   - El caché de definiciones (017) guarda el valor reducido: se reduce una
-     vez por definición.
-2. **Tope de tamaño exacto, `ErrValueTooLarge`.** Antes de cada producto,
-   cociente o potencia, `decimal` acota el tamaño del resultado por los bits
-   de los operandos (bits(a·b) ≤ bits(a)+bits(b); bits(aⁿ) ≤ n·bits(a)) y da
-   `ErrValueTooLarge` sin calcular si pasa del tope. El tope se aplica al
-   numerador y al denominador por separado, y a todo `*big.Rat` que entra
-   por la API exacta (el valor del llamador).
-   - Como el tamaño no depende del caché ni del orden, el resultado es
-     determinista (ronda 1, media 3).
-   - El tope sale de un requisito funcional, no de un reloj: **toda unidad
-     del XML oficial con exponente ±1000** (el máximo que admite el análisis
-     sintáctico) cabe, con margen. Se fija con un test que recorre el XML y
-     se documenta en bits; no hay opción pública (ronda 1, media 3).
-   - Con el tope, cada operación es un producto subcuadrático de números
-     acotados, y la llamada hace a lo sumo unas pocas reducciones (`Rat()`)
-     de números acotados.
-3. **`Log10Rat` en tiempo casi lineal.** Hoy quita los diez finales uno por
-   uno (`stripTens`, cuadrático, ronda 1 alta 1). Se reemplaza por la
-   estimación con `MantExp` del numerador y del denominador y una prueba
-   exacta de potencia de diez solo cuando la estimación cae cerca de un
-   entero.
-4. **`ConversionFactor` y las demás entradas de dos códigos** analizan los
-   dos códigos antes de expandir ninguno (ronda 1, baja 6).
-5. **Carga:** `decimal.FromString` acota el literal completo (dígitos de la
-   mantisa y exponente) con el mismo tope en bits; un literal que no cabe es
-   un error de carga que nombra la unidad o el prefijo. El XML oficial llega
-   a ±30 en el exponente y 74 bytes en el literal.
-6. **README:** la sección de límites explica el tope, qué códigos válidos
-   rechaza (patológicos: varios exponentes de cientos sobre unidades con
-   `[pi]`) y por qué (§19 ■1; el costo cuadrático del máximo común divisor).
+### 3.1 Normalización diferida en `decimal`
 
-Se descarta el atajo de `float64` del plan anterior: con la normalización
-diferida el valor fuera de rango ya no cuesta un máximo común divisor, y no
-ayudaba hacia destinos logarítmicos (ronda 1, baja 7).
+`Decimal` guarda numerador y denominador (`big.Int`, signo en el numerador,
+denominador > 0) sin exigir términos mínimos, más una marca `reduced`.
+
+- `Mul`, `Div` y `Pow` solo multiplican (`Pow` eleva cada uno con `Exp`;
+  `Div` y un exponente negativo intercambian y llevan el signo al
+  numerador): ningún máximo común divisor. `Add`/`Sub` (solo los usa la
+  escala de temperatura, con valores chicos) hacen a·d ± c·b sobre b·d.
+- `Sign`, `IsZero` y la comparación (a·d contra c·b) no reducen.
+- `Float64` divide sin reducir con un port de `quotToFloat64` de `math/big`
+  (un solo redondeo, también en los subnormales; ronda 2, media 6). Las
+  salidas `float64` (`Convert`, `Canonical`, `Multiply`, `Divide`, las
+  escalas especiales) **no hacen ningún máximo común divisor**.
+- `Rat()` reduce (un `SetFrac`) y es la única salida hacia `big.Rat`. La
+  marca evita reducir dos veces el mismo valor.
+- `IsInt` y `String` miran el valor reducido (ronda 1: `4/2` no es `IsInt`
+  sin reducir).
+- El caché de definiciones (017) guarda el valor reducido y, en un fallo,
+  devuelve esa misma copia reducida (ronda 2, alta 4): el tamaño visto no
+  depende del caché.
+
+### 3.2 La aritmética exacta de `engine` y `special` pasa a `decimal`
+
+Ronda 2, alta 2: hoy `exact.go`, `convert.go`, `product.go`, `range.go`,
+`engine.go` y `special.go` toman `Value.Rat()` (reducido) y encadenan
+`big.Rat.Mul`/`Quo`, cada uno con un máximo común divisor. Cada cadena pasa a
+operar sobre `Decimal` y sale una sola vez: a `float64` con `Float64` (sin
+reducir) o a `*big.Rat` con `Rat()` (una reducción) en las salidas de la API
+exacta (`ConversionFactor`, `ConvertRat`, `CanonicalRat`).
+
+- Sitios: los de `grep -n 'big.Rat' internal/engine internal/special`
+  (`convertRatCore`, `CanonicalRat`, `ConversionFactor`, `combine` y
+  `mappedRats`, `productResult`, `roundRat`/`linearTimes`, `halfPiOfPi`, los
+  handlers de `special`). La lista exacta va en el registro.
+- `MulExact` y `roundRat` reciben `Decimal` y redondean una vez con el port
+  de `quotToFloat64`.
+- **Presupuesto de reducciones:** a lo sumo **una** por llamada pública
+  exacta, sobre el resultado final; cero en las salidas `float64`. Se fija
+  con un contador interno de `decimal` (paquete `internal`, solo para tests)
+  y un test que lo lee en cada entrada pública (ronda 2, media 5).
+
+### 3.3 Tope de tamaño exacto, `ErrValueTooLarge`
+
+- `MaxValueBits = 1 << 19` (524 288). Antes de cada `Mul`, `Div` o `Pow`,
+  `decimal` acota el tamaño del resultado por los bits de los operandos
+  (bits(a·b) ≤ bits(a)+bits(b); bits(aⁿ) ≤ n·bits(a)), por separado en
+  numerador y denominador, y da `ErrValueTooLarge` sin calcular si pasa.
+- **Dónde se aplica:** a la expansión de **un** código (su valor canónico)
+  y a todo `*big.Rat` del llamador al entrar por la API exacta. El
+  cociente de dos lados ya acotados (`src/dst` en `ConversionFactor`,
+  `Convert`, `ConvertRat`, `IsComparable`/`combine`) no se vuelve a acotar:
+  queda bajo 2·`MaxValueBits` por construcción, y el de `ConvertRat`
+  (valor·src/dst) bajo 3·`MaxValueBits`.
+- **Por qué 2^19:** el requisito funcional es que toda unidad del XML
+  oficial, sola, con exponente ±1000 (el máximo de `MaxExponent`) quepa. El
+  máximo medido en la ronda 2 es `YLmb1000` con 306 k bits y `[cml_i]` ±1000
+  con 260 k: 2^19 deja 1.7× de margen. Las entradas de dos códigos que en la
+  ronda 2 sumaban 601 k (`YLmb1000` → `yLmb1000`) quedan cubiertas porque el
+  tope es por lado. 2^20 (lo que proponía (b)) cuadruplica el costo de cada
+  reducción final sin cubrir ningún código de una unidad más.
+- Determinista: el tamaño no depende del caché ni del orden (ronda 1,
+  media 3). Sin opción pública (ronda 1, media 6).
+- Los códigos que reducen bien pero pasan del tope sin reducir
+  (`'1000/'1000.'1000`, `[pi]1000/[pi]1000.[pi]1000/[pi]1000`) pasan a
+  fallar: el README los nombra y §5.1 los afirma (ronda 2, media 7).
+- `productCode` puede formar `'2000` (sobre `MaxExponent`) en `Multiply`
+  (ronda 2, baja 9): el tope lo acota igual que a un código; un test lo
+  afirma.
+
+### 3.4 Carga
+
+`decimal.FromString` acota el literal completo con el mismo tope en bits
+antes de calcular: dígitos de la mantisa (cota log2(10)·dígitos) y
+exponente (cota log2(10)·|e|). Rechaza la forma `"1/3"` que hoy acepta
+`SetString`. Un literal que no cabe es un error de carga que nombra la
+unidad o el prefijo. El XML oficial llega a ±30 en el exponente y 74 bytes.
+
+### 3.5 README
+
+La sección de límites explica `MaxValueBits`, qué códigos válidos rechaza
+(patológicos: exponentes de cientos sobre unidades con `[pi]`) y por qué
+(§19 ■1; el costo cuadrático del máximo común divisor).
 
 ## 4. Criterio de salida
 
-- **Tiempo acotado en todas las entradas públicas:** una sonda (no un test
-  unitario; ronda 1, media 4) con el XML oficial recorre formas de 1024
-  bytes (`'1000` repetido, alternado con cocientes, `Ym1000` ×146, productos
-  de unidades distintas con `[pi]`, destinos especiales y logarítmicos como
-  `B[W]`, `Multiply`/`Divide`, `ConvertRat` con un `*big.Rat` enorme) y
-  ninguna pasa de 1 s en la máquina de referencia. Su salida va a
+- **Tiempo acotado en todas las entradas públicas de la raíz:** una sonda
+  con el XML oficial recorre formas de 1024 bytes (`'1000` repetido,
+  alternado con cocientes, `Ym1000` ×146, productos de unidades distintas
+  con `[pi]`, destinos especiales y logarítmicos como `B[W]`,
+  `Multiply`/`Divide`, `ConvertRat` con un `*big.Rat` de `MaxValueBits`
+  bits) y ninguna pasa de 1 s en la máquina de referencia. Peor caso
+  esperado: una reducción de 3·2^19 bits en `ConvertRat`; se mide antes de
+  implementar y, si pasa de 1 s, se reduce el valor del llamador contra el
+  factor ya reducido en vez de reducir el producto. La salida va a
   `docs/plans/evidence/`.
-- Los resultados bajo el tope son idénticos a `main`: barrido del XML
-  oficial byte a byte (como 018) y `make compare-java`.
+- Resultados bajo el tope idénticos a `main`: barrido del XML oficial byte a
+  byte (como 018) y `make compare-java`.
 - Un XML con `value="1e1000000000"` o con una mantisa enorme: error de carga
   en milisegundos.
-- Sin costo en las rutas calientes: asignaciones y tiempo de los benchmarks
-  iguales o mejores.
+- Benchmarks: asignaciones y tiempo iguales o mejores.
 - `make check`, `make check-packages`, `make compare-java`, mutaciones
   completas.
 
 ## 5. Tests (primero)
 
-1. Los códigos de §1 y los de la ronda 1 (`W.'1000.rad-1000` → `B[W]`,
-   `Ym1000` ×146): el valor esperado por aritmética para los que caben, o
-   `ErrValueTooLarge`.
+1. Los códigos de §1 y de las rondas: el valor esperado por aritmética
+   (Python `fractions`) para los que caben, o `ErrValueTooLarge`, incluidos
+   `'1000/'1000.'1000` y el de `[pi]` de 3.3.
 2. El requisito del tope: toda unidad del XML oficial, sola, con exponente
-   +1000 y -1000, en `Canonical` y `CanonicalRat`, no da `ErrValueTooLarge`.
+   +1000 y -1000, en `Canonical`, `CanonicalRat` y como los dos lados de
+   `ConversionFactor` (`u1000` → `u1000` con otro prefijo), no da
+   `ErrValueTooLarge`.
 3. `decimal` contra `big.Rat` en miles de pares al azar y de borde (signos,
-   cero, denominador 1, exponentes negativos, `-2/3` a la -1): mismo valor
-   reducido en `Rat()`, mismo `Float64`, mismo `IsInt`, mismo `String`, misma
-   comparación.
-4. El tope: se aplica exactamente donde las cotas de bits lo dicen (a un bit
-   del borde, adentro y afuera); al valor del llamador; frío y caliente
-   iguales; concurrente (`-race`).
-5. `Log10Rat` contra la versión actual en potencias de diez exactas, vecinos
-   de potencias de diez y valores al azar.
-6. Carga: literales en el borde del tope, adentro y afuera; `"1/3"`.
-7. `fhir` y el servicio insensible con los mismos códigos.
+   cero, denominador 1, exponentes negativos, `-2/3` a la -1, 2/4 contra
+   1/2, operandos asimétricos): mismo `Rat()`, mismo `Float64` (con
+   subnormales y el caso 2^-1075·(1+2^-60)), mismo `IsInt`, mismo `String`,
+   misma comparación.
+4. El tope a un bit del borde, adentro y afuera, en `Mul`, `Div`, `Pow`, el
+   valor del llamador y `FromString`; frío y caliente iguales; concurrente
+   (`-race`).
+5. El presupuesto de reducciones de 3.2 en cada entrada pública.
+6. El servicio insensible con los mismos códigos.
 
 ## 6. Mutaciones previstas
 
 - `Pow` que no intercambia con exponente negativo, o deja el signo en el
-  denominador.
-- `Rat()` sin reducir; `IsInt` sobre el valor sin reducir.
-- El tope sin chequear en `Mul`, `Div`, `Pow` o en el valor del llamador; con
-  el borde corrido en uno.
-- `Log10Rat` sin la prueba exacta de potencia de diez.
-- `FromString` sin el tope.
-- Una entrada de dos códigos que vuelve a expandir antes de analizar.
+  denominador; `Div` que suma num+num.
+- `Rat()` sin reducir; `IsInt` sobre el valor sin reducir; `Float64` con
+  `big.Float(53).Quo`.
+- El tope sin chequear en `Mul`, `Div`, `Pow`, el valor del llamador o
+  `FromString`; con el borde corrido en uno.
+- Una cadena de 3.2 que vuelve a `big.Rat` (una reducción de más).
+- El caché que devuelve el valor sin reducir en un fallo.
 - Mutaciones completas.
 
 ## 7. Fuera de alcance
 
-- La base coprima de los valores del XML (ronda 1): más rápida pero más
-  invasiva; alternativa si el tope no basta.
+- 023: `fhir` sobre valores del llamador.
+- La base coprima de los valores del XML (ronda 1): alternativa si el tope
+  no basta.
 - El mensaje `invalid UCUM code "<operando>"` de `combine` (018 §10).
-- Los pendientes del punto de reanudación.
+- Los pendientes del punto de reanudación (021 §7, 022 §7, 020 §7).
 
 ## 8. Dependencias
 
-Ninguna.
+Ninguna. El port de `quotToFloat64` viene de la biblioteca estándar
+(licencia BSD, la misma del repo de Go) y cita su origen.
 
 ## 9. Versión
 
-`feat:` → 4.5.0: un sentinel nuevo (`ErrValueTooLarge`) y códigos válidos
-pero patológicos que pasan a dar error.
+`feat:` → 4.6.0: un sentinel y una constante nuevos (`ErrValueTooLarge`,
+`MaxValueBits`), y códigos válidos pero patológicos que pasan a dar error.
 
 ## 10. Ronda adversarial del plan
 
@@ -237,3 +289,37 @@ quedan bajo 300 ms salvo los de la tabla.
 | `fhir` `Mul`/`Quo`/`Add` sobre valores del llamador sin cota | a (baja) | Pendiente |
 
 Tras dos rondas sin converger, se consulta al usuario (queda una ronda).
+
+### Ronda 3 (2026-11-16), sobre el §3 reescrito
+
+Dos Codex sobre copias (pl019r3a, pl019r3b). (b) no pudo compilar Go en su
+sandbox y razonó con sondas en Python sobre el XML; (a) falló en la primera
+corrida y se relanzó, con sondas en Go
+(`pl019r3a/.cache/review019/evidence.txt`). Mis mediciones (Go 1.27.2,
+arm64): `SetFrac` de dos números al azar de 2^19 bits 128 ms, 2^20 517 ms,
+3·2^19 1.155 s.
+
+| Hallazgo | Revisor (severidad) | Resolución |
+|---|---|---|
+| El presupuesto de reducciones se contradice: en frío, expandir `'` normaliza las entradas del caché (`[pi].rad/360`, `deg/60`) antes de la salida, y en las salidas `float64` | b (alta) | Confirmado por lectura del §3.1 (el caché guarda valores reducidos) |
+| La cota de tamaño no cubre la aritmética de las escalas especiales: un valor del llamador de 2^19 bits más `273.15` pasa del tope por lado; con un XML propio, `CanonicalRat(v, qCel)` llega a 1.57 M bits | b (alta) | Confirmado en aritmética; sin reproducir por la API |
+| El requisito de 1 s no se cumple: la reducción de 3·2^19 bits de `ConvertRat` tarda 1.155 s; la alternativa del §4 hace más de una reducción, contra el §3.2 | b (alta) | **Confirmado** por mi medición |
+| `essence.go:147` cambia un valor de unidad inválido por `1` en silencio: acotar `FromString` no da el error de carga prometido | b (media) | **Confirmado** por lectura; defecto propio previo al plan |
+| `big.Rat.SetString` acepta `1p9999999` (10 M bits), `0x10`, `1_000` y `1/3`: rechazar solo `/` no basta | b (media) | **Confirmado** por sonda: hace falta una gramática decimal estricta |
+| Las cadenas alternadas de `'1000` se rechazan en el tercer término; `'1000/'1000` (igual a 1) ocupa 437 k bits por lado | b (media) | Confirmado en aritmética; esperado por el diseño, a fijar en tests |
+| La vía logarítmica depende de la representación: `Convert(1, "2.W/(25.10*310)", "B[W]")` da -311.09691001300803 en `main` y -311.09691001300808 con el factor sin reducir en `Log10Rat` (un ulp) | a (media) | Confirmado por sonda de (a) |
+| La cota previa de bits rechaza según la agrupación: `2.10*2.B` y `(2.10*2).(B)` dan el mismo entero de 524 288 bits en `main`; la cota rechaza el primero (estima 524 289) | a (media) | Confirmado por sonda de (a) |
+| La promesa de cero reducciones choca con `IsInt` (lo usa `integerExponent` en `Convert(·, "nB", "B")`) y con `productUnit.compose` (`Multiply` de `2/3` por `3/4` da `1/2`) | a (media) | Confirmado por sonda de (a) |
+
+Tras tres rondas sin converger, se detiene el incremento y se consulta al
+usuario (NUCLEO §10; sin cuarta ronda).
+
+**Decisión del usuario (2026-11-16).** Se achica 019: solo el arreglo de
+algoritmo que da los mismos resultados (`Pow` sin máximo común divisor,
+`Mul` con cancelación cruzada; §2) y el costo sin cota documentado como
+límite conocido en el README. El tope de tamaño queda para un rediseño que
+responda los hallazgos de la ronda 3. Antes, un incremento aparte (023)
+corrige los dos defectos de carga: el valor inválido que pasa a `1` y la
+gramática de `FromString`. La aritmética de `fhir` sobre valores del
+llamador queda pendiente, sin número.
+

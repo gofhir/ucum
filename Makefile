@@ -89,6 +89,7 @@ fuzz:
 	$(GO) test -run XXX -fuzz FuzzComposeRoundTrip -fuzztime $(FUZZTIME) ./internal/engine/
 	$(GO) test -run XXX -fuzz FuzzProductUnits -fuzztime $(FUZZTIME) ./internal/engine/
 	$(GO) test -run XXX -fuzz FuzzFiniteResults -fuzztime $(FUZZTIME) ./internal/engine/
+	$(GO) test -run XXX -fuzz FuzzFromString -fuzztime $(FUZZTIME) ./internal/decimal/
 
 .PHONY: bench
 bench:
