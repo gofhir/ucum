@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.3](https://github.com/gofhir/ucum/compare/v4.5.2...v4.5.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* read the value literals of the definitions with a strict grammar ([40d3b53](https://github.com/gofhir/ucum/commit/40d3b539e0b8eae63ed362679006926f897ab8ce))
+
 ## [4.5.2](https://github.com/gofhir/ucum/compare/v4.5.1...v4.5.2) (2026-11-16)
 
 
