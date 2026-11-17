@@ -22,39 +22,98 @@ func FromInt(n int64) Decimal {
 	return Decimal{new(big.Rat).SetInt64(n)}
 }
 
-// FromString parses a decimal literal, with or without an exponent. An empty
-// string is 1, which is what an omitted value means in the definitions.
+// maxLiteralExponent acota la magnitud del exponente decimal de un literal. No
+// es el tope de valores del motor: solo impide que un literal de pocos bytes
+// (1e1000000000) arme un número arbitrario al cargar un XML propio.
+const maxLiteralExponent = 9999
+
+// FromString parses a decimal literal: an optional minus sign, digits with an
+// optional fraction (or a fraction alone), and an optional exponent, as in
+// "-5", ".5" or "9.9e-9". Nothing else is accepted, not even surrounding
+// spaces, and an exponent beyond ±9999 is refused. An empty string is 1, which
+// is what an omitted value means in the definitions.
 func FromString(s string) (Decimal, error) {
-	s = strings.TrimSpace(s)
 	if s == "" {
 		return FromInt(1), nil
 	}
-	if idx := strings.IndexAny(s, "eE"); idx >= 0 {
-		base, exp := s[:idx], s[idx+1:]
-		r := new(big.Rat)
-		if _, ok := r.SetString(base); !ok {
-			return Decimal{}, fmt.Errorf("invalid decimal %q", s)
-		}
-		e := new(big.Int)
-		if _, ok := e.SetString(exp, 10); !ok {
-			return Decimal{}, fmt.Errorf("invalid exponent in %q", s)
-		}
-		ten := big.NewInt(10)
-		if e.Sign() >= 0 {
-			factor := new(big.Int).Exp(ten, e, nil)
-			r.Mul(r, new(big.Rat).SetInt(factor))
-		} else {
-			e.Neg(e)
-			factor := new(big.Int).Exp(ten, e, nil)
-			r.Quo(r, new(big.Rat).SetInt(factor))
-		}
-		return Decimal{r}, nil
-	}
-	r := new(big.Rat)
-	if _, ok := r.SetString(s); !ok {
+	mantissa, exp, ok := splitLiteral(s)
+	if !ok {
 		return Decimal{}, fmt.Errorf("invalid decimal %q", s)
 	}
+	if len(exp) > 4 { // sin ceros a la izquierda, más de cuatro cifras pasa de 9999.
+		return Decimal{}, fmt.Errorf("exponent of %q is beyond ±%d", s, maxLiteralExponent)
+	}
+	r, ok := new(big.Rat).SetString(mantissa)
+	if !ok {
+		return Decimal{}, fmt.Errorf("invalid decimal %q", s)
+	}
+	n := 0
+	for i := 0; i < len(exp); i++ {
+		n = n*10 + int(exp[i]-'0')
+	}
+	if n > 0 {
+		factor := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n)), nil))
+		if negativeExponent(s) {
+			r.Quo(r, factor)
+		} else {
+			r.Mul(r, factor)
+		}
+	}
 	return Decimal{r}, nil
+}
+
+// negativeExponent dice si el literal ya validado lleva un exponente negativo.
+func negativeExponent(s string) bool {
+	i := strings.IndexAny(s, "eE")
+	return i >= 0 && s[i+1] == '-'
+}
+
+// Con splitLiteral se valida s contra la gramática del plan 023: signo opcional,
+// dígitos ASCII con fracción opcional (o fracción sola) y exponente opcional.
+// Devuelve la mantisa y los dígitos del exponente sin ceros a la izquierda ("" si
+// vale 0 o falta).
+func splitLiteral(s string) (mantissa, exp string, ok bool) {
+	i := 0
+	if i < len(s) && s[i] == '-' {
+		i++
+	}
+	intDigits := digitRun(s[i:])
+	i += intDigits
+	if i < len(s) && s[i] == '.' {
+		i++
+		frac := digitRun(s[i:])
+		if frac == 0 {
+			return "", "", false
+		}
+		i += frac
+	} else if intDigits == 0 {
+		return "", "", false
+	}
+	mantissa = s[:i]
+	if i == len(s) {
+		return mantissa, "", true
+	}
+	if s[i] != 'e' && s[i] != 'E' {
+		return "", "", false
+	}
+	i++
+	if i < len(s) && s[i] == '-' {
+		i++
+	}
+	n := digitRun(s[i:])
+	if n == 0 || i+n != len(s) {
+		return "", "", false
+	}
+	return mantissa, strings.TrimLeft(s[i:], "0"), true
+}
+
+// digitRun cuenta los dígitos ASCII con que empieza s.
+func digitRun(s string) int {
+	n := 0
+	for n < len(s) && s[n] >= '0' && s[n] <= '9' {
+		n++
+	}
+	return n
 }
 
 // Add returns d + o.

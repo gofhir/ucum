@@ -142,20 +142,21 @@ func parse(r io.Reader) (*model.Model, error) {
 	for _, xu := range root.Units {
 		var unitVal *model.Conversion
 		if xu.Value.Value != "" || xu.Value.Unit != "" {
+			// Un value vacío u omitido vale 1 (FromString); uno inválido es un error.
 			v, err := decimal.FromString(xu.Value.Value)
 			if err != nil {
-				// Some special units have empty value; default to 1
-				v = decimal.FromInt(1)
+				return nil, fmt.Errorf("unit %s value: %w", xu.Code, err)
 			}
 			unitVal = &model.Conversion{Unit: xu.Value.Unit, Text: xu.Value.Text, Value: v}
-
-			if xf := xu.Value.Function; xf != nil {
-				fv, err := decimal.FromString(xf.Value)
-				if err != nil {
-					return nil, fmt.Errorf("unit %s function value %q: %w", xu.Code, xf.Value, err)
-				}
-				unitVal.Function = &model.Function{Name: xf.Name, Value: fv, Unit: xf.Unit}
+			fn, err := parseFunction(xu.Code, xu.Value.Function)
+			if err != nil {
+				return nil, err
 			}
+			unitVal.Function = fn
+		} else if _, err := parseFunction(xu.Code, xu.Value.Function); err != nil {
+			// Un <value> sin atributos no arma conversión (la unidad queda sin valor), pero
+			// su función se valida igual: un literal inválido no pasa callado.
+			return nil, err
 		}
 		m.DefinedUnits = append(m.DefinedUnits, &model.DefinedUnit{
 			Code: xu.Code, CodeCI: xu.CodeUC, Name: xu.Name, Property: xu.Property,
@@ -167,4 +168,16 @@ func parse(r io.Reader) (*model.Model, error) {
 
 	m.BuildIndexes()
 	return m, nil
+}
+
+// parseFunction lee el <function> de una unidad, o devuelve nil si no hay.
+func parseFunction(code string, xf *xmlFunction) (*model.Function, error) {
+	if xf == nil {
+		return nil, nil
+	}
+	fv, err := decimal.FromString(xf.Value)
+	if err != nil {
+		return nil, fmt.Errorf("unit %s function value %q: %w", code, xf.Value, err)
+	}
+	return &model.Function{Name: xf.Name, Value: fv, Unit: xf.Unit}, nil
 }

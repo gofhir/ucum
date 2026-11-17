@@ -7,7 +7,8 @@
 (docs/plans/006-cache-key-retention.md, §5 y §8), 007
 (docs/plans/007-exact-aliasing.md, §5) y 008
 (docs/plans/008-nonfinite-key.md, §5) y 013
-(docs/plans/013-sqrt-negative.md, §5).
+(docs/plans/013-sqrt-negative.md, §5) y 023
+(docs/plans/023-strict-xml-values.md, §6).
 
 Cada mutación se aplica en una copia del repo y se corre el test indicado.
 "kill" exige que el test falle; "survive" exige que pase, para las que
@@ -67,6 +68,10 @@ LOG10_TESTS = "^Test(StripTens|Log10Rat)"
 DM = "internal/decimal/decimal.go"
 EX = E + "/exact.go"
 FQ = "fhir/quantity.go"
+DECIMAL = "internal/decimal/decimal.go"
+ESSENCE = "internal/essence/essence.go"
+DECIMAL_TESTS = "^(TestFromStringGrammar|FuzzFromString|TestFromStringBoundIsCheap)$"
+ESSENCE_TESTS = "^Test(LoadEmptyAndOmittedValues|LoadInvalidValueMessages|MatchesJavaProbe)$"
 TWO_TESTS = "^Test(TwoCode|ConversionFactorNotLinear|CombineNames|ConvertRatNil)"
 FTWO_TESTS = "^Test(TwoCode|AddSub)"
 # El chequeo de dominio de tan en toLinearScale, tal como está antes de linearTimes.
@@ -1106,6 +1111,41 @@ MUTATIONS = [
      [(CV, "\tdstCan, err := s.getCanonical(to)\n\tif err != nil {\n\t\treturn 0, ucumerr.Conversion(from, to, err)",
        "\tdstCan, err := s.getCanonical(to)\n\tif err != nil {\n\t\treturn 0, ucumerr.Conversion(to, from, err)")],
      TWO_TESTS, "kill", "./internal/engine/", False),
+    # Plan 023: los valores del XML se leen con gramática estricta.
+    ("K271", "FromString skips the grammar check and hands the literal to SetString",
+     [(DECIMAL, "mantissa, exp, ok := splitLiteral(s)", 'mantissa, exp, ok := s, "", true')],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K272", "A unit value that does not parse falls back to 1 again",
+     [(ESSENCE, '\t\t\t\treturn nil, fmt.Errorf("unit %s value: %w", xu.Code, err)', "\t\t\t\tv = decimal.FromInt(1)")],
+     ESSENCE_TESTS, "kill", "./internal/essence/", False),
+    ("K273", "The grammar drops the leading minus sign",
+     [(DECIMAL, "\ti := 0\n\tif i < len(s) && s[i] == '-' {\n\t\ti++\n\t}\n", "\ti := 0\n")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K274", "The grammar drops the form with no integer digits (.5)",
+     [(DECIMAL, "if i < len(s) && s[i] == '.' {\n\t\ti++\n\t\tfrac", "if intDigits > 0 && i < len(s) && s[i] == '.' {\n\t\ti++\n\t\tfrac")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K275", "The grammar takes a plus sign in the exponent",
+     [(DECIMAL, "\ti++\n\tif i < len(s) && s[i] == '-' {\n\t\ti++\n\t}\n\tn := digitRun",
+       "\ti++\n\tif i < len(s) && (s[i] == '-' || s[i] == '+') {\n\t\ti++\n\t}\n\tn := digitRun")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K276", "FromString trims the spaces around the literal again",
+     [(DECIMAL, 'func FromString(s string) (Decimal, error) {\n\tif s == ""', 'func FromString(s string) (Decimal, error) {\n\ts = strings.TrimSpace(s)\n\tif s == ""')],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K277", "The exponent bound is off by one digit (five digits)",
+     [(DECIMAL, "if len(exp) > 4 {", "if len(exp) > 5 {")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K278", "The exponent bound is moved to nine digits",
+     [(DECIMAL, "if len(exp) > 4 {", "if len(exp) > 9 {")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K279", "An empty literal is 0 instead of 1",
+     [(DECIMAL, 'if s == "" {\n\t\treturn FromInt(1), nil', 'if s == "" {\n\t\treturn FromInt(0), nil')],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
+    ("K280", "The function of an attribute-less <value> is not validated (the old gate)",
+     [(ESSENCE, "} else if _, err := parseFunction(xu.Code, xu.Value.Function); err != nil {", "} else if _, err := parseFunction(xu.Code, nil); err != nil {")],
+     ESSENCE_TESTS, "kill", "./internal/essence/", False),
+    ("K281", "The sign of the exponent is taken from any minus sign in the literal",
+     [(DECIMAL, "return i >= 0 && s[i+1] == '-'", "return i >= 0 && strings.Contains(s, \"-\")")],
+     DECIMAL_TESTS, "kill", "./internal/decimal/", False),
 ]
 
 

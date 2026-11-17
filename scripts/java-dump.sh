@@ -4,7 +4,8 @@
 # scripts/java.sha256, regenera los casos (necesita los packages, como
 # make check-packages), compila y corre tools/javadump dos veces (las dos
 # salidas tienen que ser iguales byte a byte) y reescribe el resultado y el
-# manifiesto en internal/engine/testdata/java/. Avisa si Maven Central tiene
+# manifiesto en internal/engine/testdata/java/, y la salida de la sonda de
+# valores del XML (plan 023) en internal/essence/testdata/. Avisa si Maven Central tiene
 # una versión más nueva que la fijada. Necesita curl, shasum, go y un JDK 17+.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -81,3 +82,14 @@ cat > "$data/run-info.json" <<JSON
 }
 JSON
 echo "$(wc -l < "$out" | tr -d ' ') results in $out"
+
+# Plan 023: la sonda de valores del XML (tools/javavalues) carga el XML oficial
+# con cada literal de internal/essence/testdata/java-literals.txt en el value de
+# [mi_i] y anota si Ucum-java lo acepta. Dos corridas iguales byte a byte.
+values=$here/internal/essence/testdata
+javac -encoding UTF-8 -d "$cache/classes" -cp "$cache/ucum-$version.jar" "$here/tools/javavalues/JavaValues.java"
+java -cp "$cp" JavaValues "$here/internal/essence/ucum-essence.xml" < "$values/java-literals.txt" > "$values/java-values.tsv.part"
+java -cp "$cp" JavaValues "$here/internal/essence/ucum-essence.xml" < "$values/java-literals.txt" > "$cache/second-values.tsv"
+cmp -s "$values/java-values.tsv.part" "$cache/second-values.tsv" || { echo "two runs of the value probe differ"; exit 1; }
+mv "$values/java-values.tsv.part" "$values/java-values.tsv"
+echo "$(wc -l < "$values/java-values.tsv" | tr -d ' ') literals in $values/java-values.tsv"
